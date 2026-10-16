@@ -1,0 +1,652 @@
+/* FarmLife — modelos 3D low-poly feitos com formas geométricas */
+import * as THREE from 'three';
+
+// ================= Materiais e geometrias compartilhados =================
+const matCache = new Map();
+export function mat(color, opts = {}) {
+  const key = color + '|' + JSON.stringify(opts);
+  if (!matCache.has(key)) {
+    matCache.set(key, new THREE.MeshStandardMaterial({ color, flatShading: true, roughness: 0.9, metalness: 0, ...opts }));
+  }
+  return matCache.get(key);
+}
+
+export const GEO = {
+  box: new THREE.BoxGeometry(1, 1, 1),
+  ball: new THREE.SphereGeometry(1, 8, 6),
+  ballHi: new THREE.SphereGeometry(1, 12, 8),
+  cone: new THREE.ConeGeometry(1, 1, 6),
+  cyl: new THREE.CylinderGeometry(1, 1, 1, 8),
+  rock: new THREE.IcosahedronGeometry(1, 0),
+};
+
+function mesh(geo, color, sx, sy, sz, x, y, z) {
+  const m = new THREE.Mesh(geo, typeof color === 'number' ? mat(color) : color);
+  m.scale.set(sx, sy, sz);
+  m.position.set(x, y, z);
+  m.castShadow = true;
+  m.receiveShadow = true;
+  return m;
+}
+/** Caixa: tamanho total w×h×d, centro em (x, y, z). */
+export const box = (w, h, d, c, x = 0, y = 0, z = 0) => mesh(GEO.box, c, w, h, d, x, y, z);
+/** Elipsoide: raios rx, ry, rz. */
+export const ball = (rx, ry, rz, c, x = 0, y = 0, z = 0) => mesh(GEO.ball, c, rx, ry, rz, x, y, z);
+/** Cilindro: raio r, altura h (centrado). */
+export const cyl = (r, h, c, x = 0, y = 0, z = 0) => mesh(GEO.cyl, c, r, h, r, x, y, z);
+/** Cone: raio r, altura h (centrado, ponta para cima). */
+export const cone = (r, h, c, x = 0, y = 0, z = 0) => mesh(GEO.cone, c, r, h, r, x, y, z);
+
+function rot(m, x = 0, y = 0, z = 0) { m.rotation.set(x, y, z); return m; }
+
+/** Telhado de duas águas (prisma triangular) com cumeeira ao longo de z. */
+function gableRoof(width, height, depth, capColor, roofColor) {
+  const shape = new THREE.Shape();
+  shape.moveTo(-width / 2, 0);
+  shape.lineTo(width / 2, 0);
+  shape.lineTo(0, height);
+  shape.closePath();
+  const geo = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false });
+  geo.translate(0, 0, -depth / 2);
+  const m = new THREE.Mesh(geo, [mat(capColor), mat(roofColor)]);
+  m.castShadow = true;
+  m.receiveShadow = true;
+  return m;
+}
+
+// ================= Texturas de canvas =================
+function canvasTexture(w, h, draw) {
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  draw(c.getContext('2d'), w, h);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+export const soilTexture = canvasTexture(128, 128, (g, w, h) => {
+  g.fillStyle = '#a5714a';
+  g.fillRect(0, 0, w, h);
+  for (let y = 0; y < h; y += 32) {
+    g.fillStyle = '#86562f';
+    g.fillRect(0, y + 22, w, 10);
+    g.fillStyle = '#b8845a';
+    g.fillRect(0, y + 4, w, 6);
+  }
+  for (let k = 0; k < 160; k++) {
+    g.fillStyle = Math.random() < 0.5 ? 'rgba(60,35,15,.35)' : 'rgba(255,230,190,.18)';
+    g.fillRect(Math.random() * w, Math.random() * h, 3, 3);
+  }
+});
+soilTexture.magFilter = THREE.NearestFilter;
+
+const stripeTexture = canvasTexture(128, 32, (g, w, h) => {
+  for (let k = 0; k < 8; k++) {
+    g.fillStyle = k % 2 ? '#fff6e8' : '#d9473b';
+    g.fillRect((k * w) / 8, 0, w / 8, h);
+  }
+});
+
+function drawRoundRect(g, x, y, w, h, r) {
+  g.beginPath();
+  g.moveTo(x + r, y);
+  g.arcTo(x + w, y, x + w, y + h, r);
+  g.arcTo(x + w, y + h, x, y + h, r);
+  g.arcTo(x, y + h, x, y, r);
+  g.arcTo(x, y, x + w, y, r);
+  g.closePath();
+}
+
+const EMOJI_FONT = '"Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif';
+
+/** Placa de texto que sempre olha para a câmera. */
+export function textSprite(text, height = 0.5) {
+  const fs = 56;
+  const font = `600 ${fs}px Fredoka, system-ui, ${EMOJI_FONT}`;
+  const probe = document.createElement('canvas').getContext('2d');
+  probe.font = font;
+  const w = Math.ceil(probe.measureText(text).width) + 48;
+  const h = fs + 32;
+  const tex = canvasTexture(w, h, (g) => {
+    g.fillStyle = 'rgba(70, 45, 22, .85)';
+    drawRoundRect(g, 2, 2, w - 4, h - 4, 22);
+    g.fill();
+    g.font = font;
+    g.fillStyle = '#fff8e6';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(text, w / 2, h / 2 + 3);
+  });
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+  sp.scale.set((height * w) / h, height, 1);
+  sp.renderOrder = 10;
+  return sp;
+}
+
+const emojiCache = new Map();
+/** Ícone (emoji) com balão branco, usado como indicador sobre plantas e animais. */
+export function emojiSprite(emoji, size = 0.45, bubble = true) {
+  const key = emoji + bubble;
+  let tex = emojiCache.get(key);
+  if (!tex) {
+    tex = canvasTexture(128, 128, (g) => {
+      if (bubble) {
+        g.fillStyle = 'rgba(0,0,0,.18)';
+        g.beginPath(); g.arc(64, 68, 54, 0, Math.PI * 2); g.fill();
+        g.fillStyle = '#fffdf6';
+        g.beginPath(); g.arc(64, 62, 54, 0, Math.PI * 2); g.fill();
+      }
+      g.font = `${bubble ? 64 : 96}px ${EMOJI_FONT}`;
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.fillText(emoji, 64, bubble ? 66 : 70);
+    });
+    emojiCache.set(key, tex);
+  }
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+  sp.scale.set(size, size, 1);
+  sp.renderOrder = 11;
+  return sp;
+}
+
+// ================= Plantas =================
+const C = {
+  leaf: 0x5fb043, leafDark: 0x3f8a2c, stem: 0x6f9a2c, wheat: 0xe9c75f, wheatHead: 0xf3d77a, wheatGreen: 0xb1c95a,
+  carrot: 0xf07c22, tomato: 0xe0372d, unripe: 0x9ccc65, corn: 0xf5d23f, husk: 0xa5d06b, berry: 0xe8264a,
+  flower: 0xfffdf0, eggplant: 0x5b2a86, lilac: 0xb39ddb, pumpkin: 0xf08a24, pumpkinGreen: 0x8bc34a,
+  petal: 0xffcf1f, disk: 0x5d4037, stake: 0x9b6a3a,
+};
+
+const GRID3 = [];
+for (const x of [-0.28, 0, 0.28]) for (const z of [-0.28, 0, 0.28]) GRID3.push([x + (z * 0.15), z]);
+const GRID2 = [[-0.2, -0.2], [0.2, -0.2], [-0.2, 0.2], [0.2, 0.2]];
+const CENTER = [[0, 0]];
+
+function sprout(g, x, z, k = 1) {
+  g.add(cyl(0.012 * k, 0.1 * k, C.stem, x, 0.05 * k, z));
+  g.add(rot(ball(0.06 * k, 0.018 * k, 0.035 * k, C.leaf, x + 0.045 * k, 0.1 * k, z), 0, 0, 0.45));
+  g.add(rot(ball(0.06 * k, 0.018 * k, 0.035 * k, C.leaf, x - 0.045 * k, 0.1 * k, z), 0, 0, -0.45));
+}
+
+function blades(g, x, z, h, color, n = 3) {
+  for (let k = 0; k < n; k++) {
+    const a = (k / n) * Math.PI * 2;
+    g.add(rot(cone(0.025, h, color, x + Math.cos(a) * 0.03, h / 2, z + Math.sin(a) * 0.03), Math.sin(a) * 0.35, 0, -Math.cos(a) * 0.35));
+  }
+}
+
+const CROP_MODELS = {
+  trigo: {
+    spots: GRID3, height: 0.7, sprout: 0.8,
+    build(g, s) {
+      const h = [0, 0.22, 0.42, 0.52][s];
+      for (const [x, z] of this.spots) {
+        if (s === 1) { blades(g, x, z, h, C.leaf, 2); continue; }
+        g.add(cyl(0.014, h, s === 3 ? C.wheat : C.wheatGreen, x, h / 2, z));
+        g.add(ball(0.04, 0.1, 0.04, s === 3 ? C.wheatHead : C.wheatGreen, x, h + 0.07, z));
+        g.add(rot(cone(0.02, 0.2, s === 3 ? C.wheat : C.leaf, x + 0.04, h * 0.45, z), 0, 0, -0.6));
+      }
+    },
+  },
+  cenoura: {
+    spots: GRID2, height: 0.45,
+    build(g, s) {
+      const k = [0, 0.6, 0.9, 1][s];
+      for (const [x, z] of this.spots) {
+        blades(g, x, z, 0.24 * k, C.leaf, 4);
+        if (s === 3) g.add(rot(cone(0.075, 0.22, C.carrot, x, 0.02, z), Math.PI, 0, 0));
+        if (s === 2) g.add(rot(cone(0.045, 0.12, C.carrot, x, 0.0, z), Math.PI, 0, 0));
+      }
+    },
+  },
+  tomate: {
+    spots: CENTER, height: 0.85,
+    build(g, s) {
+      const k = [0, 0.55, 0.85, 1][s];
+      if (s >= 2) g.add(cyl(0.018, 0.8 * k, C.stake, 0.1, 0.4 * k, -0.08));
+      g.add(ball(0.22 * k, 0.26 * k, 0.22 * k, C.leafDark, 0, 0.3 * k, 0));
+      g.add(ball(0.16 * k, 0.18 * k, 0.16 * k, C.leaf, 0.06, 0.5 * k, 0.05));
+      g.add(ball(0.14 * k, 0.15 * k, 0.14 * k, C.leaf, -0.1, 0.42 * k, -0.06));
+      if (s >= 2) {
+        const fruits = [[0.17, 0.3, 0.1], [-0.12, 0.25, 0.17], [0.05, 0.5, 0.16], [-0.18, 0.42, -0.04], [0.14, 0.45, -0.12]];
+        for (const [x, y, z] of fruits.slice(0, s === 3 ? 5 : 3)) {
+          g.add(ball(s === 3 ? 0.075 : 0.05, s === 3 ? 0.07 : 0.05, s === 3 ? 0.075 : 0.05, s === 3 ? C.tomato : C.unripe, x * k, y * k, z * k));
+        }
+      }
+    },
+  },
+  milho: {
+    spots: GRID2, height: 1.2,
+    build(g, s) {
+      const h = [0, 0.3, 0.75, 1.0][s];
+      for (const [x, z] of this.spots) {
+        g.add(cyl(0.025, h, C.stem, x, h / 2, z));
+        g.add(rot(cone(0.035, h * 0.5, C.leaf, x + 0.07, h * 0.45, z), 0, 0, -0.9));
+        g.add(rot(cone(0.035, h * 0.5, C.leafDark, x - 0.07, h * 0.6, z), 0, 0, 0.9));
+        if (s >= 2) {
+          const cob = s === 3 ? C.corn : C.unripe;
+          g.add(rot(cyl(0.045, 0.2, cob, x + 0.06, h * 0.62, z + 0.02), 0, 0, -0.35));
+          g.add(rot(cone(0.05, 0.12, C.husk, x + 0.03, h * 0.62 - 0.12, z + 0.02), Math.PI, 0, -0.35));
+        }
+        if (s === 3) g.add(cone(0.03, 0.14, C.wheat, x, h + 0.06, z));
+      }
+    },
+  },
+  morango: {
+    spots: GRID2, height: 0.4,
+    build(g, s) {
+      const k = [0, 0.6, 0.85, 1][s];
+      for (const [x, z] of this.spots) {
+        g.add(ball(0.13 * k, 0.07 * k, 0.13 * k, C.leafDark, x, 0.07 * k, z));
+        g.add(ball(0.09 * k, 0.06 * k, 0.09 * k, C.leaf, x + 0.04, 0.12 * k, z - 0.03));
+        if (s === 2) g.add(ball(0.025, 0.02, 0.025, C.flower, x - 0.05, 0.15, z + 0.05));
+        if (s === 3) {
+          g.add(rot(cone(0.04, 0.08, C.berry, x + 0.1, 0.06, z + 0.06), Math.PI, 0, 0));
+          g.add(rot(cone(0.035, 0.07, C.berry, x - 0.08, 0.05, z + 0.09), Math.PI, 0, 0));
+        }
+      }
+    },
+  },
+  berinjela: {
+    spots: CENTER, height: 0.8,
+    build(g, s) {
+      const k = [0, 0.55, 0.85, 1][s];
+      g.add(ball(0.24 * k, 0.24 * k, 0.24 * k, C.leafDark, 0, 0.3 * k, 0));
+      g.add(ball(0.17 * k, 0.17 * k, 0.17 * k, C.leaf, 0.08, 0.48 * k, 0.04));
+      if (s === 2) for (const [x, z] of [[0.18, 0.12], [-0.15, 0.16], [0.02, -0.2]]) g.add(ball(0.03, 0.03, 0.03, C.lilac, x, 0.38, z));
+      if (s === 3) {
+        for (const [x, z, r] of [[0.2, 0.14, 0.3], [-0.16, 0.18, -0.3], [0.05, 0.24, 0.1]]) {
+          g.add(rot(ball(0.065, 0.14, 0.065, C.eggplant, x, 0.2, z), 0, 0, r));
+          g.add(cone(0.05, 0.06, C.leafDark, x - r * 0.12, 0.34, z));
+        }
+      }
+    },
+  },
+  abobora: {
+    spots: CENTER, height: 0.6,
+    build(g, s) {
+      const k = [0, 0.6, 0.85, 1][s];
+      for (const [x, z] of [[0.25, 0.1], [-0.22, 0.15], [0.05, -0.27], [-0.15, -0.2]]) {
+        g.add(ball(0.17 * k, 0.04, 0.15 * k, C.leaf, x * k, 0.06, z * k));
+      }
+      if (s === 2) g.add(mesh(GEO.ballHi, C.pumpkinGreen, 0.14, 0.1, 0.14, 0, 0.1, 0.05));
+      if (s === 3) {
+        g.add(mesh(GEO.ballHi, C.pumpkin, 0.32, 0.23, 0.32, 0, 0.22, 0.04));
+        g.add(rot(cyl(0.03, 0.12, C.stem, 0.02, 0.48, 0.04), 0, 0, -0.3));
+      }
+    },
+  },
+  girassol: {
+    spots: CENTER, height: 1.6, sprout: 1.2,
+    build(g, s) {
+      const h = [0, 0.35, 0.9, 1.25][s];
+      g.add(cyl(0.035, h, C.stem, 0, h / 2, 0));
+      g.add(rot(ball(0.16, 0.03, 0.08, C.leaf, 0.12, h * 0.4, 0), 0, 0, -0.4));
+      g.add(rot(ball(0.16, 0.03, 0.08, C.leafDark, -0.12, h * 0.6, 0), 0, 0, 0.4));
+      if (s === 2) g.add(ball(0.08, 0.08, 0.08, C.leafDark, 0, h + 0.05, 0));
+      if (s === 3) {
+        const head = new THREE.Group();
+        head.add(rot(mesh(new THREE.CylinderGeometry(1, 1, 1, 12), C.petal, 0.3, 0.03, 0.3, 0, 0, 0), 0, 0, 0));
+        head.add(cyl(0.15, 0.06, C.disk, 0, 0.02, 0));
+        head.position.set(0, h + 0.05, 0);
+        head.rotation.order = 'YXZ';
+        head.rotation.set(Math.PI / 2 - 0.4, Math.PI / 4, 0);
+        g.add(head);
+      }
+    },
+  },
+};
+
+export const cropHeight = (id) => CROP_MODELS[id].height;
+
+export function makeCrop(id, stage) {
+  const def = CROP_MODELS[id];
+  const g = new THREE.Group();
+  if (stage === 0) for (const [x, z] of def.spots) sprout(g, x, z, def.sprout || 1);
+  else def.build(g, stage);
+  return g;
+}
+
+// ================= Fazendeiro =================
+export function makeFarmer() {
+  const skin = 0xf1c27d, shirt = 0xd9534f, denim = 0x3d5a9e, boot = 0x5a3a22, hat = 0xe7c66a;
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  root.add(body);
+
+  const leg = (x) => {
+    const p = new THREE.Group();
+    p.position.set(x, 0.4, 0);
+    p.add(box(0.13, 0.32, 0.15, denim, 0, -0.16, 0));
+    p.add(box(0.14, 0.09, 0.2, boot, 0, -0.355, 0.025));
+    body.add(p);
+    return p;
+  };
+  const legL = leg(-0.085);
+  const legR = leg(0.085);
+
+  body.add(box(0.37, 0.12, 0.23, denim, 0, 0.44, 0));
+  body.add(box(0.36, 0.3, 0.22, shirt, 0, 0.64, 0));
+  body.add(box(0.27, 0.2, 0.02, denim, 0, 0.56, 0.115));
+  body.add(box(0.05, 0.16, 0.02, denim, -0.1, 0.71, 0.115));
+  body.add(box(0.05, 0.16, 0.02, denim, 0.1, 0.71, 0.115));
+  body.add(box(0.03, 0.03, 0.02, 0xf5d76e, -0.1, 0.65, 0.128));
+  body.add(box(0.03, 0.03, 0.02, 0xf5d76e, 0.1, 0.65, 0.128));
+
+  const arm = (x) => {
+    const p = new THREE.Group();
+    p.position.set(x, 0.76, 0);
+    p.add(box(0.1, 0.3, 0.12, shirt, 0, -0.14, 0));
+    p.add(ball(0.055, 0.055, 0.055, skin, 0, -0.33, 0));
+    body.add(p);
+    return p;
+  };
+  const armL = arm(-0.235);
+  const armR = arm(0.235);
+
+  const head = new THREE.Group();
+  head.position.set(0, 0.93, 0);
+  head.add(box(0.28, 0.27, 0.26, skin, 0, 0, 0));
+  head.add(box(0.04, 0.05, 0.02, 0x2b1d14, -0.065, 0.02, 0.131));
+  head.add(box(0.04, 0.05, 0.02, 0x2b1d14, 0.065, 0.02, 0.131));
+  head.add(box(0.05, 0.05, 0.04, 0xe2a76f, 0, -0.03, 0.14));
+  head.add(box(0.29, 0.13, 0.05, 0x6b4423, 0, 0.04, -0.12));
+  head.add(cyl(0.28, 0.03, hat, 0, 0.15, 0));
+  head.add(cyl(0.16, 0.14, hat, 0, 0.22, 0));
+  head.add(cyl(0.165, 0.035, 0xb23a2e, 0, 0.17, 0));
+  body.add(head);
+
+  // Ferramentas na mão direita
+  const hand = new THREE.Group();
+  hand.position.set(0, -0.33, 0);
+  armR.add(hand);
+  const tools = {};
+
+  tools.enxada = new THREE.Group();
+  tools.enxada.add(cyl(0.02, 0.62, 0x9b6a3a, 0, -0.2, 0));
+  tools.enxada.add(box(0.14, 0.03, 0.16, 0x9aa3ad, 0, -0.5, 0.07));
+
+  tools.regador = new THREE.Group();
+  tools.regador.add(cyl(0.085, 0.15, 0x4caf50, 0, -0.1, 0.03));
+  tools.regador.add(rot(cyl(0.016, 0.2, 0x4caf50, 0, -0.08, 0.17), 1.0, 0, 0));
+  tools.regador.add(box(0.03, 0.08, 0.1, 0x388e3c, 0, 0.0, 0.0));
+
+  tools.mao = new THREE.Group();
+  tools.mao.add(cyl(0.1, 0.1, 0xb98a4b, 0, -0.1, 0.03));
+  tools.mao.add(box(0.02, 0.12, 0.02, 0x8d6334, 0, 0, 0.03));
+
+  tools.seed = new THREE.Group();
+  tools.seed.add(ball(0.08, 0.1, 0.07, 0xe8d5a5, 0, -0.1, 0.03));
+  tools.seed.add(box(0.06, 0.03, 0.06, 0xa0703c, 0, -0.01, 0.03));
+
+  for (const t of Object.values(tools)) { t.visible = false; hand.add(t); }
+
+  return { root, body, legL, legR, armL, armR, head, tools };
+}
+
+// ================= Animais =================
+function legPivot(parent, x, y, z, legMesh) {
+  const p = new THREE.Group();
+  p.position.set(x, y, z);
+  p.add(legMesh);
+  parent.add(p);
+  return p;
+}
+
+export function makeAnimal(type) {
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  root.add(body);
+  const legs = [];
+  const head = new THREE.Group();
+  body.add(head);
+
+  if (type === 'galinha') {
+    const white = 0xfafafa;
+    body.add(ball(0.15, 0.14, 0.19, white, 0, 0.24, 0));
+    body.add(ball(0.04, 0.09, 0.13, 0xeeeeee, -0.15, 0.25, -0.01));
+    body.add(ball(0.04, 0.09, 0.13, 0xeeeeee, 0.15, 0.25, -0.01));
+    body.add(rot(cone(0.07, 0.15, white, 0, 0.33, -0.17), -0.7, 0, 0));
+    head.position.set(0, 0.38, 0.13);
+    head.add(ball(0.085, 0.085, 0.085, white, 0, 0, 0));
+    head.add(box(0.025, 0.07, 0.09, 0xe53935, 0, 0.09, 0));
+    head.add(rot(cone(0.028, 0.07, 0xffa726, 0, -0.01, 0.1), Math.PI / 2, 0, 0));
+    head.add(ball(0.018, 0.03, 0.015, 0xe53935, 0, -0.06, 0.07));
+    head.add(box(0.02, 0.02, 0.01, 0x222222, -0.05, 0.02, 0.07));
+    head.add(box(0.02, 0.02, 0.01, 0x222222, 0.05, 0.02, 0.07));
+    for (const x of [-0.05, 0.05]) {
+      const lg = new THREE.Group();
+      lg.add(cyl(0.012, 0.12, 0xffa726, 0, -0.06, 0));
+      lg.add(box(0.05, 0.01, 0.07, 0xffa726, 0, -0.12, 0.02));
+      legs.push(legPivot(body, x, 0.12, 0, lg));
+    }
+  } else if (type === 'ovelha') {
+    const wool = 0xf5f3ea, dark = 0x3a3a3a;
+    body.add(ball(0.3, 0.24, 0.38, wool, 0, 0.45, 0));
+    for (const [x, y, z] of [[0.15, 0.6, 0.12], [-0.15, 0.6, -0.1], [0, 0.65, -0.05], [0.18, 0.48, -0.2], [-0.2, 0.5, 0.15]]) {
+      body.add(ball(0.16, 0.14, 0.16, wool, x, y, z));
+    }
+    body.add(ball(0.08, 0.08, 0.08, wool, 0, 0.5, -0.38));
+    head.position.set(0, 0.56, 0.36);
+    head.add(box(0.18, 0.2, 0.22, dark, 0, 0, 0.02));
+    head.add(ball(0.11, 0.07, 0.11, wool, 0, 0.12, 0));
+    head.add(rot(box(0.12, 0.03, 0.06, dark, 0.13, 0.03, -0.02), 0, 0, -0.4));
+    head.add(rot(box(0.12, 0.03, 0.06, dark, -0.13, 0.03, -0.02), 0, 0, 0.4));
+    head.add(box(0.03, 0.03, 0.01, 0xffffff, -0.05, 0.03, 0.135));
+    head.add(box(0.03, 0.03, 0.01, 0xffffff, 0.05, 0.03, 0.135));
+    for (const [x, z] of [[-0.14, 0.18], [0.14, 0.18], [-0.14, -0.18], [0.14, -0.18]]) {
+      legs.push(legPivot(body, x, 0.28, z, box(0.07, 0.28, 0.07, dark, 0, -0.14, 0)));
+    }
+  } else if (type === 'vaca') {
+    const white = 0xf7f6f0, black = 0x262626, pink = 0xf2a7a7;
+    body.add(box(0.46, 0.4, 0.85, white, 0, 0.62, 0));
+    body.add(box(0.475, 0.18, 0.24, black, 0, 0.66, 0.12));
+    body.add(box(0.24, 0.03, 0.3, black, 0.09, 0.835, -0.2));
+    body.add(box(0.475, 0.14, 0.18, black, 0, 0.56, -0.28));
+    body.add(ball(0.11, 0.07, 0.11, pink, 0, 0.4, -0.15));
+    body.add(rot(cyl(0.015, 0.36, black, 0, 0.6, -0.45), 0.3, 0, 0));
+    head.position.set(0, 0.8, 0.5);
+    head.add(box(0.3, 0.3, 0.3, white, 0, 0, 0));
+    head.add(box(0.31, 0.12, 0.12, black, 0, 0.1, 0.05));
+    head.add(box(0.26, 0.14, 0.08, pink, 0, -0.08, 0.18));
+    head.add(rot(cone(0.03, 0.12, 0xf3e5c0, 0.12, 0.2, -0.02), 0, 0, -0.4));
+    head.add(rot(cone(0.03, 0.12, 0xf3e5c0, -0.12, 0.2, -0.02), 0, 0, 0.4));
+    head.add(box(0.12, 0.05, 0.06, white, 0.2, 0.06, -0.04));
+    head.add(box(0.12, 0.05, 0.06, white, -0.2, 0.06, -0.04));
+    head.add(box(0.035, 0.035, 0.01, 0x111111, -0.08, 0.03, 0.152));
+    head.add(box(0.035, 0.035, 0.01, 0x111111, 0.08, 0.03, 0.152));
+    for (const [x, z] of [[-0.15, 0.3], [0.15, 0.3], [-0.15, -0.3], [0.15, -0.3]]) {
+      const lg = new THREE.Group();
+      lg.add(box(0.1, 0.36, 0.1, white, 0, -0.18, 0));
+      lg.add(box(0.105, 0.06, 0.105, 0x3b2a1f, 0, -0.39, 0));
+      legs.push(legPivot(body, x, 0.42, z, lg));
+    }
+  } else if (type === 'porco') {
+    const pink = 0xf5a3b5, dark = 0xe0849b;
+    body.add(ball(0.25, 0.22, 0.36, pink, 0, 0.36, 0));
+    body.add(rot(mesh(new THREE.TorusGeometry(0.04, 0.012, 5, 8), pink, 1, 1, 1, 0, 0.42, -0.37), 0, Math.PI / 2, 0));
+    head.position.set(0, 0.42, 0.32);
+    head.add(ball(0.17, 0.16, 0.15, pink, 0, 0, 0));
+    head.add(rot(cyl(0.07, 0.06, dark, 0, -0.02, 0.15), Math.PI / 2, 0, 0));
+    head.add(box(0.02, 0.03, 0.01, 0x7a3a4a, -0.025, -0.02, 0.182));
+    head.add(box(0.02, 0.03, 0.01, 0x7a3a4a, 0.025, -0.02, 0.182));
+    head.add(rot(cone(0.06, 0.1, dark, 0.1, 0.15, -0.02), -0.3, 0, -0.5));
+    head.add(rot(cone(0.06, 0.1, dark, -0.1, 0.15, -0.02), -0.3, 0, 0.5));
+    head.add(box(0.03, 0.03, 0.01, 0x222222, -0.07, 0.05, 0.14));
+    head.add(box(0.03, 0.03, 0.01, 0x222222, 0.07, 0.05, 0.14));
+    for (const [x, z] of [[-0.12, 0.18], [0.12, 0.18], [-0.12, -0.18], [0.12, -0.18]]) {
+      legs.push(legPivot(body, x, 0.18, z, cyl(0.05, 0.18, dark, 0, -0.09, 0)));
+    }
+  }
+  return { root, body, head, legs };
+}
+
+// ================= Construções =================
+export function makeBarn() {
+  const g = new THREE.Group();
+  const red = 0xb5382b, white = 0xf4efe6;
+  g.add(box(4, 2.2, 3.4, red, 0, 1.1, 0));
+  const roof = gableRoof(4.5, 1.5, 3.8, red, 0x6b2b20);
+  roof.position.y = 2.2;
+  g.add(roof);
+  for (const [x, z] of [[-2, 1.7], [2, 1.7], [-2, -1.7], [2, -1.7]]) g.add(box(0.12, 2.2, 0.12, white, x, 1.1, z));
+  g.add(box(1.6, 1.8, 0.06, white, 0, 0.9, 1.71));
+  g.add(box(1.4, 1.65, 0.06, 0x8c2a20, 0, 0.83, 1.73));
+  g.add(rot(box(0.08, 2.0, 0.03, white, 0, 0.83, 1.77), 0, 0, 0.7));
+  g.add(rot(box(0.08, 2.0, 0.03, white, 0, 0.83, 1.77), 0, 0, -0.7));
+  g.add(box(0.8, 0.7, 0.06, white, 0, 2.75, 1.91));
+  g.add(box(0.65, 0.55, 0.06, 0x4a2f1c, 0, 2.75, 1.93));
+  g.add(box(0.6, 0.12, 0.3, 0xe6c35c, 0, 2.55, 1.95));
+  const lantern = box(0.14, 0.2, 0.14, mat(0xffd27a, { emissive: 0xffb84d, emissiveIntensity: 0 }), 1.05, 1.95, 1.78);
+  g.add(lantern);
+  // Fardos de feno ao lado
+  g.add(box(0.8, 0.5, 0.5, 0xe0c062, 2.6, 0.25, 1.2));
+  g.add(box(0.8, 0.5, 0.5, 0xd4b452, 2.6, 0.75, 1.2));
+  g.add(box(0.8, 0.5, 0.5, 0xe0c062, 2.6, 0.25, 0.6));
+  return { group: g, lights: [lantern.material] };
+}
+
+export function makeShop() {
+  const g = new THREE.Group();
+  const wood = 0xa0703c, dark = 0x7a5230;
+  g.add(box(2.6, 1.7, 0.12, dark, 0, 0.85, -0.55));
+  g.add(box(2.4, 0.9, 0.7, wood, 0, 0.45, 0.3));
+  g.add(box(2.6, 0.08, 0.85, dark, 0, 0.94, 0.3));
+  for (const [x, z] of [[-1.25, 0.65], [1.25, 0.65], [-1.25, -0.55], [1.25, -0.55]]) g.add(cyl(0.06, 2.3, dark, x, 1.15, z));
+  const awning = new THREE.Mesh(GEO.box, new THREE.MeshStandardMaterial({ map: stripeTexture, flatShading: true, roughness: 0.9 }));
+  awning.scale.set(2.9, 0.08, 1.7);
+  awning.position.set(0, 2.32, 0.1);
+  awning.rotation.x = 0.22;
+  awning.castShadow = true;
+  g.add(awning);
+  // Caixotes com produtos
+  const crate = (x, color, n) => {
+    g.add(box(0.5, 0.22, 0.4, 0xc49a63, x, 1.09, 0.3));
+    for (let k = 0; k < n; k++) g.add(ball(0.08, 0.08, 0.08, color, x - 0.15 + (k % 3) * 0.15, 1.25, 0.22 + Math.floor(k / 3) * 0.15));
+  };
+  crate(-0.8, 0xe0372d, 6);
+  crate(0, 0xf07c22, 6);
+  crate(0.8, 0xf5d23f, 6);
+  g.add(mesh(GEO.ballHi, 0xf08a24, 0.3, 0.22, 0.3, 1.5, 0.22, 0.9));
+  g.add(mesh(GEO.ballHi, 0xf08a24, 0.24, 0.18, 0.24, 1.9, 0.18, 0.6));
+  return { group: g, lights: [] };
+}
+
+export function makeBoard() {
+  const g = new THREE.Group();
+  const wood = 0x8b5a2b;
+  g.add(cyl(0.06, 1.9, 0x6f4825, -0.75, 0.95, 0));
+  g.add(cyl(0.06, 1.9, 0x6f4825, 0.75, 0.95, 0));
+  g.add(box(1.7, 1.05, 0.08, wood, 0, 1.25, 0));
+  g.add(rot(box(1.95, 0.06, 0.45, 0x6b2b20, 0, 1.9, 0.05), 0.25, 0, 0));
+  for (const [x, y, r] of [[-0.5, 1.35, 0.08], [0, 1.2, -0.05], [0.48, 1.38, 0.1], [-0.15, 1.5, 0.03]]) {
+    g.add(rot(box(0.34, 0.4, 0.01, 0xfffaf0, x, y, 0.05), 0, 0, r));
+    g.add(ball(0.025, 0.025, 0.025, 0xe53935, x, y + 0.17, 0.065));
+  }
+  return { group: g, lights: [] };
+}
+
+export function makeHouse() {
+  const g = new THREE.Group();
+  const wall = 0xf2e3c6;
+  g.add(box(3.6, 2.0, 3.0, wall, 0, 1.0, 0));
+  const roof = gableRoof(4.1, 1.4, 3.5, wall, 0x56627a);
+  roof.position.y = 2.0;
+  g.add(roof);
+  g.add(box(3.7, 0.15, 3.1, 0xb59d7a, 0, 0.07, 0));
+  g.add(box(0.85, 1.35, 0.06, 0x7a4b2a, 0.6, 0.72, 1.52));
+  g.add(ball(0.04, 0.04, 0.04, 0xf5d76e, 0.9, 0.72, 1.57));
+  const windowMat = mat(0x9cc4e4, { emissive: 0xffc861, emissiveIntensity: 0 });
+  for (const x of [-0.85]) {
+    g.add(box(0.75, 0.7, 0.05, 0xffffff, x, 1.2, 1.51));
+    g.add(box(0.6, 0.55, 0.06, windowMat, x, 1.2, 1.52));
+  }
+  g.add(box(0.75, 0.7, 0.05, 0xffffff, 1.81, 1.2, 0));
+  const side = box(0.06, 0.55, 0.6, windowMat, 1.82, 1.2, 0);
+  g.add(side);
+  g.add(box(0.4, 1.1, 0.4, 0x9c4a3a, -1.0, 2.7, -0.6));
+  g.add(box(1.4, 0.12, 0.6, 0x9b6a3a, 0.6, 0.06, 1.85));
+  // Flores na frente
+  for (let k = 0; k < 5; k++) g.add(ball(0.07, 0.07, 0.07, [0xff6f91, 0xffd54f, 0xffffff, 0xba68c8, 0xff8a65][k], -1.6 + k * 0.28, 0.12, 1.75));
+  return { group: g, lights: [windowMat] };
+}
+
+export function makeTrough() {
+  const g = new THREE.Group();
+  g.add(box(0.5, 0.35, 1.4, 0x8b5a2b, 0, 0.18, 0));
+  g.add(box(0.38, 0.06, 1.25, 0xe0c062, 0, 0.34, 0));
+  for (const z of [-0.6, 0.6]) g.add(box(0.56, 0.08, 0.08, 0x6f4825, 0, 0.36, z));
+  return g;
+}
+
+/** Cerca entre dois pontos (postes + duas travessas). */
+export function makeFence(x1, z1, x2, z2) {
+  const g = new THREE.Group();
+  const len = Math.hypot(x2 - x1, z2 - z1);
+  const n = Math.max(1, Math.round(len));
+  const wood = 0xc49a63;
+  for (let k = 0; k <= n; k++) {
+    const t = k / n;
+    g.add(box(0.12, 0.7, 0.12, 0xa57a4a, x1 + (x2 - x1) * t, 0.35, z1 + (z2 - z1) * t));
+  }
+  const ang = Math.atan2(x2 - x1, z2 - z1);
+  for (const y of [0.25, 0.52]) {
+    const rail = box(0.05, 0.08, len, wood, (x1 + x2) / 2, y, (z1 + z2) / 2);
+    rail.rotation.y = ang;
+    g.add(rail);
+  }
+  return g;
+}
+
+// ================= Natureza =================
+export function makeTree(kind, s = 1) {
+  const g = new THREE.Group();
+  if (kind === 'pine') {
+    g.add(cyl(0.15, 0.8, 0x7a5230, 0, 0.4, 0));
+    g.add(cone(0.95, 1.3, 0x3f8f46, 0, 1.3, 0));
+    g.add(cone(0.72, 1.1, 0x48a04f, 0, 1.95, 0));
+    g.add(cone(0.46, 0.9, 0x54ad5a, 0, 2.5, 0));
+  } else {
+    g.add(cyl(0.15, 1.1, 0x7a5230, 0, 0.55, 0));
+    g.add(ball(0.85, 0.75, 0.85, 0x5aa845, 0, 1.65, 0));
+    g.add(ball(0.55, 0.5, 0.55, 0x67b852, 0.45, 2.05, 0.2));
+    g.add(ball(0.5, 0.45, 0.5, 0x4f9a3d, -0.4, 1.95, -0.25));
+    if (kind === 'apple') {
+      for (const [x, y, z] of [[0.6, 1.5, 0.5], [-0.5, 1.7, 0.6], [0.2, 1.3, 0.8], [0.8, 1.9, -0.1]]) g.add(ball(0.08, 0.08, 0.08, 0xe53935, x, y, z));
+    }
+  }
+  g.scale.setScalar(s);
+  return g;
+}
+
+export function makeBush(s = 1) {
+  const g = new THREE.Group();
+  g.add(ball(0.45, 0.35, 0.45, 0x4f9a3d, 0, 0.3, 0));
+  g.add(ball(0.32, 0.28, 0.32, 0x5fae47, 0.3, 0.38, 0.15));
+  g.add(ball(0.3, 0.25, 0.3, 0x468a35, -0.28, 0.32, 0.1));
+  g.scale.setScalar(s);
+  return g;
+}
+
+export function makeRock(s = 1) {
+  const m = mesh(GEO.rock, 0x9e9e9e, 0.4 * s, 0.28 * s, 0.35 * s, 0, 0.12 * s, 0);
+  m.rotation.y = Math.random() * Math.PI;
+  return m;
+}
+
+export function makeFlower(color) {
+  const g = new THREE.Group();
+  g.add(cyl(0.012, 0.2, 0x5fae47, 0, 0.1, 0));
+  g.add(ball(0.06, 0.04, 0.06, color, 0, 0.21, 0));
+  g.add(ball(0.025, 0.025, 0.025, 0xffeb3b, 0, 0.24, 0));
+  return g;
+}
+
+export function makeGrassTuft() {
+  const g = new THREE.Group();
+  for (let k = 0; k < 3; k++) {
+    g.add(rot(cone(0.025, 0.16, 0x4f9a3d, (k - 1) * 0.04, 0.08, 0), 0, 0, (k - 1) * 0.35));
+  }
+  return g;
+}

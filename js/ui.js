@@ -1,0 +1,367 @@
+/* FarmLife — interface em HTML sobre a cena 3D (HUD, hotbar, painel, avisos) */
+import { CROPS, ANIMALS, PRODUCTS, UPGRADES, SOUND_KEY } from './data.js';
+import * as core from './core.js';
+import { Sound, sfx } from './audio.js';
+
+const $ = (sel) => document.querySelector(sel);
+const setText = (el, v) => { v = String(v); if (el.textContent !== v) el.textContent = v; };
+
+const el = {};
+const dirty = new Set();
+let currentTab = 'loja';
+let hudTimer = 0;
+let lastCoins = null;
+let handlers = {};
+
+export const markDirty = (...parts) => parts.forEach((p) => dirty.add(p));
+export const isPanelOpen = () => el.panel.classList.contains('open');
+export const isModalOpen = () => !el.modal.hidden;
+/** Verdadeiro quando o teclado deve ir para a interface, e não para o personagem. */
+export const uiBlocking = () => isModalOpen();
+
+// ================= Efeitos e avisos =================
+export function fxAt(x, y, text, cls = '') {
+  const d = document.createElement('div');
+  d.className = 'fx ' + cls;
+  d.textContent = text;
+  d.style.left = x + 'px';
+  d.style.top = y + 'px';
+  el.fx.appendChild(d);
+  setTimeout(() => d.remove(), 900);
+}
+
+export function toast(msg, type = '') {
+  while (el.toasts.children.length >= 4) el.toasts.firstChild.remove();
+  const d = document.createElement('div');
+  d.className = 'toast ' + type;
+  d.textContent = msg;
+  el.toasts.appendChild(d);
+  setTimeout(() => {
+    d.classList.add('out');
+    setTimeout(() => d.remove(), 300);
+  }, type === 'level' ? 4200 : 2800);
+}
+
+export function setStatus(text) { setText(el.status, text); }
+
+/** Escurece a tela por um instante (ao dormir). */
+export function sleepFade() {
+  el.fade.classList.remove('on');
+  void el.fade.offsetWidth; // reinicia a animação
+  el.fade.classList.add('on');
+}
+
+export function setPrompt(html) {
+  if (el.prompt._html === html) return;
+  el.prompt._html = html;
+  el.prompt.innerHTML = html;
+  el.prompt.hidden = !html;
+}
+
+// ================= Painel lateral =================
+export function openPanel(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('[data-open]').forEach((b) => b.classList.toggle('active', b.dataset.open === tab));
+  el.panel.classList.add('open');
+  renderPanel();
+  el.tabContent.scrollTop = 0;
+}
+
+export function closePanel() {
+  el.panel.classList.remove('open');
+  document.querySelectorAll('[data-open]').forEach((b) => b.classList.remove('active'));
+}
+
+function togglePanel(tab) {
+  if (isPanelOpen() && currentTab === tab) closePanel();
+  else { openPanel(tab); sfx('open'); }
+}
+
+function renderPanel() {
+  const S = core.S;
+  const scroll = el.tabContent.scrollTop;
+  if (currentTab === 'loja') el.tabContent.innerHTML = shopHtml();
+  else if (currentTab === 'celeiro') el.tabContent.innerHTML = barnHtml();
+  else el.tabContent.innerHTML = ordersHtml();
+  el.tabContent.scrollTop = scroll;
+
+  const ok = S.orders.filter(core.canFulfill).length;
+  el.badge.hidden = !ok;
+  setText(el.badge, ok);
+}
+
+function shopHtml() {
+  const S = core.S;
+  const fmt = core.fmt;
+  let h = '<h3>🌱 Sementes</h3><div class="cards">';
+  for (const [id, c] of Object.entries(CROPS)) {
+    const locked = c.level > S.level;
+    h += `<div class="card${locked ? ' locked' : ''}">
+      <div class="ico">${c.icon}</div>
+      <div class="info"><b>${c.name}</b>
+        <small>⏱ ${core.fmtDuration(c.time)} · vende 🪙${c.sell}${c.regrow ? ' · 🔁 rebrota' : ''}</small>
+        ${locked ? '' : `<small>Você tem: ${S.seeds[id] || 0}</small>`}</div>
+      <div class="btns">${locked
+        ? `<span class="req">🔒 Nível ${c.level}</span>`
+        : `<button class="btn" data-act="seed" data-id="${id}" data-q="1" ${S.coins < c.seed ? 'disabled' : ''}>🪙${c.seed}</button>
+           <button class="btn alt" data-act="seed" data-id="${id}" data-q="5" ${S.coins < c.seed * 5 ? 'disabled' : ''} title="Comprar 5 por 🪙${c.seed * 5}">×5</button>`}
+      </div></div>`;
+  }
+  h += '</div>';
+
+  const size = core.penSize();
+  const full = S.animals.length >= size;
+  h += `<h3>🐾 Animais <small>(${S.animals.length}/${size} no curral)</small></h3><div class="cards">`;
+  for (const [id, a] of Object.entries(ANIMALS)) {
+    const locked = a.level > S.level;
+    const prod = PRODUCTS[a.product];
+    h += `<div class="card${locked ? ' locked' : ''}">
+      <div class="ico">${a.icon}</div>
+      <div class="info"><b>${a.name}</b>
+        <small>Produz ${prod.icon} ${prod.name} (🪙${prod.sell}) a cada ${core.fmtDuration(a.time)} · come 🌾</small></div>
+      <div class="btns">${locked
+        ? `<span class="req">🔒 Nível ${a.level}</span>`
+        : full
+          ? '<span class="req">Curral cheio</span>'
+          : `<button class="btn" data-act="animal" data-id="${id}" ${S.coins < a.cost ? 'disabled' : ''}>🪙${fmt(a.cost)}</button>`}
+      </div></div>`;
+  }
+  h += '</div>';
+
+  h += '<h3>🛠️ Melhorias</h3><div class="cards">';
+  for (const [id, u] of Object.entries(UPGRADES)) {
+    const l = S.up[id];
+    const max = u.costs.length;
+    const maxed = l >= max;
+    const locked = !maxed && u.req[l] > S.level;
+    h += `<div class="card${locked ? ' locked' : ''}">
+      <div class="ico">${u.icon}</div>
+      <div class="info"><b>${u.name} <small>Nv ${l}/${max}</small></b>
+        <small>${maxed ? u.effect(l) : `${u.effect(l)} → <b>${u.effect(l + 1)}</b>`}</small></div>
+      <div class="btns">${maxed
+        ? '<span class="req">✔ Máximo</span>'
+        : locked
+          ? `<span class="req">🔒 Nível ${u.req[l]}</span>`
+          : `<button class="btn alt" data-act="upgrade" data-id="${id}" ${S.coins < u.costs[l] ? 'disabled' : ''}>🪙${fmt(u.costs[l])}</button>`}
+      </div></div>`;
+  }
+  h += '</div>';
+  h += `<p class="hint">🔒 Para expandir a fazenda, vá até um terreno bloqueado vizinho (🪙) e compre-o. Próximo lote: 🪙${fmt(core.plotCost())}.</p>`;
+  return h;
+}
+
+function trend(id) {
+  const m = core.S.prices[id] || 1;
+  if (m >= 1.1) return '<span class="up">▲</span>';
+  if (m <= 0.9) return '<span class="down">▼</span>';
+  return '';
+}
+
+function barnHtml() {
+  const S = core.S;
+  const fmt = core.fmt;
+  const ITEMS = core.ITEMS;
+  const ids = Object.keys(ITEMS).filter((id) => (S.inv[id] || 0) > 0);
+  const reserve = S.animals.length;
+  const total = ids.reduce((s, id) => s + core.price(id) * (id === 'trigo' ? Math.max(0, S.inv[id] - reserve) : S.inv[id]), 0);
+  let h = `<div class="barn-head">
+    <div>Valor de venda: <b>🪙${fmt(total)}</b>${reserve ? `<small>Guarda ${reserve} 🌾 para os animais</small>` : ''}</div>
+    <button class="btn" data-act="sellall" ${total ? '' : 'disabled'}>Vender tudo</button></div>`;
+
+  if (!ids.length) {
+    h += '<p class="empty-msg">Seu celeiro está vazio. Vá colher algo! 🧺</p>';
+  } else {
+    h += '<div class="cards">';
+    for (const id of ids) {
+      const it = ITEMS[id];
+      h += `<div class="card">
+        <div class="ico">${it.icon}</div>
+        <div class="info"><b>${it.name} ×${S.inv[id]}</b><small>🪙${core.price(id)} cada ${trend(id)}</small></div>
+        <div class="btns">
+          <button class="btn ghost" data-act="sell" data-id="${id}" data-q="1">Vender 1</button>
+          <button class="btn" data-act="sell" data-id="${id}" data-q="${S.inv[id]}">Tudo</button>
+        </div></div>`;
+    }
+    h += '</div>';
+  }
+
+  const seedIds = Object.keys(S.seeds).filter((id) => S.seeds[id] > 0);
+  h += '<h3>🌱 Sementes guardadas</h3>';
+  h += seedIds.length
+    ? `<div class="chips">${seedIds.map((id) => `<span class="chip">${CROPS[id].icon} ${CROPS[id].name} ×${S.seeds[id]}</span>`).join('')}</div>`
+    : '<p class="hint">Nenhuma semente. Compre na loja!</p>';
+
+  const market = Object.keys(ITEMS).filter((id) => (CROPS[id] ? CROPS[id].level <= S.level : S.animals.some((a) => ANIMALS[a.type].product === id)));
+  h += `<h3>📈 Mercado do dia ${core.dayOf(S.time)}</h3>`;
+  h += `<div class="chips">${market.map((id) => `<span class="chip">${ITEMS[id].icon} 🪙${core.price(id)} ${trend(id)}</span>`).join('')}</div>`;
+  h += '<p class="hint">Os preços mudam todo dia. ▲ = acima do normal, ▼ = abaixo.</p>';
+
+  h += `<h3>📊 Estatísticas</h3><div class="stats">
+    <div><b>${fmt(S.stats.harvest)}</b>colheitas</div>
+    <div><b>${fmt(S.stats.earned)}</b>moedas ganhas</div>
+    <div><b>${fmt(S.stats.orders)}</b>pedidos</div></div>`;
+  return h;
+}
+
+function ordersHtml() {
+  const S = core.S;
+  let h = '<h3>📦 Pedidos da vila</h3><div class="cards">';
+  S.orders.forEach((o, k) => {
+    const ok = core.canFulfill(o);
+    h += `<div class="order${ok ? ' ok' : ''}">
+      <div class="who">${o.who}</div>
+      <div class="reqs">${o.req.map((r) => {
+        const have = Math.min(S.inv[r.id] || 0, r.qty);
+        return `<span class="req-item${have >= r.qty ? ' done' : ''}">${core.ITEMS[r.id].icon} ${have}/${r.qty}</span>`;
+      }).join('')}</div>
+      <div class="order-foot">
+        <span class="reward">🪙${core.fmt(o.coins)} · ⭐${o.xp} XP</span>
+        <span class="btns">
+          <button class="btn ghost" data-act="skip" data-k="${k}" title="Recusar e receber outro pedido">✖</button>
+          <button class="btn" data-act="order" data-k="${k}" ${ok ? '' : 'disabled'}>Entregar</button>
+        </span>
+      </div></div>`;
+  });
+  h += '</div><p class="hint">Pedidos pagam bem mais do que o mercado. Recuse (✖) os que não te interessam.</p>';
+  return h;
+}
+
+// ================= Hotbar =================
+function renderToolbar() {
+  const S = core.S;
+  let h = '';
+  core.toolList().forEach((id, k) => {
+    const key = k < 9 ? `<kbd>${k + 1}</kbd>` : '';
+    if (k === core.TOOLS.length) h += '<span class="tool-sep"></span>';
+    const active = core.tool === id ? ' active' : '';
+    if (id.startsWith('seed:')) {
+      const cid = id.slice(5), c = CROPS[cid], n = S.seeds[cid] || 0;
+      h += `<button class="tool${active}${n ? '' : ' empty'}" data-tool="${id}" title="Sementes de ${c.name}">
+        ${key}<span class="ti">${c.icon}</span><span class="tn">${c.name}</span><span class="cnt">${n}</span></button>`;
+    } else {
+      const t = core.TOOLS.find((x) => x.id === id);
+      h += `<button class="tool${active}" data-tool="${id}" title="${t.name}">
+        ${key}<span class="ti">${t.icon}</span><span class="tn">${t.name}</span></button>`;
+    }
+  });
+  el.toolbar.innerHTML = h;
+}
+
+export function selectTool(id) {
+  core.setTool(id);
+  if (id.startsWith('seed:') && !core.S.seeds[id.slice(5)]) {
+    toast(`Sem sementes de ${CROPS[id.slice(5)].name}. Compre na loja! 🏪`);
+    openPanel('loja');
+  }
+}
+
+export function selectToolByIndex(n) {
+  const list = core.toolList();
+  if (list[n]) selectTool(list[n]);
+}
+
+// ================= HUD =================
+function renderHud() {
+  const S = core.S;
+  if (lastCoins !== null && S.coins > lastCoins) {
+    el.coins.classList.remove('bump');
+    void el.coins.offsetWidth; // reinicia a animação
+    el.coins.classList.add('bump');
+  }
+  lastCoins = S.coins;
+  setText(el.coins, core.fmt(S.coins));
+  setText(el.level, S.level);
+  const need = core.xpNeed(S.level);
+  el.xpfill.style.width = Math.min(100, (S.xp / need) * 100) + '%';
+  setText(el.xptext, `${Math.floor(S.xp)}/${need} XP`);
+  setText(el.day, `Dia ${core.dayOf(S.time)}`);
+  const hours = core.dayHours();
+  const h = Math.floor(hours) % 24;
+  const m = Math.floor((hours % 1) * 6) * 10;
+  setText(el.clock, `${core.pad(h)}:${core.pad(m)}`);
+  setText(el.weather, S.weather === 'chuva' ? '🌧️' : core.darkness() > 0.4 ? '🌙' : '☀️');
+}
+
+// ================= Modal =================
+export function openHelp() { el.modal.hidden = false; }
+function closeHelp() {
+  el.modal.hidden = true;
+  if (!core.S.seen) { core.S.seen = true; core.save(); }
+}
+
+// ================= Inicialização e quadro =================
+export function initUI(h) {
+  handlers = h;
+  Object.assign(el, {
+    coins: $('#coins'), level: $('#level'), xpfill: $('#xpfill'), xptext: $('#xptext'),
+    day: $('#day'), clock: $('#clock'), weather: $('#weather'),
+    toolbar: $('#toolbar'), status: $('#status'), prompt: $('#prompt'),
+    panel: $('#panel'), tabContent: $('#tab-content'), badge: $('#badge'),
+    fx: $('#fx'), toasts: $('#toasts'), modal: $('#modal'), btnSound: $('#btn-sound'), fade: $('#fade'),
+  });
+
+  el.toolbar.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-tool]');
+    if (b) { selectTool(b.dataset.tool); b.blur(); }
+  });
+  $('#zoom-in').addEventListener('click', () => handlers.onZoom(1 / 1.2));
+  $('#zoom-out').addEventListener('click', () => handlers.onZoom(1.2));
+  $('#btn-action').addEventListener('click', () => handlers.onAction());
+
+  document.querySelector('.tabs').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-tab]');
+    if (b) openPanel(b.dataset.tab);
+  });
+  document.querySelectorAll('[data-open]').forEach((b) => b.addEventListener('click', () => togglePanel(b.dataset.open)));
+  $('#btn-close').addEventListener('click', closePanel);
+
+  el.tabContent.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-act]');
+    if (!b || b.disabled) return;
+    const { act, id } = b.dataset;
+    if (act === 'seed') core.buySeed(id, +b.dataset.q);
+    else if (act === 'animal') core.buyAnimal(id);
+    else if (act === 'upgrade') core.buyUpgrade(id);
+    else if (act === 'sell') core.sell(id, +b.dataset.q);
+    else if (act === 'sellall') core.sellAll();
+    else if (act === 'order') core.fulfillOrder(+b.dataset.k);
+    else if (act === 'skip') core.skipOrder(+b.dataset.k);
+  });
+
+  try { Sound.on = localStorage.getItem(SOUND_KEY) !== '0'; } catch (e) { /* ignora */ }
+  setText(el.btnSound, Sound.on ? '🔊' : '🔇');
+  el.btnSound.addEventListener('click', () => {
+    Sound.on = !Sound.on;
+    setText(el.btnSound, Sound.on ? '🔊' : '🔇');
+    try { localStorage.setItem(SOUND_KEY, Sound.on ? '1' : '0'); } catch (e) { /* ignora */ }
+    if (Sound.on) sfx('coin');
+  });
+  $('#btn-help').addEventListener('click', openHelp);
+  $('#btn-start').addEventListener('click', closeHelp);
+  el.modal.addEventListener('click', (e) => { if (e.target === el.modal) closeHelp(); });
+  $('#btn-reset').addEventListener('click', () => {
+    if (!confirm('Recomeçar a fazenda do zero? Todo o progresso será perdido.')) return;
+    handlers.onReset();
+    closePanel();
+    toast('🌱 Uma nova fazenda começa!');
+  });
+
+  window.addEventListener('keydown', (e) => {
+    if (isModalOpen()) {
+      if (e.key === 'Escape' || e.key === 'Enter') closeHelp();
+      return;
+    }
+    if (e.key === 'Escape' && isPanelOpen()) closePanel();
+  });
+
+  markDirty('panel', 'toolbar');
+  if (!core.S.seen) openHelp();
+}
+
+export function uiFrame(dt) {
+  if (dirty.has('toolbar')) { dirty.delete('toolbar'); renderToolbar(); }
+  if (dirty.has('panel')) { dirty.delete('panel'); renderPanel(); }
+  hudTimer -= dt;
+  if (hudTimer <= 0) { hudTimer = 0.1; renderHud(); }
+}

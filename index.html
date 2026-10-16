@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>FarmLife 3D — Simulador de Fazenda</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌻</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script type="importmap">
+    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+  </script>
+</head>
+<body>
+  <canvas id="scene"></canvas>
+
+  <header class="hud">
+    <div class="pill brand">🌻 <span>FarmLife</span></div>
+    <div class="pill coins" title="Moedas">🪙 <b id="coins">0</b></div>
+    <div class="pill level" title="Nível e experiência">
+      <span>Nv <b id="level">1</b></span>
+      <div class="xpbar"><i id="xpfill"></i></div>
+      <small id="xptext">0/50</small>
+    </div>
+    <div class="pill clock" title="Dia e hora na fazenda">
+      <span id="weather">☀️</span> <b id="day">Dia 1</b> <span id="clock">06:00</span>
+    </div>
+    <div class="spacer"></div>
+    <nav class="hud-menu">
+      <button class="menu-btn" data-open="loja" title="Loja">🏪<span>Loja</span></button>
+      <button class="menu-btn" data-open="celeiro" title="Celeiro">🛖<span>Celeiro</span></button>
+      <button class="menu-btn" data-open="pedidos" title="Pedidos">📦<span>Pedidos</span><b id="badge" class="badge" hidden>0</b></button>
+    </nav>
+    <div class="hud-btns">
+      <button class="icon-btn" id="btn-sound" title="Som ligado/desligado">🔊</button>
+      <button class="icon-btn" id="btn-help" title="Como jogar">❓</button>
+      <button class="icon-btn" id="btn-reset" title="Recomeçar fazenda">🔄</button>
+    </div>
+  </header>
+
+  <div class="bottom">
+    <div id="prompt" class="prompt" hidden></div>
+    <div id="status" class="status"></div>
+    <div id="toolbar" class="toolbar"></div>
+  </div>
+
+  <div class="side-ctrl">
+    <button class="icon-btn dark" id="zoom-in" title="Aproximar (+)">＋</button>
+    <button class="icon-btn dark" id="zoom-out" title="Afastar (−)">－</button>
+  </div>
+  <button id="btn-action" class="action-btn" title="Ação (Espaço)">✋</button>
+
+  <aside id="panel" class="panel">
+    <nav class="tabs">
+      <button class="tab active" data-tab="loja">🏪 Loja</button>
+      <button class="tab" data-tab="celeiro">🛖 Celeiro</button>
+      <button class="tab" data-tab="pedidos">📦 Pedidos</button>
+      <button class="tab-close" id="btn-close" title="Fechar (Esc)">✕</button>
+    </nav>
+    <div id="tab-content" class="tab-content"></div>
+  </aside>
+
+  <div id="fx" class="fx-layer"></div>
+  <div id="toasts" class="toasts"></div>
+  <div id="fade" class="fade"></div>
+
+  <div id="modal" class="modal-bg" hidden>
+    <div class="modal" role="dialog" aria-labelledby="modal-title">
+      <h2 id="modal-title">🌻 Bem-vindo ao FarmLife 3D!</h2>
+      <p>Você herdou um pequeno terreno. Transforme-o na fazenda mais próspera da região!</p>
+      <ul>
+        <li><span>🚶</span><span>Ande com <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> ou as setas (<kbd>Shift</kbd> corre), ou clique no chão para ir até lá.</span></li>
+        <li><span>✋</span><span>Use <kbd>Espaço</kbd> ou <kbd>E</kbd> no lote à sua frente (contorno amarelo). Segure e ande para agir em vários lotes.</span></li>
+        <li><span>🖱️</span><span>Ou clique num lote: o fazendeiro vai até lá sozinho. Clique e arraste para criar uma fila de tarefas.</span></li>
+        <li><span>⛏️</span><span>Are a grama, escolha uma semente (<kbd>1</kbd>–<kbd>9</kbd>), plante e <b>regue</b>: sem água, nada cresce.</span></li>
+        <li><span>🛖</span><span>Visite o <b>Celeiro</b>, a <b>Loja</b> e o quadro de <b>Pedidos</b> (ou use os botões no topo).</span></li>
+        <li><span>🐔</span><span>Animais ficam no <b>curral</b>, comem 🌾 trigo e produzem itens valiosos. O cocho alimenta todos.</span></li>
+        <li><span>🏠</span><span>À noite, entre em casa para <b>dormir</b> e pular para a manhã.</span></li>
+        <li><span>💾</span><span>O jogo salva sozinho, e a fazenda continua crescendo enquanto você está fora.</span></li>
+      </ul>
+      <button class="btn big" id="btn-start">Começar a jogar!</button>
+    </div>
+  </div>
+
+  <div id="loading" class="loading">
+    <div class="loading-box">
+      <div class="loading-icon">🌻</div>
+      <p id="loading-msg">Preparando a fazenda…</p>
+    </div>
+  </div>
+  <script>
+    // Se o módulo 3D não carregar (sem internet ou aberto direto como arquivo), explica o motivo
+    setTimeout(function () {
+      var msg = document.getElementById('loading-msg');
+      if (!msg) return;
+      msg.innerHTML = location.protocol === 'file:'
+        ? 'Abra o jogo pelo servidor local: rode <code>node serve.js</code> e acesse <b>http://localhost:5173</b>.'
+        : 'Não foi possível carregar o motor 3D (Three.js). Verifique sua conexão com a internet e recarregue a página.';
+    }, location.protocol === 'file:' ? 300 : 12000);
+  </script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
