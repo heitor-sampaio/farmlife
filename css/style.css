@@ -390,12 +390,67 @@ body.joy-right .action-btn { right: auto; left: 70px; }
   border-radius: 12px;
   background: #fffdf6;
 }
-.card.locked { opacity: .55; filter: grayscale(.6); }
+.card.locked { opacity: .55; filter: grayscale(.6); padding: 5px 10px; }
+/* Bloqueado: só o nome e o nível (a descrição aparece quando libera) */
+.card.locked .info small, .card.locked .progress { display: none; }
+.card.locked .ico, .card.compact .ico { font-size: 22px; }
+/* Pronto/comprado: uma linha só */
+.card.compact { padding: 5px 10px; }
+.card.compact .info > small, .card.compact .progress { display: none; }
+
+/* Barra de categorias no topo do painel (fica visível ao rolar) */
+.subtabs {
+  position: sticky;
+  top: -14px;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: -14px -14px 12px;
+  padding: 10px 14px 9px;
+  border-bottom: 2px solid var(--line);
+  background: var(--paper);
+}
+.subtab {
+  position: relative;
+  padding: 5px 11px;
+  border: 2px solid var(--line);
+  border-radius: 99px;
+  background: #fffdf6;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.subtab:hover { background: #fff6d6; }
+.subtab.active { border-color: #f5b82e; background: #fff3b0; }
+.subtab .dot { position: absolute; top: -3px; right: -3px; width: 10px; height: 10px; border: 2px solid var(--paper); border-radius: 50%; background: var(--red); }
+
+/* Sementes em grade */
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 8px; }
+.tile { display: flex; flex-direction: column; gap: 1px; padding: 7px 8px 8px; border: 2px solid var(--line); border-radius: 12px; background: #fffdf6; }
+.tile.hot { border-color: #9ccc65; background: #f4fbe9; }
+.tile-top { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
+.tile-top .tico { font-size: 24px; line-height: 1; }
+.tile-top b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tile-top .tag { font-size: 14px; }
+.tile small { color: var(--muted); font-size: 11.5px; }
+.tile .btns { margin-top: 6px; gap: 4px; }
+.tile .btns .btn { flex: 1; padding: 6px 4px; font-size: 12.5px; }
+.soon { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; font-size: 12px; color: var(--muted); }
+.soon .chip { font-size: 12px; opacity: .8; }
+@media (max-width: 600px) {
+  /* No celular as categorias ficam numa linha só, que rola para o lado */
+  .subtabs { flex-wrap: nowrap; overflow-x: auto; padding: 8px 14px 7px; scrollbar-width: none; }
+  .subtabs::-webkit-scrollbar { display: none; }
+  .subtab { flex-shrink: 0; padding: 4px 10px; }
+}
 .card.hired { border-color: var(--green); background: #f1fae6; }
 .card .ico { width: 40px; font-size: 30px; text-align: center; flex-shrink: 0; }
 .card .info { display: flex; flex: 1; flex-direction: column; min-width: 0; }
 .card small { color: var(--muted); font-size: 12px; }
-.card .req { font-size: 12px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.card .req { max-width: 112px; font-size: 12px; font-weight: 600; line-height: 1.25; color: var(--muted); text-align: right; }
 .btns { display: flex; gap: 6px; flex-shrink: 0; }
 
 .btn {

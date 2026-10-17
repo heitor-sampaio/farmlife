@@ -86,6 +86,8 @@ export function setPrompt(html) {
 export function openPanel(tab, anchor) {
   if (handlers.onPanel) handlers.onPanel(tab);
   currentTab = tab;
+  if (anchor && SUBTABS[tab] && SUBTABS[tab].some((c) => c[0] === anchor)) subCur[tab] = anchor;
+  else if (tab === 'loja' && ANCHOR_CAT[anchor]) subCur.loja = ANCHOR_CAT[anchor];
   document.querySelectorAll('.tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
   document.querySelectorAll('[data-open]').forEach((b) => b.classList.toggle('active', b.dataset.open === tab));
   el.panel.classList.add('open');
@@ -105,13 +107,29 @@ function togglePanel(tab) {
   else { openPanel(tab); sfx('open'); }
 }
 
+// ================= Categorias dos painéis =================
+const SUBTABS = {
+  loja: [['sementes', '🌱', 'Sementes'], ['animais', '🐾', 'Animais'], ['terras', '🗺️', 'Terras'], ['producao', '🏭', 'Produção'], ['ferramentas', '🪓', 'Ferramentas'], ['melhorias', '🛠️', 'Melhorias'], ['decor', '🌻', 'Decoração']],
+  celeiro: [['itens', '📦', 'Itens'], ['mercado', '📈', 'Mercado'], ['numeros', '📊', 'Números']],
+  oficina: [['carpintaria', '🪚', 'Carpintaria'], ['obras', '🏗️', 'Obras'], ['fabricas', '🏭', 'Fábricas']],
+  pedidos: [['pedidos', '📦', 'Pedidos'], ['feira', '🎪', 'Feira'], ['moradores', '❤️', 'Moradores']],
+};
+const subCur = { loja: 'sementes', celeiro: 'itens', oficina: 'carpintaria', pedidos: 'pedidos' };
+// Seções antigas da Loja (atalhos do jogo) → categoria
+const ANCHOR_CAT = { campos: 'terras', maquinas: 'terras', pesca: 'ferramentas', lenha: 'ferramentas', pet: 'animais', cavalo: 'animais', queijaria: 'producao', pomar: 'producao', decor: 'decor' };
+
+/** Barra de categorias (bolinha = algo pedindo atenção). */
+function subBar(tab, dots = {}) {
+  return `<div class="subtabs">${SUBTABS[tab].map(([id, icon, name]) => `<button class="subtab${subCur[tab] === id ? ' active' : ''}" data-act="sub" data-id="${tab}:${id}">${icon} ${name}${dots[id] ? '<i class="dot"></i>' : ''}</button>`).join('')}</div>`;
+}
+
 function renderPanel() {
   const S = core.S;
   const scroll = el.tabContent.scrollTop;
-  if (currentTab === 'loja') el.tabContent.innerHTML = shopHtml();
-  else if (currentTab === 'celeiro') el.tabContent.innerHTML = barnHtml();
-  else if (currentTab === 'oficina') el.tabContent.innerHTML = workshopHtml();
-  else el.tabContent.innerHTML = ordersHtml();
+  const tab = currentTab;
+  const parts = tab === 'loja' ? shopHtml() : tab === 'celeiro' ? barnHtml() : tab === 'oficina' ? workshopHtml() : ordersHtml();
+  const dots = tab === 'pedidos' ? { pedidos: S.orders.some(core.canFulfill), feira: sys.fairToday() } : {};
+  el.tabContent.innerHTML = subBar(tab, dots) + (parts[subCur[tab]] || '');
   el.tabContent.scrollTop = scroll;
   if (currentTab === 'pedidos' && isPanelOpen()) core.markOrdersSeen();
 
@@ -123,24 +141,32 @@ function renderPanel() {
 function shopHtml() {
   const S = core.S;
   const fmt = core.fmt;
-  let h = '<h3>🌱 Sementes</h3><div class="cards">';
-  for (const [id, c] of Object.entries(CROPS)) {
-    const locked = c.level > S.level;
-    h += `<div class="card${locked ? ' locked' : ''}">
-      <div class="ico">${c.icon}</div>
-      <div class="info"><b>${c.name}</b>
-        <small>⏱ ${core.fmtDuration(c.time)} · vende 🪙${c.sell}${c.regrow ? ' · 🔁 rebrota' : ''}</small>
-        <small>${sys.inSeason(id) ? `<b class="up">${sys.season().icon} da estação: +30%</b>` : `Melhor em: ${sys.cropSeasons(id) || '—'}`}</small>
-        ${locked ? '' : `<small>Você tem: ${S.seeds[id] || 0}</small>`}</div>
-      <div class="btns">${locked
-        ? `<span class="req">🔒 Nível ${c.level}</span>`
-        : `<button class="btn" data-act="seed" data-id="${id}" data-q="1" ${S.coins < c.seed ? 'disabled' : ''}>🪙${c.seed}</button>
-           <button class="btn alt" data-act="seed" data-id="${id}" data-q="5" ${S.coins < c.seed * 5 ? 'disabled' : ''} title="Comprar 5 por 🪙${c.seed * 5}">×5</button>
-           ${id === 'trigo' ? `<button class="btn alt" data-act="seed" data-id="trigo" data-q="50" ${S.coins < c.seed * 50 ? 'disabled' : ''} title="Saco com 50 sementes por 🪙${c.seed * 50}">×50</button>` : ''}`}
-      </div></div>`;
+  // Cada categoria junta pedaços de HTML; ord = posição dentro da categoria
+  const parts = {};
+  let h = '', cur = 'sementes', ord = 1;
+  const sec = (cat, o) => { (parts[cur] = parts[cur] || []).push([ord, h]); h = ''; cur = cat; ord = o; };
+
+  const byLevel = (a, b) => CROPS[a].level - CROPS[b].level || CROPS[a].seed - CROPS[b].seed;
+  const open = Object.keys(CROPS).filter((id) => CROPS[id].level <= S.level).sort(byLevel);
+  const soon = Object.keys(CROPS).filter((id) => CROPS[id].level > S.level).sort(byLevel);
+  const sz = sys.season();
+  h += `<h3>🌱 Sementes <small>${sz.icon} = da estação (+30%)</small></h3><div class="tiles">`;
+  for (const id of open) {
+    const c = CROPS[id];
+    const hot = sys.inSeason(id);
+    h += `<div class="tile${hot ? ' hot' : ''}" title="Melhor em: ${sys.cropSeasons(id) || '—'}">
+      <div class="tile-top"><span class="tico">${c.icon}</span><b>${c.name}</b>${hot ? `<span class="tag">${sz.icon}</span>` : ''}</div>
+      <small>⏱ ${core.fmtDuration(c.time)} · vende 🪙${c.sell}${c.regrow ? ' · 🔁' : ''}</small>
+      <small>Você tem ${S.seeds[id] || 0}</small>
+      <div class="btns"><button class="btn" data-act="seed" data-id="${id}" data-q="1" ${S.coins < c.seed ? 'disabled' : ''}>🪙${c.seed}</button>
+        <button class="btn alt" data-act="seed" data-id="${id}" data-q="5" ${S.coins < c.seed * 5 ? 'disabled' : ''} title="Comprar 5 por 🪙${c.seed * 5}">×5</button>${id === 'trigo' ? `<button class="btn alt" data-act="seed" data-id="trigo" data-q="50" ${S.coins < c.seed * 50 ? 'disabled' : ''} title="Saco com 50 sementes por 🪙${c.seed * 50}">×50</button>` : ''}</div>
+    </div>`;
   }
   h += '</div>';
+  if (soon.length) h += `<div class="soon"><b>🔒 Em breve</b>${soon.map((id) => `<span class="chip">${CROPS[id].icon} ${CROPS[id].name} · nv ${CROPS[id].level}</span>`).join('')}</div>`;
+  h += '<p class="hint">🔁 = rebrota depois de colhida (não precisa plantar de novo).</p>';
 
+  sec('terras', 1);
   h += '<h3 id="sec-campos">🗺️ Campos</h3><div class="cards">';
   for (const f of FIELDS) {
     if (!f.cost) continue;
@@ -175,6 +201,7 @@ function shopHtml() {
   }
   h += '</div>';
 
+  sec('ferramentas', 1);
   h += '<h3 id="sec-pesca">🎣 Pescaria</h3><div class="cards">';
   for (let lv = 1; lv < RODS.length; lv++) {
     const rd = RODS[lv];
@@ -229,6 +256,7 @@ function shopHtml() {
   }
   h += `</div><p class="hint">🌲 O bosque fica no oeste da fazenda, no fim da rua principal. Cada árvore rende ${WOOD.logs[0]}–${WOOD.logs[1]} ${LOG.icon} troncos (🪙${LOG.sell} cada) e cresce de novo em ~${Math.round(WOOD.regrow / 60)} min.</p>`;
 
+  sec('animais', 2);
   const pet = S.pet;
   const petLocked = !pet.owned && PET.level > S.level;
   const esc = (t) => String(t).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]);
@@ -273,6 +301,7 @@ function shopHtml() {
         </div></div></div>`;
   }
 
+  sec('terras', 2);
   const big = S.big.owned;
   const bigLocked = !big && BIG_FIELD.level > S.level;
   h += `<h3 id="sec-maquinas">🚜 Lavoura mecanizada</h3><div class="cards">
@@ -306,6 +335,7 @@ function shopHtml() {
   }
   h += '</div>';
 
+  sec('producao', 1);
   {
     const owned = core.built('queijaria');
     const locked = !owned && CHEESERY.level > S.level;
@@ -322,10 +352,11 @@ function shopHtml() {
             ? `<span class="req">🔒 Nível ${CHEESERY.level}</span>`
             : !core.lotPlaced('queijaria')
               ? '<button class="btn alt" data-act="placelot" data-id="queijaria">📍 Escolher lugar</button>'
-              : `<button class="btn alt" data-act="tab" data-id="oficina">🏗️ Obra ${prog}%</button>`}
+              : `<button class="btn alt" data-act="tab" data-id="oficina:obras">🏗️ Obra ${prog}%</button>`}
         </div></div></div>`;
   }
 
+  sec('producao', 2);
   h += '<h3 id="sec-pomar">🌳 Pomar e colmeias</h3><div class="cards">';
   const free = S.orchard.filter((o) => !o.type).length;
   for (const [id, t] of Object.entries(FRUIT_TREES)) {
@@ -359,6 +390,7 @@ function shopHtml() {
   }
   h += '<p class="hint">🌳 O pomar fica atrás das construções da sede, no norte da fazenda.</p>';
 
+  sec('decor', 1);
   h += '<h3 id="sec-decor">🌻 Decoração</h3><div class="cards">';
   for (const [id, dd] of Object.entries(DECOR)) {
     const locked = dd.level > S.level;
@@ -375,6 +407,7 @@ function shopHtml() {
   }
   h += '</div><p class="hint">Depois de comprar, escolha o lugar no mapa. Para mudar algo de lugar, chegue perto e use a ação (Mover).</p>';
 
+  sec('animais', 1);
   const size = core.penSize();
   const homes = [];
   if (core.built('curral')) homes.push(`${core.penCount()}/${size} no curral`);
@@ -392,7 +425,8 @@ function shopHtml() {
     h += `<div class="card${locked ? ' locked' : ''}">
       <div class="ico">${a.icon}</div>
       <div class="info"><b>${a.f} / ${a.m}</b>
-        <small>A ${a.f.toLowerCase()} produz ${prod.icon} ${prod.name} (🪙${prod.sell}) a cada ${core.fmtDuration(a.time)} · come 🌾. O ${a.m.toLowerCase()} não produz, mas com ela nascem ${a.baby.toLowerCase()}s. Cor sorteada.</small>${herd}</div>
+        <small>♀ dá ${prod.icon} ${prod.name} (🪙${prod.sell}) a cada ${core.fmtDuration(a.time)} · come 🌾</small>
+        <small>♂ não produz, mas com ♀ nascem ${a.baby.toLowerCase()}s · cor sorteada</small>${herd}</div>
       <div class="btns">${locked
         ? `<span class="req">🔒 Nível ${a.level}</span>`
         : !core.built(id === 'galinha' ? 'galinheiro' : 'curral')
@@ -405,6 +439,7 @@ function shopHtml() {
   }
   h += '</div>';
 
+  sec('melhorias', 2);
   const wages = core.dailyWages();
   h += `<h3>👷 Funcionários${wages ? ` <small>(salários: 🪙${fmt(wages)}/dia)</small>` : ''}</h3><div class="cards">`;
   for (const [id, w] of Object.entries(WORKERS)) {
@@ -424,6 +459,7 @@ function shopHtml() {
   }
   h += '</div>';
 
+  sec('melhorias', 1);
   h += '<h3>🛠️ Melhorias</h3><div class="cards">';
   for (const [id, u] of Object.entries(UPGRADES)) {
     const l = S.up[id];
@@ -444,8 +480,12 @@ function shopHtml() {
       </div></div>`;
   }
   h += '</div>';
-  h += `<p class="hint">🔒 Para expandir a fazenda, vá até um terreno bloqueado vizinho (🪙) e compre-o. Próximo lote: 🪙${fmt(core.plotCost())}.</p>`;
-  return h;
+  sec('terras', 0);
+  h += `<p class="hint" style="margin:0 0 10px">🔒 Para aumentar o campo principal, vá até um lote bloqueado vizinho (🪙) e compre-o. Próximo lote: 🪙${fmt(core.plotCost())}.</p>`;
+  sec(null, 0);
+  const out = {};
+  for (const [cat, list] of Object.entries(parts)) out[cat] = list.sort((a, b) => a[0] - b[0]).map((x) => x[1]).join('');
+  return out;
 }
 
 function trend(id) {
@@ -473,7 +513,7 @@ function barnHtml() {
     <button class="btn" data-act="sellall" ${total ? '' : 'disabled'}>Vender tudo</button></div>`
     : `<div class="notice">🏗️ <b>O armazém ainda está em obra.</b> Sua colheita fica guardada aqui, mas só dá para vender depois de construí-lo
       (${costText(BUILDINGS.celeiro.cost)}). Enquanto isso, entregue os 📦 pedidos da vila para ganhar moedas.
-      <br><button class="btn alt" data-act="tab" data-id="oficina">🪚 Ver a Oficina</button></div>`;
+      <br><button class="btn alt" data-act="tab" data-id="oficina:obras">🪚 Ver as obras</button></div>`;
 
   h = storage + h;
   if (!ids.length) {
@@ -495,6 +535,8 @@ function barnHtml() {
     h += '</div>';
   }
 
+  const out = { itens: h };
+  h = '';
   const seedIds = Object.keys(S.seeds).filter((id) => S.seeds[id] > 0);
   h += '<h3>🌱 Sementes guardadas</h3>';
   h += seedIds.length
@@ -505,8 +547,9 @@ function barnHtml() {
   h += `<h3>📈 Mercado do dia ${core.dayOf(S.time)}</h3>`;
   h += `<div class="chips">${market.map((id) => `<span class="chip">${ITEMS[id].icon} 🪙${core.price(id)} ${trend(id)}</span>`).join('')}</div>`;
   h += '<p class="hint">Os preços mudam todo dia. ▲ = acima do normal, ▼ = abaixo.</p>';
+  out.mercado = h;
 
-  h += `<h3>📊 Estatísticas</h3><div class="stats">
+  h = `<h3>📊 Estatísticas</h3><div class="stats">
     <div><b>${fmt(S.stats.harvest)}</b>colheitas</div>
     <div><b>${fmt(S.stats.earned)}</b>moedas ganhas</div>
     <div><b>${fmt(S.stats.orders)}</b>pedidos</div>
@@ -517,7 +560,8 @@ function barnHtml() {
     <div><b>${fmt(S.stats.crafted || 0)}</b>peças feitas</div>
     <div><b>${fmt(S.stats.births || 0)}</b>filhotes</div>
     <div><b>${fmt(S.stats.cheese || 0)}</b>queijos</div></div>`;
-  return h;
+  out.numeros = h;
+  return out;
 }
 
 const PLURAL = { tronco: 'troncos', madeira: 'tábuas', viga: 'vigas' };
@@ -544,8 +588,9 @@ function workshopHtml() {
       </div></div>`;
   }
   h += '</div>';
+  const out = { carpintaria: h };
   const facs = Object.entries(FACTORIES);
-  h += `<h3>🏭 Fábricas</h3><p class="hint" style="margin:0 0 8px">Escolha o que cada fábrica faz. Ela usa o que está no armazém quando você chega perto e usa a ação, e continua trabalhando até com o jogo fechado.</p><div class="cards">`;
+  h = `<h3>🏭 Fábricas</h3><p class="hint" style="margin:0 0 8px">Escolha o que cada fábrica faz. Ela usa o que está no armazém quando você chega perto e usa a ação, e continua trabalhando até com o jogo fechado.</p><div class="cards">`;
   for (const [fid, f] of facs) {
     const done = core.built(fid);
     const st = S.fac[fid];
@@ -556,21 +601,23 @@ function workshopHtml() {
         ${done ? `<div class="chips" style="margin-top:6px">${f.recipes.map((r) => `<button class="chip${st.sel === r.id ? ' sel' : ''}" data-act="facrecipe" data-id="${fid}:${r.id}" title="${sys.ioText(r.in)} → ${GOODS[r.out].name} (🪙${GOODS[r.out].sell}), ${core.fmtDuration(r.time)}">${sys.ioText(r.in)} → ${GOODS[r.out].icon}</button>`).join('')}</div>` : ''}</div>
       <div class="btns"></div></div>`;
   }
-  h += '</div><h3>🏗️ Obras</h3><div class="cards">';
+  out.fabricas = h + '</div>';
+  h = '<h3>🏗️ Obras</h3><div class="cards">';
   for (const [id, b] of Object.entries(BUILDINGS)) {
     const done = core.built(id);
     const prog = core.buildProgress(id);
     const missing = core.buildMissing(id);
-    h += `<div class="card${done ? ' hired' : ''}">
+    h += `<div class="card${done ? ' hired compact' : ''}">
       <div class="ico">${b.icon}</div>
-      <div class="info"><b>${b.name}${done ? ' <small>✔ construído</small>' : ` <small>${Math.round(prog * 100)}%</small>`}</b>
+      <div class="info"><b>${b.name}${done ? ' <small>✔ construído</small>' : prog > 0 ? ` <small>${Math.round(prog * 100)}%</small>` : ''}</b>
         <small>${b.desc}</small>
-        <small>${done ? 'Pronto!' : `Custa ${io(b.cost)} · falta ${missing.map((x) => `${x.qty} ${core.ITEMS[x.id].icon}`).join(' + ')}`}</small>
-        ${done ? '' : `<div class="progress"><i style="width:${Math.round(prog * 100)}%"></i></div>`}</div>
+        <small>${done ? 'Pronto!' : prog > 0 ? `Falta ${missing.map((x) => `${x.qty} ${core.ITEMS[x.id].icon}`).join(' + ')}` : `Custa ${io(b.cost)}`}</small>
+        ${done || prog <= 0 ? '' : `<div class="progress"><i style="width:${Math.round(prog * 100)}%"></i></div>`}</div>
       <div class="btns">${done ? '<span class="req">✔</span>' : b.level > S.level ? `<span class="req">🔒 Nível ${b.level}</span>` : !core.lotPlaced(id) ? `<button class="btn alt" data-act="placelot" data-id="${id}">📍 Escolher lugar</button>` : '<span class="req">Entregue no canteiro</span>'}</div></div>`;
   }
   h += `</div><p class="hint">📍 Primeiro escolha onde cada obra fica; um caminho de terra liga ela à rua. 🪓 Corte árvores no bosque (oeste) para ter troncos. Leve a madeira até o canteiro 🏗️ e use a ação para entregar: dá para entregar aos poucos.${S.saw.owned ? '' : ` Mais tarde, a ${SAWMILL.icon} Serraria faz tábuas sozinha.`}</p>`;
-  return h;
+  out.obras = h;
+  return out;
 }
 
 function questHtml() {
@@ -640,8 +687,7 @@ function ordersHtml() {
       </div></div>`;
   });
   h += '</div><p class="hint">Pedidos pagam bem mais do que o mercado. Recuse (✖) os que não te interessam. ✉️ A cartinha em cima do quadro de Pedidos avisa quando chega pedido novo.</p>';
-  h += fairHtml() + friendsHtml();
-  return h;
+  return { pedidos: h, feira: fairHtml(), moradores: friendsHtml() };
 }
 
 // ================= Hotbar =================
@@ -706,7 +752,7 @@ export function selectTool(id) {
   if (id.startsWith('seed:')) lastSeed = id.slice(5);
   if (id.startsWith('seed:') && !core.S.seeds[id.slice(5)]) {
     toast(`Sem sementes de ${CROPS[id.slice(5)].name}. Compre na loja! 🏪`);
-    openPanel('loja');
+    openPanel('loja', 'sementes');
   }
 }
 
@@ -931,7 +977,7 @@ export function initUI(h) {
   el.picker.addEventListener('click', (e) => {
     const s = e.target.closest('[data-seed]');
     if (s) { selectTool('seed:' + s.dataset.seed); setPicker(false); return; }
-    if (e.target.closest('[data-shop]')) { setPicker(false); openPanel('loja'); }
+    if (e.target.closest('[data-shop]')) { setPicker(false); openPanel('loja', 'sementes'); }
   });
   // Toque/clique fora fecha o seletor
   document.addEventListener('pointerdown', (e) => {
@@ -1003,7 +1049,8 @@ export function initUI(h) {
     else if (act === 'axe') core.buyAxe(+id);
     else if (act === 'sawmill') core.buySawmill();
     else if (act === 'bench') core.setBench(id);
-    else if (act === 'tab') { openPanel(id); return; }
+    else if (act === 'tab') { const [t, sub] = id.split(':'); openPanel(t, sub); return; }
+    else if (act === 'sub') { const [t, sub] = id.split(':'); subCur[t] = sub; renderPanel(); el.tabContent.scrollTop = 0; sfx('open'); return; }
     else if (act === 'pet') core.buyPet();
     else if (act === 'horse') core.buyHorse();
     else if (act === 'pasture') core.buyPasture();

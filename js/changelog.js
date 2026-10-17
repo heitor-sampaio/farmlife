@@ -3,6 +3,16 @@
 
 export const CHANGELOG = [
   {
+    version: '4.5.0', date: '2026-10-17', title: 'Painéis organizados',
+    items: [
+      '🗂️ A Loja agora é dividida em categorias: 🌱 Sementes, 🐾 Animais, 🗺️ Terras, 🏭 Produção, 🪓 Ferramentas, 🛠️ Melhorias e 🌻 Decoração. A barra de categorias fica sempre visível no topo.',
+      '📦 O Armazém (Itens, Mercado, Números), a Oficina (Carpintaria, Obras, Fábricas) e os Pedidos (Pedidos, Feira, Moradores) também ganharam categorias. Uma bolinha avisa quando há pedido pronto ou é dia de feira.',
+      '🌱 Sementes em grade, bem mais compactas; as que ainda não liberaram aparecem numa linha só (Em breve).',
+      '🔒 Itens bloqueados e obras prontas ocupam uma linha só, e os textos dos cartões ficaram mais curtos.',
+      '📱 No celular, as categorias ficam numa linha que rola para o lado.',
+    ],
+  },
+  {
     version: '4.4.0', date: '2026-10-17', title: 'Fazenda maior e do seu jeito',
     items: [
       '🗺️ O mapa ficou bem maior e mais organizado: a sede (casa, carpintaria, armazém, pedidos e loja) fica em fila na rua principal, e em volta há muito mais espaço, com uma rua entre os campos e uma estrada ao sul.',

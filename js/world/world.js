@@ -108,7 +108,7 @@ for (const id of Object.keys(FACTORIES)) {
         startAction('collect');
         const [x, z] = SPOTS[id].at;
         burst(x, 1, z + 1, res.collected ? 0xf4c27a : 0xffffff, 12, { up: 2.2, spread: 0.8, size: 0.06 });
-      } else if (!res) ui.openPanel('oficina');
+      } else if (!res) ui.openPanel('oficina', 'fabricas');
     },
   };
 }
@@ -2233,7 +2233,7 @@ function doBench(quiet) {
       const need = Object.entries(rc.input).map(([id, q]) => `${q} ${core.ITEMS[id].icon}`).join(' + ');
       ui.toast(`${CARPENTRY.icon} Para fazer ${rc.name} precisa de ${need}. Escolha a receita na Oficina.`, 'bad');
       sfx('error');
-      ui.openPanel('oficina');
+      ui.openPanel('oficina', 'carpintaria');
     }
     bench.prog = 0;
     return false;
