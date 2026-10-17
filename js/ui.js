@@ -1,5 +1,5 @@
 /* FarmLife — interface em HTML sobre a cena 3D (HUD, hotbar, painel, avisos) */
-import { CROPS, ANIMALS, PRODUCTS, UPGRADES, WORKERS, FIELDS, BIG_FIELD, BIG_CELLS, MACHINES, SOUND_KEY } from './data.js';
+import { CROPS, ANIMALS, PRODUCTS, UPGRADES, WORKERS, FIELDS, BIG_FIELD, BIG_CELLS, MACHINES, FISH, RODS, SOUND_KEY } from './data.js';
 import * as core from './core.js';
 import { Sound, sfx } from './audio.js';
 
@@ -43,6 +43,27 @@ export function toast(msg, type = '') {
 }
 
 export function setStatus(text) { setText(el.status, text); }
+
+// ================= Minigame de pesca =================
+export function fishGameShow(icon) {
+  const g = $('#fishgame');
+  $('#fish-icon').textContent = icon;
+  g.hidden = false;
+}
+
+export function fishGameHide() { $('#fishgame').hidden = true; }
+
+/** fish, zone e size vão de 0 (embaixo) a 1 (em cima); progress de 0 a 1. */
+export function fishGameUpdate(fish, zone, size, progress, inside) {
+  $('#fish-icon').style.bottom = `calc(${fish * 100}% - 14px)`;
+  const z = $('#fish-zone');
+  z.style.bottom = zone * 100 + '%';
+  z.style.height = size * 100 + '%';
+  z.classList.toggle('on', inside);
+  const p = $('#fish-progress');
+  p.style.height = Math.max(0, Math.min(1, progress)) * 100 + '%';
+  p.style.background = progress < 0.25 ? '#d9534f' : progress < 0.6 ? '#f5b82e' : '#5cb85c';
+}
 
 /** Escurece a tela por um instante (ao dormir). */
 export function sleepFade() {
@@ -131,6 +152,26 @@ function shopHtml() {
       </div></div>`;
   }
   h += '</div>';
+
+  h += '<h3 id="sec-pesca">🎣 Pescaria</h3><div class="cards">';
+  for (let lv = 1; lv < RODS.length; lv++) {
+    const rd = RODS[lv];
+    const owned = S.fishing.rod >= lv;
+    const locked = !owned && rd.level > S.level;
+    const needPrev = !owned && S.fishing.rod < lv - 1;
+    h += `<div class="card${locked ? ' locked' : ''}${owned ? ' hired' : ''}">
+      <div class="ico">${rd.icon}</div>
+      <div class="info"><b>${rd.name}${owned ? ' <small>✔ sua</small>' : ''}</b><small>${rd.desc}</small></div>
+      <div class="btns">${owned
+        ? '<span class="req">✔ Comprada</span>'
+        : locked
+          ? `<span class="req">🔒 Nível ${rd.level}</span>`
+          : needPrev
+            ? '<span class="req">Compre a anterior</span>'
+            : `<button class="btn alt" data-act="rod" data-id="${lv}" ${S.coins < rd.cost ? 'disabled' : ''}>🪙${fmt(rd.cost)}</button>`}
+      </div></div>`;
+  }
+  h += `</div><p class="hint">Peixes do lago: ${Object.values(FISH).filter((f) => !f.junk).map((f) => `${f.icon} ${f.name}`).join(', ')}. À noite aparecem mais bagres; na chuva, lagostins.</p>`;
 
   const big = S.big.owned;
   const bigLocked = !big && BIG_FIELD.level > S.level;
@@ -272,7 +313,8 @@ function barnHtml() {
   h += `<h3>📊 Estatísticas</h3><div class="stats">
     <div><b>${fmt(S.stats.harvest)}</b>colheitas</div>
     <div><b>${fmt(S.stats.earned)}</b>moedas ganhas</div>
-    <div><b>${fmt(S.stats.orders)}</b>pedidos</div></div>`;
+    <div><b>${fmt(S.stats.orders)}</b>pedidos</div>
+    <div><b>${fmt(S.stats.fish || 0)}</b>peixes</div></div>`;
   return h;
 }
 
@@ -303,9 +345,10 @@ function ordersHtml() {
 function renderToolbar() {
   const S = core.S;
   let h = '';
-  core.toolList().forEach((id, k) => {
+  const list = core.toolList();
+  list.forEach((id, k) => {
     const key = k < 9 ? `<kbd>${k + 1}</kbd>` : '';
-    if (k === core.TOOLS.length) h += '<span class="tool-sep"></span>';
+    if (id.startsWith('seed:') && (k === 0 || !list[k - 1].startsWith('seed:'))) h += '<span class="tool-sep"></span>';
     const active = core.tool === id ? ' active' : '';
     if (id.startsWith('seed:')) {
       const cid = id.slice(5), c = CROPS[cid], n = S.seeds[cid] || 0;
@@ -410,6 +453,7 @@ export function initUI(h) {
     else if (act === 'fire') core.fireWorker(id);
     else if (act === 'field') core.buyField(id);
     else if (act === 'bigfield') core.buyBigField();
+    else if (act === 'rod') core.buyRod(+id);
     else if (act === 'machine') core.buyMachine(id);
     else if (act === 'sell') core.sell(id, +b.dataset.q);
     else if (act === 'sellall') core.sellAll();

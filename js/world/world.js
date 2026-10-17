@@ -1,6 +1,6 @@
 /* FarmLife — mundo 3D: cena, câmera isométrica, personagem, animais e interações */
 import * as THREE from 'three';
-import { ANIMALS, PRODUCTS, CROPS, WORKERS, FIELDS, TOTAL_PLOTS, fieldOf, BIG_FIELD, BIG_CELLS, MACHINES } from '../data.js';
+import { ANIMALS, PRODUCTS, CROPS, WORKERS, FIELDS, TOTAL_PLOTS, fieldOf, BIG_FIELD, BIG_CELLS, MACHINES, FISH } from '../data.js';
 import { sfx } from '../audio.js';
 import * as core from '../core.js';
 import * as ui from '../ui.js';
@@ -200,6 +200,7 @@ export async function initWorld(cv) {
   buildNature();
   buildRain();
   buildHelpers();
+  buildFishing();
 
   player.m = M.makeFarmer();
   scene.add(player.m.root);
@@ -1167,6 +1168,11 @@ function jobTarget(job) {
   if (job.kind === 'spot') { const s = SPOTS[job.key]; return { x: s.point[0], z: s.point[1], reach: 0.6 }; }
   if (job.kind === 'move') return { x: job.x, z: job.z, reach: 0.1 };
   if (job.kind === 'machine') { const v = machines.get(job.id); return v ? { x: v.pos.x, z: v.pos.z, reach: v.def.reach } : null; }
+  if (job.kind === 'fish') {
+    // Vai até a beira do lago, do lado em que o pescador está
+    const dx = player.pos.x - POND.x, dz = player.pos.z - POND.z, d = Math.hypot(dx, dz) || 1;
+    return { x: POND.x + (dx / d) * (POND.r + 0.75), z: POND.z + (dz / d) * (POND.r + 0.75), reach: 0.4 };
+  }
   return null;
 }
 
@@ -1217,6 +1223,7 @@ function performJob(job) {
   else if (job.kind === 'animal') doAnimal(job.id, job.quiet);
   else if (job.kind === 'spot') openSpot(job.key);
   else if (job.kind === 'machine') enterMachine(job.id);
+  else if (job.kind === 'fish') startCast(job.x, job.z);
 }
 
 function startAction(kind) {
@@ -1274,6 +1281,7 @@ function openSpot(key) {
 /** O que está ao alcance do personagem (para a tecla de ação). */
 function getContext() {
   if (driving) return { kind: 'exit', id: driving };
+  if (fishing.state !== 'idle') return { kind: 'fish' };
   let best = null;
   let bd = 1.25;
   for (const v of animalVis.values()) {
@@ -1284,6 +1292,7 @@ function getContext() {
   for (const v of machines.values()) {
     if (dist2(player.pos, v.pos.x, v.pos.z) < v.def.reach) return { kind: 'machine', id: v.id };
   }
+  if (core.tool === 'vara' && core.S.fishing.rod && nearPond()) return { kind: 'fish' };
   for (const [key, s] of Object.entries(SPOTS)) {
     if (spotActive(s) && dist2(player.pos, s.point[0], s.point[1]) < s.r) return { kind: 'spot', key };
   }
@@ -1300,6 +1309,7 @@ function actionLabel(ctx) {
   if (ctx.kind === 'tile') return core.tileActionLabel(ctx.i);
   if (ctx.kind === 'machine') return `Dirigir: ${MACHINES[ctx.id].name}`;
   if (ctx.kind === 'exit') return 'Sair da máquina';
+  if (ctx.kind === 'fish') return FISH_LABEL[fishing.state] || null;
   if (ctx.kind === 'animal') { const a = core.findAnimal(ctx.id); return a ? core.animalActionLabel(a) : null; }
   if (ctx.kind === 'spot') {
     if (ctx.key === 'casa') return core.dayHours() >= 18 ? SPOTS.casa.text : null;
@@ -1313,6 +1323,7 @@ function infoText(ctx) {
   if (ctx.kind === 'tile') return core.plotInfo(ctx.i);
   if (ctx.kind === 'machine') return `${MACHINES[ctx.id].icon} ${MACHINES[ctx.id].name}: ${MACHINES[ctx.id].desc}`;
   if (ctx.kind === 'exit') return machineInfo();
+  if (ctx.kind === 'fish') return FISH_INFO[fishing.state];
   if (ctx.kind === 'animal') { const a = core.findAnimal(ctx.id); return a ? core.animalInfo(a) : null; }
   if (ctx.kind === 'spot') return SPOTS[ctx.key].info;
   return null;
@@ -1323,6 +1334,7 @@ function keyAction(repeat) {
   const ctx = getContext();
   if (!ctx) return;
   if (ctx.kind === 'exit') { if (!repeat) exitMachine(); return; }
+  if (ctx.kind === 'fish') { if (!repeat) fishAction(); return; }
   cancelJobs();
   if (ctx.kind === 'machine') { if (!repeat) enterMachine(ctx.id); return; }
   if (ctx.kind === 'tile') {
@@ -1373,6 +1385,15 @@ function updatePlayer(dt) {
     return;
   }
 
+  if (fishing.state !== 'idle') {
+    if (fishing.state === 'waiting' || fishing.state === 'bite') {
+      if (ix || iz || player.path.length) endFishing();
+    } else {
+      ix = 0;
+      iz = 0;
+    }
+  }
+
   if (ix || iz) {
     if (player.job || player.queue.length || player.path.length) cancelJobs();
     const len = Math.hypot(ix, iz);
@@ -1420,6 +1441,7 @@ function animateFarmer(e, dt, toolKey) {
     armR = e.actionKind === 'water' ? -1.1 * arc : -1.7 * arc;
     lean = 0.18 * arc;
   }
+  if (e.fishArm != null && e.actionT <= 0) armR = e.fishArm;
   m.armR.rotation.x += (armR - m.armR.rotation.x) * Math.min(1, dt * 25);
   m.body.rotation.x = lean;
 }
@@ -1555,6 +1577,219 @@ function updateWorkers(dt) {
   seedWarned = semSementes;
 }
 
+// ================= Pescaria =================
+const LINE_PTS = 14;
+const SPLASH = 0xd6efff;
+const fishing = {
+  state: 'idle', // idle → casting → waiting → bite → reeling → caught
+  t: 0, wait: 0, fish: null,
+  from: new THREE.Vector3(), target: new THREE.Vector3(),
+  bobber: null, line: null, excl: null, catchMesh: null, game: null, jumpT: 4,
+};
+let fishMouse = false;
+const tmpTip = new THREE.Vector3();
+
+function buildFishing() {
+  fishing.bobber = M.makeBobber();
+  fishing.bobber.visible = false;
+  scene.add(fishing.bobber);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(LINE_PTS * 3), 3));
+  fishing.line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85 }));
+  fishing.line.frustumCulled = false;
+  fishing.line.visible = false;
+  scene.add(fishing.line);
+  fishing.excl = M.emojiSprite('❗', 0.6, false);
+  fishing.excl.visible = false;
+  scene.add(fishing.excl);
+}
+
+const nearPond = () => dist2(player.pos, POND.x, POND.z) < POND.r + 1.4;
+const splash = (x, z, n = 10) => burst(x, 0.06, z, SPLASH, n, { up: 2, spread: 0.45, size: 0.05, life: 0.5 });
+
+/** Lança a linha num ponto do lago (o clicado, ou à frente do pescador). */
+function startCast(tx, tz) {
+  if (!core.S.fishing.rod) { ui.toast('🎣 Compre uma vara de pesca na loja para pescar aqui.', 'bad'); return; }
+  if (core.tool !== 'vara') core.setTool('vara');
+  cancelJobs();
+  let x = tx, z = tz;
+  if (x == null) {
+    const dx = player.pos.x - POND.x, dz = player.pos.z - POND.z, d = Math.hypot(dx, dz) || 1;
+    x = POND.x + (dx / d) * POND.r * 0.35 + rand(-0.3, 0.3);
+    z = POND.z + (dz / d) * POND.r * 0.35 + rand(-0.3, 0.3);
+  }
+  const cx = x - POND.x, cz = z - POND.z, cd = Math.hypot(cx, cz);
+  if (cd > POND.r - 0.35) { x = POND.x + (cx / cd) * (POND.r - 0.35); z = POND.z + (cz / cd) * (POND.r - 0.35); }
+  player.heading = Math.atan2(x - player.pos.x, z - player.pos.z);
+  fishing.target.set(x, 0.03, z);
+  fishing.state = 'casting';
+  fishing.t = 0;
+  player.m.rodTip.getWorldPosition(fishing.from);
+  fishing.bobber.visible = true;
+  fishing.line.visible = true;
+  player.actionT = 0.3;
+  player.actionKind = 'cast';
+  sfx('cast');
+}
+
+function endFishing() {
+  fishing.state = 'idle';
+  fishing.bobber.visible = false;
+  fishing.line.visible = false;
+  fishing.excl.visible = false;
+  if (fishing.catchMesh) { scene.remove(fishing.catchMesh); fishing.catchMesh = null; }
+  player.fishArm = null;
+  fishMouse = false;
+  ui.fishGameHide();
+}
+
+/** Tecla de ação durante a pesca. */
+function fishAction() {
+  if (fishing.state === 'idle') startCast();
+  else if (fishing.state === 'waiting') { ui.toast('Nada mordeu ainda… a linha foi recolhida.'); endFishing(); }
+  else if (fishing.state === 'bite') startReel();
+}
+
+function startReel() {
+  fishing.state = 'reeling';
+  fishing.t = 0;
+  fishing.excl.visible = false;
+  fishing.game = { fish: 0.3, fv: 0, ftarget: 0.6, timer: 0, zone: 0.05, zv: 0, size: core.rod().zone, progress: 0.3, dif: FISH[fishing.fish].dif };
+  ui.fishGameShow('🐟');
+  splash(fishing.target.x, fishing.target.z, 14);
+  sfx('splash');
+}
+
+function catchNow() {
+  const f = FISH[fishing.fish];
+  core.catchFish(fishing.fish);
+  ui.fishGameHide();
+  fishing.state = 'caught';
+  fishing.t = 0;
+  fishing.line.visible = false;
+  fishing.bobber.visible = false;
+  fishing.catchMesh = M.makeCatch(f.color, !!f.junk);
+  fishing.catchMesh.position.copy(fishing.bobber.position);
+  scene.add(fishing.catchMesh);
+  splash(fishing.target.x, fishing.target.z, 18);
+  const p = screenPosOf({ player: true });
+  if (p) ui.fxAt(p.x, p.y, `+1 ${f.icon}`, 'gold');
+}
+
+/** Minigame: segurar sobe a faixa verde; o peixe foge para cima e para baixo. */
+function reelGame(dt, holding) {
+  const g = fishing.game;
+  g.timer -= dt;
+  if (g.timer <= 0) {
+    g.ftarget = rand(0.04, 0.96);
+    g.timer = rand(0.35, 1.5) * (1.25 - g.dif);
+  }
+  g.fv += (g.ftarget - g.fish) * (2.5 + g.dif * 12) * dt;
+  g.fv *= Math.max(0, 1 - 3 * dt);
+  g.fish = THREE.MathUtils.clamp(g.fish + g.fv * dt, 0, 1);
+  g.zv = THREE.MathUtils.clamp(g.zv + (holding ? 2.8 : -2.4) * dt, -1.5, 1.5);
+  g.zone += g.zv * dt;
+  if (g.zone < 0) { g.zone = 0; g.zv = Math.abs(g.zv) * 0.3; }
+  if (g.zone > 1 - g.size) { g.zone = 1 - g.size; g.zv = 0; }
+  const inside = g.fish >= g.zone - 0.02 && g.fish <= g.zone + g.size + 0.02;
+  g.progress += (inside ? 0.3 : -(0.2 + g.dif * 0.12)) * dt;
+  ui.fishGameUpdate(g.fish, g.zone, g.size, g.progress, inside);
+  return g.progress;
+}
+
+function updateFishing(dt) {
+  if (fishing.state === 'idle') {
+    // Peixes pulando no lago de vez em quando
+    fishing.jumpT -= dt;
+    if (fishing.jumpT <= 0) {
+      fishing.jumpT = rand(5, 12);
+      const a = rand(0, Math.PI * 2), d = rand(0, POND.r * 0.7);
+      splash(POND.x + Math.cos(a) * d, POND.z + Math.sin(a) * d, 8);
+    }
+    return;
+  }
+  const holding = keys.has(' ') || keys.has('e') || actionHeld || fishMouse;
+  const rd = core.rod();
+  const b = fishing.bobber;
+  fishing.t += dt;
+  player.fishArm = -0.55;
+
+  if (fishing.state === 'casting') {
+    const k = Math.min(1, fishing.t / 0.55);
+    b.position.lerpVectors(fishing.from, fishing.target, k);
+    b.position.y = THREE.MathUtils.lerp(fishing.from.y, 0.03, k) + Math.sin(k * Math.PI) * 1.2;
+    if (k >= 1) {
+      fishing.state = 'waiting';
+      fishing.t = 0;
+      fishing.wait = rand(2, 6) * rd.wait * (core.S.weather === 'chuva' ? 0.8 : 1);
+      splash(fishing.target.x, fishing.target.z, 6);
+      sfx('splash');
+    }
+  } else if (fishing.state === 'waiting') {
+    b.position.set(fishing.target.x, 0.03 + Math.sin(clock * 3) * 0.015, fishing.target.z);
+    if (fishing.t >= fishing.wait) {
+      fishing.state = 'bite';
+      fishing.t = 0;
+      fishing.fish = core.rollFish();
+      fishing.excl.visible = true;
+      splash(fishing.target.x, fishing.target.z, 8);
+      sfx('bite');
+    }
+  } else if (fishing.state === 'bite') {
+    b.position.set(fishing.target.x, -0.04 + Math.sin(clock * 25) * 0.03, fishing.target.z);
+    fishing.excl.position.set(player.pos.x, 2.15 + Math.sin(clock * 10) * 0.05, player.pos.z);
+    if (fishing.t > rd.bite) {
+      ui.toast('O peixe escapou! 💨 Puxe mais rápido quando aparecer o ❗.', 'bad');
+      endFishing();
+      return;
+    }
+  } else if (fishing.state === 'reeling') {
+    const g = fishing.game;
+    b.position.set(fishing.target.x + Math.sin(clock * 9) * 0.08, 0.02 + (g.fish - 0.5) * 0.04, fishing.target.z + Math.cos(clock * 7) * 0.08);
+    if (Math.random() < dt * 4) splash(b.position.x, b.position.z, 2);
+    player.fishArm = holding ? -0.85 + Math.sin(clock * 20) * 0.08 : -0.6;
+    const p = reelGame(dt, holding);
+    if (p >= 1) catchNow();
+    else if (p <= 0) {
+      ui.toast('O peixe escapou! 💨 Mantenha ele dentro da faixa verde.', 'bad');
+      sfx('error');
+      endFishing();
+      return;
+    }
+  } else if (fishing.state === 'caught') {
+    const k = Math.min(1, fishing.t / 0.75);
+    const m = fishing.catchMesh;
+    m.position.lerpVectors(fishing.target, tmpTip.set(player.pos.x, 1.1, player.pos.z), k);
+    m.position.y += Math.sin(k * Math.PI) * 1.4;
+    m.rotation.x += dt * 12;
+    if (k >= 1) { endFishing(); return; }
+  }
+
+  // Linha da ponta da vara até a boia, com uma leve curva
+  if (fishing.line.visible) {
+    player.m.rodTip.getWorldPosition(tmpTip);
+    const arr = fishing.line.geometry.attributes.position.array;
+    const sag = fishing.state === 'reeling' ? 0.05 : fishing.state === 'casting' ? 0 : 0.3;
+    for (let i = 0; i < LINE_PTS; i++) {
+      const t = i / (LINE_PTS - 1);
+      arr[i * 3] = tmpTip.x + (b.position.x - tmpTip.x) * t;
+      arr[i * 3 + 1] = tmpTip.y + (b.position.y + 0.08 - tmpTip.y) * t - Math.sin(t * Math.PI) * sag;
+      arr[i * 3 + 2] = tmpTip.z + (b.position.z - tmpTip.z) * t;
+    }
+    fishing.line.geometry.attributes.position.needsUpdate = true;
+  }
+}
+
+const FISH_LABEL = { idle: 'Lançar a linha', waiting: 'Recolher a linha', bite: 'PUXAR! ❗', reeling: 'Segure para puxar' };
+const FISH_INFO = {
+  idle: '🎣 Lago: lance a linha e espere o peixe morder. À noite aparecem mais bagres; na chuva, lagostins.',
+  casting: '🎣 Lançando…',
+  waiting: '🎣 Esperando… fique de olho na boia.',
+  bite: '❗ Mordeu! Aperte Espaço / ✋ agora!',
+  reeling: '🐟 Segure Espaço / ✋ para subir a faixa verde e manter o peixe dentro dela.',
+  caught: '🎣 Pegou!',
+};
+
 // ================= Entrada (teclado, mouse e toque) =================
 function pick() {
   raycaster.setFromCamera(ndc, camera);
@@ -1566,6 +1801,7 @@ function pick() {
   }
   const pt = new THREE.Vector3();
   if (!raycaster.ray.intersectPlane(pickPlane, pt)) return null;
+  if (Math.hypot(pt.x - POND.x, pt.z - POND.z) < POND.r) return { kind: 'water', x: pt.x, z: pt.z };
   const i = tileAt(pt.x, pt.z);
   if (i >= 0) return { kind: 'tile', i };
   return { kind: 'ground', x: pt.x, z: pt.z };
@@ -1586,7 +1822,16 @@ function clickAt(e) {
   setNdc(e);
   const hit = pick();
   if (!hit) return null;
+  // Pescando: clicar ajuda a puxar; clicar em outro lugar (antes da mordida) recolhe a linha
+  if (fishing.state === 'bite') { fishAction(); fishMouse = true; return hit; }
+  if (fishing.state === 'reeling' || fishing.state === 'caught' || fishing.state === 'casting') { fishMouse = true; return hit; }
+  if (fishing.state === 'waiting' && hit.kind !== 'water') endFishing();
   cancelJobs();
+  if (hit.kind === 'water') {
+    if (!core.S.fishing.rod) ui.toast('🎣 Compre uma vara de pesca na loja para pescar aqui.');
+    else if (fishing.state === 'idle') player.queue.push({ kind: 'fish', x: hit.x, z: hit.z });
+    return hit;
+  }
   if (hit.kind === 'machine') { player.queue.push({ kind: 'machine', id: hit.id }); return hit; }
   if (hit.kind === 'tile') {
     player.queue.push({ kind: 'tile', i: hit.i });
@@ -1675,6 +1920,7 @@ function bindInput() {
   canvas.addEventListener('pointerup', (e) => {
     if (e.pointerId === joy.id) endJoystick(e, true);
     dragging = false;
+    fishMouse = false;
   });
   canvas.addEventListener('pointercancel', (e) => {
     if (e.pointerId === joy.id) endJoystick(e, false);
@@ -1765,6 +2011,7 @@ export function screenPosOf(target) {
 /** Recomeço do jogo: limpa animais, tarefas e volta o personagem ao início. */
 export function onReset() {
   if (driving) exitMachine();
+  if (fishing.state !== 'idle') endFishing();
   for (const v of animalVis.values()) {
     scene.remove(v.m.root);
     if (v.ind) scene.remove(v.ind);
@@ -1787,6 +2034,7 @@ export function worldFrame(dt) {
   syncAnimals();
   syncWorkers();
   updatePlayer(dt);
+  updateFishing(dt);
   updateAnimals(dt);
   updateWorkers(dt);
   updateMachines(dt);
@@ -1799,4 +2047,4 @@ export function worldFrame(dt) {
 }
 
 // Usado pelos testes no console do navegador
-export const debug = { player, animalVis, npcs, machines, get driving() { return driving; }, enterMachine, exitMachine, bigCellAt, bigCellCenter, get zoom() { return zoom; }, tileAt, tilePos, get nav() { return nav; } };
+export const debug = { player, animalVis, npcs, machines, fishing, fishAction, startCast, get driving() { return driving; }, enterMachine, exitMachine, bigCellAt, bigCellCenter, get zoom() { return zoom; }, tileAt, tilePos, get nav() { return nav; } };

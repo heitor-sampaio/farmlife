@@ -407,7 +407,7 @@ kbd {
 }
 .up { color: var(--green-dark); font-weight: 700; }
 .down { color: var(--red); font-weight: 700; }
-.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; text-align: center; }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; text-align: center; }
 .stats div { padding: 8px 4px; border-radius: 10px; background: var(--paper-2); font-size: 12px; color: var(--muted); }
 .stats b { display: block; font-size: 16px; color: var(--ink); }
 
@@ -431,6 +431,66 @@ kbd {
 .order-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .reward { font-size: 14px; font-weight: 700; }
 .hint { margin: 10px 0 0; font-size: 12px; color: var(--muted); }
+
+/* ---------- Minigame de pesca ---------- */
+.fishgame {
+  position: fixed;
+  top: 50%;
+  right: 24px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: var(--paper);
+  box-shadow: 0 5px 0 var(--line), 0 12px 26px rgba(0, 0, 0, .25);
+  transform: translateY(-50%);
+  animation: toastIn .2s ease-out;
+}
+.fishgame[hidden] { display: none; }
+.fish-title { font-weight: 700; }
+.fishgame small { color: var(--muted); font-size: 11px; text-align: center; max-width: 110px; }
+.fish-body { display: flex; gap: 8px; }
+.fish-track {
+  position: relative;
+  width: 52px;
+  height: 240px;
+  overflow: hidden;
+  border: 3px solid #6f4825;
+  border-radius: 10px;
+  background: linear-gradient(#7fc8ef, #2f7fb5);
+}
+.fish-zone {
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  border: 2px solid rgba(255, 255, 255, .8);
+  border-radius: 6px;
+  background: rgba(120, 220, 120, .35);
+}
+.fish-zone.on { background: rgba(120, 230, 120, .65); }
+.fish-icon {
+  position: absolute;
+  left: 50%;
+  font-size: 24px;
+  line-height: 28px;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, .3));
+}
+.fish-meter {
+  position: relative;
+  width: 12px;
+  height: 240px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, .25);
+}
+.fish-meter i { position: absolute; left: 0; right: 0; bottom: 0; height: 30%; background: #f5b82e; }
+@media (max-width: 600px) {
+  .fishgame { right: auto; left: 12px; }
+}
 
 /* ---------- Efeitos, avisos, modal e carregamento ---------- */
 .fx-layer { position: fixed; inset: 0; z-index: 50; pointer-events: none; }

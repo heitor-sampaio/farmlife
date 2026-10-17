@@ -383,9 +383,21 @@ export function makeFarmer(colors = {}) {
   tools.seed.add(ball(0.08, 0.1, 0.07, 0xe8d5a5, 0, -0.1, 0.03));
   tools.seed.add(box(0.06, 0.03, 0.06, 0xa0703c, 0, -0.01, 0.03));
 
+  // Vara de pesca: sai da mão para frente e para cima; rodTip marca a ponta (de onde sai a linha)
+  tools.vara = new THREE.Group();
+  const rodPivot = new THREE.Group();
+  rodPivot.rotation.x = 0.95;
+  rodPivot.add(cyl(0.016, 1.4, 0x8d6334, 0, 0.6, 0));
+  rodPivot.add(cyl(0.022, 0.25, 0x3e2723, 0, -0.05, 0));
+  rodPivot.add(rot(cyl(0.05, 0.04, 0x9aa3ad, 0.06, 0.12, 0), 0, 0, Math.PI / 2));
+  const rodTip = new THREE.Object3D();
+  rodTip.position.set(0, 1.3, 0);
+  rodPivot.add(rodTip);
+  tools.vara.add(rodPivot);
+
   for (const t of Object.values(tools)) { t.visible = false; hand.add(t); }
 
-  return { root, body, legL, legR, armL, armR, head, tools };
+  return { root, body, legL, legR, armL, armR, head, tools, rodTip };
 }
 
 // ================= Animais =================
@@ -901,4 +913,30 @@ export function makeWheatTuftGeometry() {
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
   return geo;
+}
+
+// ================= Pescaria =================
+/** Boia vermelha e branca que flutua no lago. */
+export function makeBobber() {
+  const g = new THREE.Group();
+  g.add(ball(0.07, 0.06, 0.07, 0xe53935, 0, 0.05, 0));
+  g.add(ball(0.07, 0.05, 0.07, 0xfafafa, 0, -0.01, 0));
+  g.add(cyl(0.008, 0.08, 0x222222, 0, 0.14, 0));
+  return g;
+}
+
+/** Peixe pescado (ou a bota velha), mostrado saltando da água até o pescador. */
+export function makeCatch(color, junk = false) {
+  const g = new THREE.Group();
+  if (junk) {
+    g.add(box(0.12, 0.22, 0.12, color, 0, 0.11, 0));
+    g.add(box(0.12, 0.08, 0.24, color, 0, 0.04, 0.06));
+    return g;
+  }
+  g.add(ball(0.08, 0.1, 0.2, color, 0, 0, 0));
+  g.add(rot(cone(0.08, 0.14, color, 0, 0, -0.24), -Math.PI / 2, 0, 0));
+  g.add(rot(cone(0.03, 0.08, color, 0, 0.1, 0), 0, 0, 0));
+  g.add(box(0.02, 0.02, 0.01, 0x111111, 0.06, 0.03, 0.13));
+  g.add(box(0.02, 0.02, 0.01, 0x111111, -0.06, 0.03, 0.13));
+  return g;
 }

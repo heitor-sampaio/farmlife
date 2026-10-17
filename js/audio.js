@@ -35,6 +35,10 @@ export const Sound = {
         case 'error': this.tone(170, 0.16, 'sawtooth', 0.05); break;
         case 'open': this.tone(520, 0.06, 'triangle', 0.08); this.tone(780, 0.08, 'triangle', 0.07, 0.05); break;
         case 'level': [523, 659, 784, 1047].forEach((f, k) => this.tone(f, 0.18, 'triangle', 0.12, k * 0.1)); break;
+        case 'cast': this.tone(700, 0.25, 'sine', 0.06, 0, -500); break;
+        case 'splash': this.tone(320, 0.12, 'triangle', 0.08, 0, -180); this.tone(520, 0.08, 'sine', 0.04, 0.04, -200); break;
+        case 'bite': [1180, 1180].forEach((f, k) => this.tone(f, 0.07, 'square', 0.05, k * 0.11)); break;
+        case 'catch': [660, 880, 1320].forEach((f, k) => this.tone(f, 0.12, 'triangle', 0.1, k * 0.08)); break;
         case 'sleep': [784, 659, 523, 392].forEach((f, k) => this.tone(f, 0.3, 'sine', 0.08, k * 0.18)); break;
       }
     } catch (e) { /* áudio indisponível */ }

@@ -2,7 +2,7 @@
 import {
   COLS, ROWS, DAY_LEN, MAX_OFFLINE, SAVE_KEY, FIELDS, TOTAL_PLOTS, fieldOf,
   CROPS, PRODUCTS, ANIMALS, WATER_TIME, GROW_SPEED, PEN_SIZE, UPGRADES, CUSTOMERS,
-  WORKERS, WORK_TIME, BIG_FIELD, BIG_CELLS, MACHINES,
+  WORKERS, WORK_TIME, BIG_FIELD, BIG_CELLS, MACHINES, FISH, RODS,
 } from './data.js';
 
 // ================= Utilidades =================
@@ -32,6 +32,7 @@ export function fmtDuration(sec) {
 export const ITEMS = {};
 for (const [id, c] of Object.entries(CROPS)) ITEMS[id] = { name: c.name, icon: c.icon, sell: c.sell, xp: c.xp };
 for (const [id, p] of Object.entries(PRODUCTS)) ITEMS[id] = { ...p };
+for (const [id, f] of Object.entries(FISH)) ITEMS[id] = { name: f.name, icon: f.icon, sell: f.sell, xp: f.xp };
 
 // ================= Ganchos para a interface/cena =================
 const hooks = { fx() {}, toast() {}, sfx() {}, dirty() {} };
@@ -54,6 +55,7 @@ export const TOOLS = [
   { id: 'enxada', icon: '⛏️', name: 'Enxada' },
   { id: 'regador', icon: '💧', name: 'Regador' },
   { id: 'mao', icon: '🧺', name: 'Colher' },
+  { id: 'vara', icon: '🎣', name: 'Pescar' },
 ];
 
 export function setTool(id) {
@@ -63,7 +65,7 @@ export function setTool(id) {
 
 export function toolList() {
   const seeds = Object.keys(CROPS).filter((id) => CROPS[id].level <= S.level).map((id) => 'seed:' + id);
-  return TOOLS.map((t) => t.id).concat(seeds);
+  return TOOLS.filter((t) => t.id !== 'vara' || S.fishing.rod > 0).map((t) => t.id).concat(seeds);
 }
 
 // Campo de Trigo: s = 0 palha (precisa arar), 1 arado, 2 plantado; g = crescimento em segundos
@@ -102,7 +104,8 @@ function newState() {
     prices: {},
     orders: [],
     bought: 0,
-    stats: { harvest: 0, earned: 0, orders: 0 },
+    stats: { harvest: 0, earned: 0, orders: 0, fish: 0 },
+    fishing: { rod: 0 },
     savedAt: Date.now(),
     seen: false,
   };
@@ -595,6 +598,49 @@ export function bigWork(machine, k) {
   return null;
 }
 
+// ================= Pescaria =================
+export const rod = () => RODS[S.fishing.rod] || null;
+
+export function buyRod(level) {
+  const r = RODS[level];
+  if (!r || S.fishing.rod >= level || r.level > S.level) return;
+  if (level > 1 && S.fishing.rod < level - 1) { toast('Compre a vara anterior primeiro.', 'bad'); return; }
+  if (!spend(r.cost)) return;
+  S.fishing.rod = level;
+  tool = 'vara';
+  toast(`${r.icon} ${r.name} comprada! Vá até o lago e aperte Espaço para pescar.`, 'good');
+  sfx('coin');
+  markDirty('toolbar', 'panel');
+}
+
+/** Sorteia o que morde a isca, conforme a hora, o clima e a vara. */
+export function rollFish() {
+  const night = darkness() > 0.5;
+  const rain = S.weather === 'chuva';
+  const good = S.fishing.rod >= 2;
+  const opts = Object.entries(FISH).map(([id, f]) => {
+    let w = f.weight;
+    if (f.night && night) w *= 3;
+    if (f.rain && rain) w *= 3;
+    if (f.rare && good) w *= 2;
+    if (f.junk && good) w *= 0.5;
+    return [id, w];
+  });
+  let roll = Math.random() * opts.reduce((s, [, w]) => s + w, 0);
+  for (const [id, w] of opts) { if ((roll -= w) <= 0) return id; }
+  return 'lambari';
+}
+
+export function catchFish(id) {
+  const f = FISH[id];
+  addItem(id, 1);
+  gainXp(f.xp);
+  S.stats.fish = (S.stats.fish || 0) + 1;
+  const msg = f.junk ? `${f.icon} Ops… você pescou uma ${f.name.toLowerCase()}.` : `🎣 Você pescou: ${f.icon} ${f.name}! (vale 🪙${price(id)})`;
+  toast(msg, f.rare ? 'level' : f.junk ? '' : 'good');
+  sfx(f.rare ? 'level' : 'catch');
+}
+
 // ================= Funcionários =================
 export const dailyWages = () => Object.entries(WORKERS).reduce((s, [id, w]) => s + (S.workers[id] ? w.wage : 0), 0);
 
@@ -772,6 +818,7 @@ export function toolHint() {
   if (tool === 'enxada') return '⛏️ Enxada: are a grama para poder plantar.';
   if (tool === 'regador') return `💧 Regador: molhe a terra — a água dura ${WATER_TIME[S.up.regador]}s.`;
   if (tool === 'mao') return '🧺 Colher: chegue perto das plantas prontas ✨ e colha.';
+  if (tool === 'vara') return '🎣 Vara de pesca: vá até a beira do lago e aperte Espaço para lançar a linha.';
   const id = tool.slice(5);
   return `${CROPS[id].icon} Plantando ${CROPS[id].name}: ${S.seeds[id] || 0} sementes.`;
 }
@@ -799,6 +846,7 @@ function load() {
       workers: { ...base.workers, ...d.workers },
       fields: { ...base.fields, ...d.fields },
       machines: { ...base.machines, ...d.machines },
+      fishing: { ...base.fishing, ...d.fishing },
       big: d.big && Array.isArray(d.big.s) && d.big.s.length === BIG_CELLS ? d.big : base.big,
     };
     // Saves antigos têm só o campo principal: completa com os lotes dos campos novos

@@ -69,6 +69,21 @@ export const MACHINES = {
   colheitadeira: { name: 'Colheitadeira',          icon: '🌾', cost: 12000, level: 7, desc: 'Colhe 5 faixas de trigo maduro de uma vez.' },
 };
 
+// Pescaria no lago. dif = dificuldade do minigame (0 a 1); weight = chance relativa
+export const FISH = {
+  lambari:  { name: 'Lambari',       icon: '🐟', sell: 15,  xp: 3,  dif: 0.15, weight: 40, color: 0xb0bec5 },
+  tilapia:  { name: 'Tilápia',       icon: '🐠', sell: 40,  xp: 5,  dif: 0.3,  weight: 30, color: 0x9aa86b },
+  bagre:    { name: 'Bagre',         icon: '🐡', sell: 70,  xp: 8,  dif: 0.45, weight: 12, color: 0x6d5c4b, night: true },
+  lagostim: { name: 'Lagostim',      icon: '🦞', sell: 90,  xp: 9,  dif: 0.5,  weight: 6,  color: 0xd84315, rain: true },
+  carpa:    { name: 'Carpa dourada', icon: '🎏', sell: 250, xp: 20, dif: 0.75, weight: 3,  color: 0xffb300, rare: true },
+  bota:     { name: 'Bota velha',    icon: '👢', sell: 1,   xp: 1,  dif: 0.05, weight: 6,  color: 0x5d4037, junk: true },
+};
+export const RODS = [
+  null,
+  { name: 'Vara de bambu', icon: '🎣', cost: 100,  level: 1, zone: 0.26, bite: 1.0, wait: 1.0, desc: 'Permite pescar no lago. Equipe a 🎣 na barra e vá até a beira.' },
+  { name: 'Vara de fibra', icon: '🎣', cost: 1500, level: 4, zone: 0.36, bite: 1.35, wait: 0.7, desc: 'Faixa de captura maior, peixes mordem mais rápido e mais chance de peixes raros.' },
+];
+
 export const WATER_TIME = [40, 70, 110, 180];
 export const GROW_SPEED = [1, 1.2, 1.45, 1.75];
 export const PEN_SIZE = [4, 8, 12];
