@@ -7,7 +7,7 @@ import * as core from '../core.js';
 import * as ui from '../ui.js';
 import * as M from './models.js';
 import { NavGrid } from './nav.js';
-import { initPainted, setPainted, paintedFrame, renderScene } from './painted.js';
+import { initPainted, setPainted, paintedFrame, renderScene, addFoliage } from './painted.js';
 import { joySide } from '../prefs.js';
 import { initCritters, updateCritters, syncPet, updatePet, pet, petInteract, petPettedToday, fauna } from './critters.js';
 
@@ -363,10 +363,14 @@ export async function initWorld(cv) {
   buildWeatherFx();
   buildHelpers();
   initPainted({ scene, renderer, camera });
+  // Folhagem viva no visual pintado: copas, arbustos e pinheiros
+  addFoliage([...new Set([...M.LEAF_SETS.flat(), ...LEAF_COLORS])].map((c) => M.mat(c)), 'canopy');
+  addFoliage(PINE_COLORS.map((c) => M.mat(c)), 'pine');
   buildFishing();
   buildGuide();
 
   M.setFarmerStyle(core.S.char.gender);
+  buildGrass();
   nav.snapshot(); // obstáculos fixos; as decorações são bloqueadas por cima
   player.m = M.makeFarmer();
   scene.add(player.m.root);
@@ -410,6 +414,52 @@ function fieldBorder(f) {
 }
 
 let groundFlat = null, groundPainted = null;
+
+// ================= Grama do visual pintado =================
+// Milhares de tufos instanciados na grama livre (fora de ruas, campos, sede e obras), balançando ao vento
+let grass = null;
+const grassAt = []; // [x, z] de cada tufo
+const tmpGrass = new THREE.Matrix4();
+const tmpGrassQ = new THREE.Quaternion();
+const tmpGrassS = new THREE.Vector3();
+const tmpGrassP = new THREE.Vector3();
+
+function buildGrass() {
+  const want = window.matchMedia('(pointer: coarse)').matches ? 14000 : 30000;
+  const B = BOUNDS;
+  const pts = [];
+  for (let k = 0; k < want * 3 && pts.length < want; k++) {
+    const x = rand(B.minX + 0.5, B.maxX - 0.5), z = rand(B.minZ + 0.5, B.maxZ - 0.5);
+    if (occupied(x, z, 0.35, true) || CHOP_TREES.some(([tx, tz]) => Math.hypot(x - tx, z - tz) < 0.5)) continue;
+    pts.push([x, z]);
+  }
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, side: THREE.DoubleSide });
+  addFoliage([mat], 'grass');
+  grass = new THREE.InstancedMesh(M.makeGrassBladesGeometry(), mat, pts.length);
+  grass.receiveShadow = true;
+  grass.frustumCulled = false;
+  pts.forEach(([x, z], k) => {
+    tmpGrassQ.setFromAxisAngle(UP_Y, Math.random() * Math.PI * 2);
+    const s = 0.75 + Math.random() * 0.6;
+    tmpGrass.compose(tmpGrassP.set(x, 0, z), tmpGrassQ, tmpGrassS.set(s, s * (0.8 + Math.random() * 0.5), s));
+    grass.setMatrixAt(k, tmpGrass);
+    grassAt.push([x, z]);
+  });
+  grass.visible = false;
+  scene.add(grass);
+  seasonMats.push(mat);
+}
+
+/** Tira a grama de dentro de um retângulo (quando uma obra ou campo é colocado ali). */
+function clearGrass(r) {
+  if (!grass) return;
+  const zero = tmpGrass.makeScale(0, 0, 0);
+  let changed = false;
+  grassAt.forEach(([x, z], k) => {
+    if (x > r.x1 - 0.3 && x < r.x2 + 0.3 && z > r.z1 - 0.3 && z < r.z2 + 0.3) { grass.setMatrixAt(k, zero); changed = true; }
+  });
+  if (changed) grass.instanceMatrix.needsUpdate = true;
+}
 
 function buildGround() {
   const geo = new THREE.PlaneGeometry(200, 160, 100, 80).toNonIndexed();
@@ -3192,6 +3242,7 @@ function placeLotNow(id, x, z) {
     const it = sys.decorList()[k];
     if (it.x > r.x1 - 0.3 && it.x < r.x2 + 0.3 && it.z > r.z1 - 0.3 && it.z < r.z2 + 0.3) { sys.pickupDecor(k); back++; }
   }
+  clearGrass(r);
   nav.restore();
   buildLot(id);
   nav.snapshot();
@@ -4603,6 +4654,7 @@ export function setVisual(mode) {
   const p = mode === 'painted';
   setPainted(p);
   if (groundFlat) { groundFlat.visible = !p; groundPainted.visible = p; }
+  if (grass) grass.visible = p;
 }
 
 // Usado pelos testes no console do navegador

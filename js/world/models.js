@@ -969,9 +969,9 @@ export function makeTree(kind, s = 1) {
   } else {
     const [a, b, c] = LEAF_SETS[Math.floor(Math.random() * LEAF_SETS.length)];
     g.add(cyl(0.15, 1.1, 0x7a5230, 0, 0.55, 0));
-    g.add(ball(0.85, 0.75, 0.85, a, 0, 1.65, 0));
-    g.add(ball(0.55, 0.5, 0.55, b, 0.45, 2.05, 0.2));
-    g.add(ball(0.5, 0.45, 0.5, c, -0.4, 1.95, -0.25));
+    g.add(mesh(GEO.ballHi, a, 0.85, 0.75, 0.85, 0, 1.65, 0));
+    g.add(mesh(GEO.ballHi, b, 0.55, 0.5, 0.55, 0.45, 2.05, 0.2));
+    g.add(mesh(GEO.ballHi, c, 0.5, 0.45, 0.5, -0.4, 1.95, -0.25));
     g.add(snowPiece(GEO.ball, 0.62, 0.25, 0.62, 0, 2.2, 0));
     g.add(snowPiece(GEO.ball, 0.4, 0.16, 0.4, 0.45, 2.43, 0.2));
     g.add(snowPiece(GEO.ball, 0.36, 0.14, 0.36, -0.4, 2.3, -0.25));
@@ -987,6 +987,27 @@ export function makeTree(kind, s = 1) {
   }
   g.scale.setScalar(s);
   return g;
+}
+
+/** Tufo de grama do visual pintado: lâminas finas, base escura e ponta clara (normal para cima, como o chão). */
+export function makeGrassBladesGeometry() {
+  const pos = [], col = [], nor = [];
+  const base = new THREE.Color(0x6fae48), tip = new THREE.Color(0xcbe78c);
+  for (let k = 0; k < 7; k++) {
+    const a = (k / 7) * Math.PI * 2 + Math.random() * 0.7;
+    const r = 0.03 + Math.random() * 0.12;
+    const cx = Math.cos(a) * r, cz = Math.sin(a) * r;
+    const h = 0.12 + Math.random() * 0.16, w = 0.025;
+    const dx = Math.cos(a + Math.PI / 2) * w, dz = Math.sin(a + Math.PI / 2) * w;
+    pos.push(cx - dx, 0, cz - dz, cx + dx, 0, cz + dz, cx + Math.cos(a) * 0.05, h, cz + Math.sin(a) * 0.05);
+    col.push(base.r, base.g, base.b, base.r, base.g, base.b, tip.r, tip.g, tip.b);
+    nor.push(0, 1, 0, 0, 1, 0, 0, 1, 0);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  return geo;
 }
 
 export function makeBush(s = 1) {

@@ -23,6 +23,52 @@ const TOON = `	#ifdef PAINTED
   if (c.includes(ORIG_SPEC)) THREE.ShaderChunk.lights_physical_pars_fragment = c.replace(ORIG_SPEC, TOON);
 }
 
+// ================= Folhagem viva =================
+// Copas "fofas" (relevo irregular) e tudo balançando com o vento. Também só vale com PAINTED.
+const TIME = { value: 0 };
+const WIND = { value: 1 };
+const FOLIAGE = {
+  // Copas redondas e arbustos: relevo irregular e balanço que cresce com a altura
+  canopy: `{
+    vec3 wp = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz;
+    float n = sin( wp.x * 3.1 + wp.y * 2.3 ) * sin( wp.z * 2.7 - wp.y * 1.9 ) + 0.5 * sin( wp.x * 7.3 - wp.z * 5.1 + wp.y * 4.0 );
+    transformed += objectNormal * n * 0.075;
+    float sway = sin( uTime * 1.3 + wp.x * 0.35 + wp.z * 0.27 ) * 0.03 * uWind * max( 0.0, wp.y - 0.6 );
+    transformed.x += sway;
+    transformed.z += sway * 0.6;
+  }`,
+  // Pinheiros: só balançam
+  pine: `{
+    vec3 wp = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz;
+    float sway = sin( uTime * 1.1 + wp.x * 0.3 + wp.z * 0.25 ) * 0.025 * uWind * max( 0.0, wp.y - 0.6 );
+    transformed.x += sway;
+    transformed.z += sway * 0.6;
+  }`,
+  // Grama (instanciada): a ponta das lâminas vai e volta em ondas
+  grass: `{
+    vec2 ip = vec2( instanceMatrix[3][0], instanceMatrix[3][2] );
+    float w = sin( uTime * 2.1 + ip.x * 0.55 + ip.y * 0.4 ) + 0.4 * sin( uTime * 3.7 + ip.x * 1.3 - ip.y * 0.8 );
+    transformed.x += w * position.y * 0.28 * uWind;
+    transformed.z += w * position.y * 0.14 * uWind;
+  }`,
+};
+
+/** Liga a folhagem viva nestes materiais (kind: 'canopy', 'pine' ou 'grass'). */
+export function addFoliage(mats, kind) {
+  for (const m of mats) {
+    m.onBeforeCompile = (sh) => {
+      sh.uniforms.uTime = TIME;
+      sh.uniforms.uWind = WIND;
+      sh.vertexShader = 'uniform float uTime;\nuniform float uWind;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+#ifdef PAINTED
+${FOLIAGE[kind]}
+#endif`);
+    };
+    m.customProgramCacheKey = () => 'foliage-' + kind;
+    m.needsUpdate = true;
+  }
+}
+
 let on = false;
 let scene, renderer, camera;
 let sweepT = 0;
@@ -215,6 +261,8 @@ export function setPainted(v) {
 
 /** A cada quadro: nuvens e (de vez em quando) materiais novos que entraram na cena. */
 export function paintedFrame(dt, o) {
+  TIME.value += dt;
+  WIND.value += ((o.windy ? 2.6 : 1) - WIND.value) * Math.min(1, dt);
   if (on) {
     sweepT -= dt;
     if (sweepT <= 0) { sweepT = 0.4; sweep(); }

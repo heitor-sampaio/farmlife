@@ -3,6 +3,14 @@
 
 export const CHANGELOG = [
   {
+    version: '4.7.0', date: '2026-10-17', title: 'Visual pintado: grama e árvores vivas',
+    items: [
+      '🌾 No visual pintado, a grama livre da fazenda se enche de tufos de capim que balançam com o vento (bem mais forte na ventania). Eles saem do caminho quando você coloca uma obra ou campo.',
+      '🌳 As copas das árvores e os arbustos ficaram mais fofos e irregulares, e árvores e pinheiros balançam devagar.',
+      '📱 No celular a grama é menos densa, para não pesar. O visual Simples continua igual.',
+    ],
+  },
+  {
     version: '4.6.0', date: '2026-10-17', title: 'Visual pintado (experimental)',
     items: [
       '⚙️ O botão de configurações (no canto de cima) agora tem uma engrenagem e uma opção nova: 🎨 Visual Simples ou Pintado ✨. Fica salva neste aparelho.',

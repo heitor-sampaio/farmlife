@@ -2,6 +2,12 @@
 
 Todas as mudanças do jogo, da mais nova para a mais antiga. Este arquivo é gerado a partir de `js/changelog.js` por `node tools/gerar-versao.mjs`.
 
+## v4.7.0 — Visual pintado: grama e árvores vivas (17/10/2026)
+
+- 🌾 No visual pintado, a grama livre da fazenda se enche de tufos de capim que balançam com o vento (bem mais forte na ventania). Eles saem do caminho quando você coloca uma obra ou campo.
+- 🌳 As copas das árvores e os arbustos ficaram mais fofos e irregulares, e árvores e pinheiros balançam devagar.
+- 📱 No celular a grama é menos densa, para não pesar. O visual Simples continua igual.
+
 ## v4.6.0 — Visual pintado (experimental) (17/10/2026)
 
 - ⚙️ O botão de configurações (no canto de cima) agora tem uma engrenagem e uma opção nova: 🎨 Visual Simples ou Pintado ✨. Fica salva neste aparelho.
