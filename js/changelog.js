@@ -3,6 +3,18 @@
 
 export const CHANGELOG = [
   {
+    version: '4.2.0', date: '2026-10-17', title: 'Progressão rebalanceada',
+    items: [
+      '⭐ A jornada ficou mais longa: agora são 18 níveis, e cada um pede um pouco mais de XP que o anterior. Cada nível novo libera algo.',
+      '🌱 Culturas mais caras dão mais lucro por minuto. A XP por minuto também cresce, mas devagar. As que rebrotam (tomate, morango, pimentão, uva, café) rendem bem sem dominar as outras.',
+      '🏭 Todas as receitas das fábricas agora lucram: tecido de algodão usa 2 algodões, e geleia, café torrado, açúcar e roupas valem mais.',
+      '🐄 Animais, campos, máquinas, funcionários, melhorias e obras foram espalhados pelos níveis, com preços revistos.',
+      '🔔 O aviso de nível novo agora mostra tudo o que foi liberado: obras, mudas, colmeias, pasto, máquinas, ferramentas, pet e cavalo.',
+      '🏆 Conquista nova: chegar ao nível 10. A de nível máximo agora vai até o nível 18.',
+      '🕹️ No celular, o joystick ficou mais preciso: a velocidade sobe aos poucos conforme você empurra, e a máxima é menor (a pé e a cavalo).',
+    ],
+  },
+  {
     version: '4.1.0', date: '2026-10-17', title: 'Mais plantas',
     items: [
       '🌱 11 culturas novas: 🥬 alface, 🥔 batata, 🧅 cebola, 🫑 pimentão (rebrota), 🫘 feijão, ☁️ algodão, 🎋 cana, 🍉 melancia, 🍇 uva (rebrota), ☕ café (rebrota) e 🍍 abacaxi.',

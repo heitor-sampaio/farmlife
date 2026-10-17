@@ -3428,8 +3428,9 @@ function updatePlayer(dt) {
     if (mag * JOY_RADIUS > JOY_DEAD) {
       ix = dx + dy;
       iz = dy - dx;
-      speed = mag > 0.85 ? RUN : WALK * Math.max(0.35, mag / 0.85);
-      player.running = mag > 0.85;
+      // Curva suave: devagar perto do centro (precisão), no máximo 1,25× a caminhada na borda
+      speed = WALK * (0.25 + mag * mag);
+      player.running = mag > 0.9;
     }
   }
 

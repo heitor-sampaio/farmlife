@@ -12,57 +12,57 @@ export const SOUND_KEY = 'farmlife-sound';
 // seed = preço da semente, sell = preço base de venda, time = segundos para crescer
 // regrow = fração do crescimento perdida ao colher (a planta continua no lote)
 export const CROPS = {
-  trigo:     { name: 'Trigo',     icon: '🌾', seed: 5,   sell: 12,  time: 20,  xp: 2,  level: 1 },
-  cenoura:   { name: 'Cenoura',   icon: '🥕', seed: 12,  sell: 30,  time: 40,  xp: 4,  level: 1 },
-  tomate:    { name: 'Tomate',    icon: '🍅', seed: 35,  sell: 22,  time: 60,  xp: 3,  level: 2, regrow: 0.6 },
-  milho:     { name: 'Milho',     icon: '🌽', seed: 40,  sell: 95,  time: 100, xp: 10, level: 3 },
-  morango:   { name: 'Morango',   icon: '🍓', seed: 80,  sell: 45,  time: 120, xp: 5,  level: 4, regrow: 0.5 },
-  berinjela: { name: 'Berinjela', icon: '🍆', seed: 90,  sell: 210, time: 180, xp: 20, level: 5 },
-  abobora:   { name: 'Abóbora',   icon: '🎃', seed: 130, sell: 320, time: 240, xp: 30, level: 6 },
-  girassol:  { name: 'Girassol',  icon: '🌻', seed: 200, sell: 480, time: 300, xp: 45, level: 8 },
-  alface:    { name: 'Alface',    icon: '🥬', seed: 8,   sell: 20,  time: 30,  xp: 3,  level: 1 },
-  batata:    { name: 'Batata',    icon: '🥔', seed: 20,  sell: 50,  time: 70,  xp: 6,  level: 2 },
-  cebola:    { name: 'Cebola',    icon: '🧅', seed: 25,  sell: 60,  time: 80,  xp: 7,  level: 2 },
-  pimentao:  { name: 'Pimentão',  icon: '🫑', seed: 50,  sell: 35,  time: 90,  xp: 4,  level: 3, regrow: 0.55 },
-  feijao:    { name: 'Feijão',    icon: '🫘', seed: 45,  sell: 110, time: 110, xp: 11, level: 3 },
-  algodao:   { name: 'Algodão',   icon: '☁️', seed: 70,  sell: 150, time: 140, xp: 14, level: 4 },
-  cana:      { name: 'Cana',      icon: '🎋', seed: 85,  sell: 190, time: 170, xp: 18, level: 5 },
-  melancia:  { name: 'Melancia',  icon: '🍉', seed: 110, sell: 280, time: 220, xp: 26, level: 5 },
-  uva:       { name: 'Uva',       icon: '🍇', seed: 160, sell: 90,  time: 200, xp: 9,  level: 6, regrow: 0.5 },
-  cafe:      { name: 'Café',      icon: '☕', seed: 180, sell: 130, time: 240, xp: 14, level: 7, regrow: 0.5 },
-  abacaxi:   { name: 'Abacaxi',   icon: '🍍', seed: 220, sell: 560, time: 330, xp: 50, level: 8 },
+  trigo:     { name: 'Trigo',     icon: '🌾', seed: 4,   sell: 12,  time: 20,  xp: 2,  level: 1 },
+  cenoura:   { name: 'Cenoura',   icon: '🥕', seed: 10,  sell: 26,  time: 40,  xp: 4,  level: 1 },
+  tomate:    { name: 'Tomate',    icon: '🍅', seed: 30,  sell: 18,  time: 60,  xp: 2,  level: 2, regrow: 0.35 },
+  milho:     { name: 'Milho',     icon: '🌽', seed: 33,  sell: 82,  time: 100, xp: 11, level: 3 },
+  morango:   { name: 'Morango',   icon: '🍓', seed: 70,  sell: 45,  time: 120, xp: 4,  level: 4, regrow: 0.4 },
+  berinjela: { name: 'Berinjela', icon: '🍆', seed: 104,  sell: 260, time: 180, xp: 26, level: 8 },
+  abobora:   { name: 'Abóbora',   icon: '🎃', seed: 187, sell: 467, time: 240, xp: 40, level: 12 },
+  girassol:  { name: 'Girassol',  icon: '🌻', seed: 293, sell: 733, time: 300, xp: 57, level: 16 },
+  alface:    { name: 'Alface',    icon: '🥬', seed: 7,   sell: 20,  time: 30,  xp: 3,  level: 1 },
+  batata:    { name: 'Batata',    icon: '🥔', seed: 18,  sell: 48,  time: 70,  xp: 7,  level: 2 },
+  cebola:    { name: 'Cebola',    icon: '🧅', seed: 26,  sell: 65,  time: 80,  xp: 9,  level: 3 },
+  pimentao:  { name: 'Pimentão',  icon: '🫑', seed: 60,  sell: 42,  time: 90,  xp: 4,  level: 6, regrow: 0.4 },
+  feijao:    { name: 'Feijão',    icon: '🫘', seed: 42,  sell: 104, time: 110, xp: 13, level: 4 },
+  algodao:   { name: 'Algodão',   icon: '☁️', seed: 67,  sell: 167, time: 140, xp: 18, level: 6 },
+  cana:      { name: 'Cana',      icon: '🎋', seed: 98,  sell: 245, time: 170, xp: 24, level: 8 },
+  melancia:  { name: 'Melancia',  icon: '🍉', seed: 149, sell: 373, time: 220, xp: 34, level: 10 },
+  uva:       { name: 'Uva',       icon: '🍇', seed: 200, sell: 123,  time: 200, xp: 12,  level: 10, regrow: 0.45 },
+  cafe:      { name: 'Café',      icon: '☕', seed: 300, sell: 191, time: 240, xp: 17, level: 14, regrow: 0.45 },
+  abacaxi:   { name: 'Abacaxi',   icon: '🍍', seed: 356, sell: 890, time: 330, xp: 67, level: 18 },
 };
 
 export const PRODUCTS = {
-  ovo:   { name: 'Ovo',   icon: '🥚', sell: 45,  xp: 5 },
-  la:    { name: 'Lã',    icon: '🧶', sell: 140, xp: 10 },
-  leite: { name: 'Leite', icon: '🥛', sell: 210, xp: 15 },
-  trufa: { name: 'Trufa', icon: '🍄', sell: 360, xp: 22 },
+  ovo:   { name: 'Ovo',   icon: '🥚', sell: 45,  xp: 4 },
+  la:    { name: 'Lã',    icon: '🧶', sell: 140, xp: 9 },
+  leite: { name: 'Leite', icon: '🥛', sell: 210, xp: 13 },
+  trufa: { name: 'Trufa', icon: '🍄', sell: 360, xp: 20 },
 };
 
 // Animais comem 1 trigo por ciclo de produção
 // f/m/baby: nomes da fêmea, do macho e do filhote; colors: variações de pelagem [feminino, masculino] (o modelo usa o índice)
 export const ANIMALS = {
-  galinha: { name: 'Galinha', icon: '🐔', cost: 250,  product: 'ovo',   time: 60,  level: 2, f: 'Galinha', m: 'Galo',     baby: 'Pintinho', babyIcon: '🐣', colors: [['Branca', 'Branco'], ['Marrom', 'Marrom'], ['Preta', 'Preto'], ['Carijó', 'Carijó']] },
-  ovelha:  { name: 'Ovelha',  icon: '🐑', cost: 700,  product: 'la',    time: 120, level: 4, f: 'Ovelha',  m: 'Carneiro', baby: 'Cordeiro', babyIcon: '🐑', colors: [['Branca', 'Branco'], ['Creme', 'Creme'], ['Preta', 'Preto'], ['Cinza', 'Cinza']] },
-  vaca:    { name: 'Vaca',    icon: '🐄', cost: 1200, product: 'leite', time: 150, level: 5, f: 'Vaca',    m: 'Touro',    baby: 'Bezerro',  babyIcon: '🐮', colors: [['Malhada', 'Malhado'], ['Malhada marrom', 'Malhado marrom'], ['Marrom', 'Marrom'], ['Preta', 'Preto']] },
-  porco:   { name: 'Porco',   icon: '🐖', cost: 2000, product: 'trufa', time: 200, level: 7, f: 'Porca',   m: 'Cachaço',  baby: 'Leitão',   babyIcon: '🐷', colors: [['Rosa', 'Rosa'], ['Malhada', 'Malhado'], ['Preta', 'Preto'], ['Caramelo', 'Caramelo']] },
+  galinha: { name: 'Galinha', icon: '🐔', cost: 300,  product: 'ovo',   time: 60,  level: 2, f: 'Galinha', m: 'Galo',     baby: 'Pintinho', babyIcon: '🐣', colors: [['Branca', 'Branco'], ['Marrom', 'Marrom'], ['Preta', 'Preto'], ['Carijó', 'Carijó']] },
+  ovelha:  { name: 'Ovelha',  icon: '🐑', cost: 900,  product: 'la',    time: 120, level: 5, f: 'Ovelha',  m: 'Carneiro', baby: 'Cordeiro', babyIcon: '🐑', colors: [['Branca', 'Branco'], ['Creme', 'Creme'], ['Preta', 'Preto'], ['Cinza', 'Cinza']] },
+  vaca:    { name: 'Vaca',    icon: '🐄', cost: 1800, product: 'leite', time: 150, level: 7, f: 'Vaca',    m: 'Touro',    baby: 'Bezerro',  babyIcon: '🐮', colors: [['Malhada', 'Malhado'], ['Malhada marrom', 'Malhado marrom'], ['Marrom', 'Marrom'], ['Preta', 'Preto']] },
+  porco:   { name: 'Porco',   icon: '🐖', cost: 3500, product: 'trufa', time: 200, level: 11, f: 'Porca',   m: 'Cachaço',  baby: 'Leitão',   babyIcon: '🐷', colors: [['Rosa', 'Rosa'], ['Malhada', 'Malhado'], ['Preta', 'Preto'], ['Caramelo', 'Caramelo']] },
 };
 // Filhotes: só fêmeas produzem; com um macho adulto da mesma espécie, cada produção tem chance de nascer um filhote
 // Pasto: campo grande a leste do Campo de Trigo só para o gado (vacas, touros e bezerros), com muito mais vagas.
 // No pasto o gado come capim: não precisa de trigo.
 // Queijaria: transforma o leite das vacas em queijo (2 🥛 → 1 🧀), sozinha, até com o jogo fechado. É uma obra de madeira.
-export const CHEESERY = { name: 'Queijaria', icon: '🧀', level: 5, time: 90, milk: 2, capacity: 10 }; // construída com madeira (BUILDINGS.queijaria)
-export const CHEESE = { name: 'Queijo', icon: '🧀', sell: 560, xp: 35 };
-export const PASTURE = { name: 'Pasto', icon: '🌿', cost: 15000, level: 5, cols: 24, rows: 16, slots: 30 };
+export const CHEESERY = { name: 'Queijaria', icon: '🧀', level: 8, time: 90, milk: 2, capacity: 10 }; // construída com madeira (BUILDINGS.queijaria)
+export const CHEESE = { name: 'Queijo', icon: '🧀', sell: 600, xp: 28 };
+export const PASTURE = { name: 'Pasto', icon: '🌿', cost: 25000, level: 9, cols: 24, rows: 16, slots: 30 };
 export const BREED = { chance: 0.03, grow: 900 }; // 3% por produção; o filhote vira adulto em 5 dias de jogo
 
 // Campos de plantio. O principal se expande lote a lote; os outros são comprados inteiros na loja.
 export const FIELDS = [
   { id: 'principal', name: 'Campo principal', icon: '🏡', cols: COLS, rows: ROWS, cost: 0, level: 1 },
-  { id: 'leste', name: 'Campo do Leste', icon: '🌄', cols: 6, rows: 4, cost: 3000, level: 4 },
-  { id: 'sul', name: 'Campo do Sul', icon: '🌾', cols: 8, rows: 4, cost: 7500, level: 6 },
-  { id: 'lago', name: 'Campo do Lago', icon: '🦆', cols: 6, rows: 5, cost: 15000, level: 8 },
+  { id: 'leste', name: 'Campo do Leste', icon: '🌄', cols: 6, rows: 4, cost: 4000, level: 5 },
+  { id: 'sul', name: 'Campo do Sul', icon: '🌾', cols: 8, rows: 4, cost: 12000, level: 9 },
+  { id: 'lago', name: 'Campo do Lago', icon: '🦆', cols: 6, rows: 5, cost: 25000, level: 13 },
 ];
 let fieldStart = 0;
 for (const f of FIELDS) { f.start = fieldStart; f.count = f.cols * f.rows; fieldStart += f.count; }
@@ -81,14 +81,14 @@ export function fieldOf(i) {
 
 // Lavoura mecanizada: um campo enorme só de trigo, trabalhado com máquinas que o jogador dirige
 export const BIG_FIELD = {
-  name: 'Campo de Trigo', icon: '🌾', cols: 24, rows: 16, cost: 20000, level: 6,
+  name: 'Campo de Trigo', icon: '🌾', cols: 24, rows: 16, cost: 40000, level: 12,
   time: 90, // segundos para o trigo amadurecer (não precisa de rega)
 };
 export const BIG_CELLS = BIG_FIELD.cols * BIG_FIELD.rows;
 export const MACHINES = {
-  arado:         { name: 'Trator com arado',       icon: '🚜', cost: 5000,  level: 6, desc: 'Ara 3 faixas de terra por onde passa.' },
-  plantadeira:   { name: 'Trator com plantadeira', icon: '🚜', cost: 7000,  level: 6, desc: 'Planta trigo em 4 faixas (usa suas sementes de trigo).' },
-  colheitadeira: { name: 'Colheitadeira',          icon: '🌾', cost: 12000, level: 7, desc: 'Colhe 5 faixas de trigo maduro de uma vez.' },
+  arado:         { name: 'Trator com arado',       icon: '🚜', cost: 8000,  level: 12, desc: 'Ara 3 faixas de terra por onde passa.' },
+  plantadeira:   { name: 'Trator com plantadeira', icon: '🚜', cost: 12000,  level: 13, desc: 'Planta trigo em 4 faixas (usa suas sementes de trigo).' },
+  colheitadeira: { name: 'Colheitadeira',          icon: '🌾', cost: 20000, level: 15, desc: 'Colhe 5 faixas de trigo maduro de uma vez.' },
 };
 
 // Pescaria no lago. dif = dificuldade do minigame (0 a 1); weight = chance relativa
@@ -103,14 +103,14 @@ export const FISH = {
 export const RODS = [
   null,
   { name: 'Vara de bambu', icon: '🎣', cost: 100,  level: 1, zone: 0.26, bite: 1.0, wait: 1.0, desc: 'Permite pescar no lago. Equipe a 🎣 na barra e vá até a beira.' },
-  { name: 'Vara de fibra', icon: '🎣', cost: 1500, level: 4, zone: 0.36, bite: 1.35, wait: 0.7, desc: 'Faixa de captura maior, peixes mordem mais rápido e mais chance de peixes raros.' },
+  { name: 'Vara de fibra', icon: '🎣', cost: 3000, level: 7, zone: 0.36, bite: 1.35, wait: 0.7, desc: 'Faixa de captura maior, peixes mordem mais rápido e mais chance de peixes raros.' },
 ];
 
 // Pet: um border collie que acompanha o jogador
-export const PET = { breed: 'Border collie', icon: '🐶', cost: 400, level: 2, defaultName: 'Pipoca', xp: 10 };
+export const PET = { breed: 'Border collie', icon: '🐶', cost: 500, level: 3, defaultName: 'Pipoca', xp: 10 };
 // Cavalo: com a sela, o fazendeiro monta e anda bem mais rápido
-export const HORSE = { name: 'Cavalo', icon: '🐴', cost: 1200, level: 3, desc: 'Um cavalo manso que pasta perto do portão do curral. Com uma sela, você monta e anda bem mais rápido pela fazenda.' };
-export const SADDLE = { name: 'Sela', icon: '🏇', cost: 350, level: 3, desc: 'Sela de couro para montar no cavalo: cavalgue quase duas vezes mais rápido (e galope com Shift).' };
+export const HORSE = { name: 'Cavalo', icon: '🐴', cost: 2500, level: 6, desc: 'Um cavalo manso que pasta perto do portão do curral. Com uma sela, você monta e anda bem mais rápido pela fazenda.' };
+export const SADDLE = { name: 'Sela', icon: '🏇', cost: 600, level: 6, desc: 'Sela de couro para montar no cavalo: cavalgue quase duas vezes mais rápido (e galope com Shift).' };
 export const RIDE_MULT = 1.75; // velocidade a cavalo em relação a pé
 
 // Esterco das vacas → composteira → fertilizante, que pode deixar a planta gigante (vale o dobro)
@@ -152,12 +152,12 @@ export const EVENT_COOLDOWN = 1;  // rodadas de descanso depois de um evento
 export const AXES = [
   null,
   { name: 'Machado', icon: '🪓', cost: 150, level: 1, hits: 4, bonus: 0, desc: 'Corta as árvores do bosque em 4 golpes.' },
-  { name: 'Machado de aço', icon: '🪓', cost: 1200, level: 4, hits: 2, bonus: 1, desc: 'Corta em 2 golpes e rende 1 tronco a mais por árvore.' },
+  { name: 'Machado de aço', icon: '🪓', cost: 1500, level: 5, hits: 2, bonus: 1, desc: 'Corta em 2 golpes e rende 1 tronco a mais por árvore.' },
 ];
 export const LOG = { name: 'Tronco', icon: '🪵', sell: 18, xp: 1 };
 export const WOOD = { logs: [2, 3], xp: 3, regrow: 300 }; // troncos por árvore; segundos para a árvore crescer de novo (5 min)
 // Serraria: transforma troncos em tábuas, um tronco por vez
-export const SAWMILL = { name: 'Serraria', icon: '🪚', cost: 1500, level: 3, time: 15, perLog: 2, capacity: 20 };
+export const SAWMILL = { name: 'Serraria', icon: '🪚', cost: 2000, level: 4, time: 15, perLog: 2, capacity: 20 };
 export const PLANK = { name: 'Tábuas de madeira', icon: '🟫', sell: 22, xp: 1 };
 // Posições das árvores do bosque (oeste do mapa, entre o curral e o Campo do Sul)
 export const CHOP_TREES = [
@@ -178,8 +178,8 @@ export const CARPENTRY = { name: 'Mesa de carpintaria', icon: '🪚' };
 export const BUILDINGS = {
   celeiro: { name: 'Celeiro', icon: '🛖', cost: { madeira: 10, viga: 2 }, desc: 'Libera a venda da colheita, dos produtos e dos peixes.' },
   curral:  { name: 'Curral',  icon: '🐾', cost: { madeira: 14, viga: 4 }, desc: 'Libera a compra de animais e o cocho.' },
-  galpao:  { name: 'Galpão das máquinas', icon: '🚜', cost: { madeira: 24, viga: 8 }, desc: 'Garagem das máquinas do Campo de Trigo: é preciso para comprá-las.' },
-  queijaria: { name: 'Queijaria', icon: '🧀', cost: { madeira: 20, viga: 6 }, level: 5, fem: true, desc: 'Transforma o leite das vacas em queijo, sozinha.' },
+  galpao:  { name: 'Galpão das máquinas', icon: '🚜', cost: { madeira: 24, viga: 8 }, level: 12, desc: 'Garagem das máquinas do Campo de Trigo: é preciso para comprá-las.' },
+  queijaria: { name: 'Queijaria', icon: '🧀', cost: { madeira: 20, viga: 6 }, level: 8, fem: true, desc: 'Transforma o leite das vacas em queijo, sozinha.' },
 };
 
 export const WATER_TIME = [40, 70, 110, 180];
@@ -187,18 +187,18 @@ export const GROW_SPEED = [1, 1.2, 1.45, 1.75];
 export const PEN_SIZE = [4, 8, 12];
 
 export const UPGRADES = {
-  regador:  { name: 'Regador reforçado', icon: '🚿', costs: [150, 600, 1800], req: [1, 3, 5], effect: (l) => `Água dura ${WATER_TIME[l]}s` },
-  adubo:    { name: 'Adubo orgânico',    icon: '🧪', costs: [400, 1200, 3000], req: [2, 4, 6], effect: (l) => `Crescimento +${Math.round((GROW_SPEED[l] - 1) * 100)}%` },
-  curral:   { name: 'Curral maior',      icon: '🏡', costs: [900, 2800],       req: [3, 6],    effect: (l) => `${PEN_SIZE[l]} vagas para animais` },
-  alimentador: { name: 'Alimentador automático', icon: '⚙️', costs: [1500], req: [3], effect: (l) => (l ? 'Animais comem 🌾 do celeiro sozinhos' : 'Alimentação manual') },
-  aspersor: { name: 'Aspersores',        icon: '⛲', costs: [4000],            req: [7],       effect: (l) => (l ? 'Rega tudo automaticamente' : 'Rega manual') },
+  regador:  { name: 'Regador reforçado', icon: '🚿', costs: [150, 800, 2500], req: [1, 4, 8], effect: (l) => `Água dura ${WATER_TIME[l]}s` },
+  adubo:    { name: 'Adubo orgânico',    icon: '🧪', costs: [500, 2000, 12000], req: [3, 7, 17], effect: (l) => `Crescimento +${Math.round((GROW_SPEED[l] - 1) * 100)}%` },
+  curral:   { name: 'Curral maior',      icon: '🏡', costs: [1000, 4000],       req: [4, 10],    effect: (l) => `${PEN_SIZE[l]} vagas para animais` },
+  alimentador: { name: 'Alimentador automático', icon: '⚙️', costs: [2000], req: [6], effect: (l) => (l ? 'Animais comem 🌾 do celeiro sozinhos' : 'Alimentação manual') },
+  aspersor: { name: 'Aspersores',        icon: '⛲', costs: [8000],            req: [14],       effect: (l) => (l ? 'Rega tudo automaticamente' : 'Rega manual') },
 };
 
 // Funcionários: custo de contratação + salário cobrado no início de cada dia
 export const WORKERS = {
-  colhedor:  { name: 'Colhedor',  icon: '🧺', hire: 800,  wage: 40, level: 3, desc: 'Colhe sozinho todas as plantas prontas.' },
-  plantador: { name: 'Plantador', icon: '🌱', hire: 1000, wage: 50, level: 4, desc: 'Planta nos lotes arados vazios usando a semente selecionada (ou a que você tiver mais).' },
-  tratador:  { name: 'Tratador',  icon: '🐾', hire: 1200, wage: 60, level: 5, desc: 'Coleta ovos, lã, leite e trufas dos animais.' },
+  colhedor:  { name: 'Colhedor',  icon: '🧺', hire: 1500,  wage: 60, level: 6, desc: 'Colhe sozinho todas as plantas prontas.' },
+  plantador: { name: 'Plantador', icon: '🌱', hire: 2000, wage: 80, level: 8, desc: 'Planta nos lotes arados vazios usando a semente selecionada (ou a que você tiver mais).' },
+  tratador:  { name: 'Tratador',  icon: '🐾', hire: 2500, wage: 100, level: 10, desc: 'Coleta ovos, lã, leite e trufas dos animais.' },
 };
 export const WORK_TIME = 2.5; // segundos por tarefa quando o jogo é simulado (aba fechada, sono)
 
@@ -215,17 +215,17 @@ export const GOODS = {
   manga:    { name: 'Manga',           icon: '🥭', sell: 70,  xp: 4 },
   mel:      { name: 'Mel',             icon: '🍯', sell: 120, xp: 6 },
   farinha:  { name: 'Farinha',         icon: '🥣', sell: 50,  xp: 3 },
-  pao:      { name: 'Pão',             icon: '🍞', sell: 140, xp: 8 },
-  torta:    { name: 'Torta de maçã',   icon: '🥧', sell: 260, xp: 15 },
-  suco:     { name: 'Suco de laranja', icon: '🧃', sell: 200, xp: 12 },
-  geleia:   { name: 'Geleia de manga', icon: '🫙', sell: 340, xp: 18 },
-  bolo:     { name: 'Bolo',            icon: '🎂', sell: 560, xp: 30 },
-  tecido:   { name: 'Tecido',          icon: '🧵', sell: 340, xp: 18 },
-  roupa:    { name: 'Roupa',           icon: '👕', sell: 860, xp: 45 },
-  defumado: { name: 'Peixe defumado',  icon: '🍢', sell: 150, xp: 10 },
-  acucar:   { name: 'Açúcar',          icon: '🍬', sell: 700, xp: 35 },
-  cafezinho:{ name: 'Café torrado',    icon: '🫖', sell: 480, xp: 25 },
-  vinho:    { name: 'Suco de uva',     icon: '🍷', sell: 320, xp: 16 },
+  pao:      { name: 'Pão',             icon: '🍞', sell: 145, xp: 7 },
+  torta:    { name: 'Torta de maçã',   icon: '🥧', sell: 220, xp: 11 },
+  suco:     { name: 'Suco de laranja', icon: '🧃', sell: 200, xp: 10 },
+  geleia:   { name: 'Geleia de manga', icon: '🫙', sell: 480, xp: 22 },
+  bolo:     { name: 'Bolo',            icon: '🎂', sell: 600, xp: 28 },
+  tecido:   { name: 'Tecido',          icon: '🧵', sell: 400, xp: 18 },
+  roupa:    { name: 'Roupa',           icon: '👕', sell: 1150, xp: 50 },
+  defumado: { name: 'Peixe defumado',  icon: '🍢', sell: 120, xp: 8 },
+  acucar:   { name: 'Açúcar',          icon: '🍬', sell: 1000, xp: 45 },
+  cafezinho:{ name: 'Café torrado',    icon: '🫖', sell: 800, xp: 36 },
+  vinho:    { name: 'Suco de uva',     icon: '🍷', sell: 520, xp: 24 },
 };
 // Fábricas: obras de madeira que transformam produtos sozinhas (até com o jogo fechado).
 // recipes[].in: o que gasta ('peixe' = qualquer peixe); out: o que faz; time: segundos por unidade
@@ -235,7 +235,7 @@ export const FACTORIES = {
       { id: 'farinha', in: { trigo: 3 }, out: 'farinha', time: 25 },
       { id: 'acucar',  in: { cana: 3 },  out: 'acucar',  time: 70 },
     ] },
-  padaria:     { name: 'Padaria',     icon: '🥖', level: 4, at: [20.6, 7.6],  size: [3.4, 2.8], cost: { madeira: 22, viga: 6 }, capacity: 10, fem: true, desc: 'Faz pão, tortas, sucos, geleias, bolos e torra café.',
+  padaria:     { name: 'Padaria',     icon: '🥖', level: 5, at: [20.6, 7.6],  size: [3.4, 2.8], cost: { madeira: 22, viga: 6 }, capacity: 10, fem: true, desc: 'Faz pão, tortas, sucos, geleias, bolos e torra café.',
     recipes: [
       { id: 'pao',    in: { farinha: 2 },                   out: 'pao',    time: 40 },
       { id: 'torta',  in: { farinha: 1, maca: 3 },          out: 'torta',  time: 60 },
@@ -245,13 +245,13 @@ export const FACTORIES = {
       { id: 'vinho',  in: { uva: 3 },                       out: 'vinho',  time: 60 },
       { id: 'cafezinho', in: { cafe: 3 },                   out: 'cafezinho', time: 80 },
     ] },
-  tear:        { name: 'Tear',        icon: '🧶', level: 5, at: [20.6, 12.3], size: [3.2, 2.6], cost: { madeira: 20, viga: 6 }, capacity: 8, desc: 'Tece lã ou algodão em tecido e costura roupas.',
+  tear:        { name: 'Tear',        icon: '🧶', level: 7, at: [20.6, 12.3], size: [3.2, 2.6], cost: { madeira: 20, viga: 6 }, capacity: 8, desc: 'Tece lã ou algodão em tecido e costura roupas.',
     recipes: [
       { id: 'tecido', in: { la: 2 },     out: 'tecido', time: 60 },
-      { id: 'tecido2', in: { algodao: 3 }, out: 'tecido', time: 70 },
+      { id: 'tecido2', in: { algodao: 2 }, out: 'tecido', time: 70 },
       { id: 'roupa',  in: { tecido: 2 }, out: 'roupa',  time: 120 },
     ] },
-  defumadouro: { name: 'Defumadouro', icon: '🔥', level: 3, at: [4.2, 6.7],   size: [2.4, 2.2], cost: { madeira: 12, viga: 3 }, capacity: 10, desc: 'Defuma os peixes do lago (2 peixes quaisquer → 1 defumado).',
+  defumadouro: { name: 'Defumadouro', icon: '🔥', level: 4, at: [4.2, 6.7],   size: [2.4, 2.2], cost: { madeira: 12, viga: 3 }, capacity: 10, desc: 'Defuma os peixes do lago (2 peixes quaisquer → 1 defumado).',
     recipes: [{ id: 'defumado', in: { peixe: 2 }, out: 'defumado', time: 50 }] },
 };
 // As fábricas também são obras (entram na Oficina e nos canteiros)
@@ -262,12 +262,12 @@ for (const [id, f] of Object.entries(FACTORIES)) {
 // Pomar: seis covas ao norte do Campo de Trigo. A muda cresce e depois dá frutas de tempos em tempos.
 export const ORCHARD = { slots: 6, grow: 360, stock: 3 };
 export const FRUIT_TREES = {
-  maca:    { name: 'Macieira',   fruit: 'maca',    icon: '🍎', cost: 600,  level: 3, every: 120 },
-  laranja: { name: 'Laranjeira', fruit: 'laranja', icon: '🍊', cost: 900,  level: 4, every: 150 },
-  manga:   { name: 'Mangueira',  fruit: 'manga',   icon: '🥭', cost: 1400, level: 6, every: 180 },
+  maca:    { name: 'Macieira',   fruit: 'maca',    icon: '🍎', cost: 800,  level: 5, every: 120 },
+  laranja: { name: 'Laranjeira', fruit: 'laranja', icon: '🍊', cost: 1200,  level: 7, every: 150 },
+  manga:   { name: 'Mangueira',  fruit: 'manga',   icon: '🥭', cost: 2000, level: 11, every: 180 },
 };
 // Colmeias: fazem mel e as abelhas polinizam o pomar (frutas mais rápido)
-export const HIVES = { name: 'Colmeia', icon: '🐝', cost: 800, level: 4, max: 4, every: 150, stock: 3, boost: 0.3 };
+export const HIVES = { name: 'Colmeia', icon: '🐝', cost: 1200, level: 6, max: 4, every: 150, stock: 3, boost: 0.3 };
 
 // ================= Estações do ano =================
 // Cada estação dura SEASON_DAYS dias de jogo. crops: culturas que crescem mais rápido nela.

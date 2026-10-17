@@ -130,8 +130,8 @@ const PLAY_STEPS = STEPS.filter((s) => !s.intro && !s.final).length;
 // ================= Dicas na hora certa =================
 const TIPS = {
   level2: {
-    title: 'Nível 2: animais e pet!', target: { spot: 'loja' },
-    body: () => `Na 🏪 Loja agora você pode adotar uma 🐶 <b>border collie</b> e comprar 🐔 <b>galinhas</b> (botam 🥚)${core.built('curral') ? '' : `, mas antes construa o 🐾 <b>Curral</b> com madeira (${costTxt('curral')}): o canteiro fica no portão do curral, a oeste`}.`,
+    title: 'Nível 2: galinhas!', target: { spot: 'loja' },
+    body: () => `Na 🏪 Loja agora você pode comprar 🐔 <b>galinhas</b> (botam 🥚). No nível ${PET.level} dá para adotar uma 🐶 <b>border collie</b>${core.built('curral') ? '' : `, mas antes construa o 🐾 <b>Curral</b> com madeira (${costTxt('curral')}): o canteiro fica no portão do curral, a oeste`}.`,
   },
   animal: {
     title: 'Cuidando dos animais', target: { spot: 'cocho' },
@@ -247,7 +247,7 @@ const TIPS = {
   },
   'built-curral': {
     title: 'Curral construído!', target: { spot: 'loja' },
-    body: () => `O 🐾 Curral está pronto. Compre animais na 🏪 Loja (as 🐔 galinhas liberam no nível 2) e alimente com 🌾 trigo no <b>cocho</b>.`,
+    body: () => `O 🐾 Curral está pronto. Compre animais na 🏪 Loja (as 🐔 galinhas liberam no nível ${ANIMALS.galinha.level}) e alimente com 🌾 trigo no <b>cocho</b>.`,
   },
   'built-galpao': {
     title: 'Galpão construído!', target: { spot: 'loja' },
@@ -281,8 +281,8 @@ const TIPS = {
     body: () => `Você já tem tudo o que um dos pedidos da vila pede. Vá até o 📦 <b>quadro de Pedidos</b> (ou use o botão 📦 no topo) e entregue: paga bem mais que o mercado.`,
   },
   level6: {
-    title: 'Nível 6: lavoura mecanizada!', target: { spot: 'loja' },
-    body: () => `Agora você pode comprar o ${BIG_FIELD.icon} <b>${BIG_FIELD.name}</b> (${BIG_CELLS} lotes) e as <b>máquinas</b>: trator com arado, trator com plantadeira e, no nível 7, a colheitadeira.${core.built('galpao') ? '' : ` As máquinas precisam do 🚜 <b>Galpão</b>, construído com madeira (${costTxt('galpao')}).`}`,
+    title: `Nível ${BIG_FIELD.level}: lavoura mecanizada!`, target: { spot: 'loja' },
+    body: () => `Agora você pode comprar o ${BIG_FIELD.icon} <b>${BIG_FIELD.name}</b> (${BIG_CELLS} lotes) e as <b>máquinas</b>: trator com arado (nível ${MACHINES.arado.level}), trator com plantadeira (nível ${MACHINES.plantadeira.level}) e a colheitadeira (nível ${MACHINES.colheitadeira.level}).${core.built('galpao') ? '' : ` As máquinas precisam do 🚜 <b>Galpão</b>, construído com madeira (${costTxt('galpao')}).`}`,
   },
 };
 const costTxt = (id) => Object.entries(BUILDINGS[id].cost).map(([m, q]) => `${q} ${core.ITEMS[m].icon}`).join(' + ');
@@ -472,7 +472,7 @@ export function onEvent(name, data) {
   else if (name === 'build' && !(data === 'celeiro' && active())) queueTip('built-' + data);
   else if (name === 'level') {
     if (data >= 2) queueTip('level2');
-    if (data >= 6) queueTip('level6');
+    if (data >= BIG_FIELD.level) queueTip('level6');
   }
 
   if (!active() || stepFlash > 0) return;
@@ -577,6 +577,8 @@ function roadmap() {
   for (const f of Object.values(FACTORIES)) add(f.level, `${f.icon} ${f.name}`);
   for (const t of Object.values(FRUIT_TREES)) add(t.level, `${t.icon} ${t.name}`);
   add(HIVES.level, `${HIVES.icon} Colmeias`);
+  add(PASTURE.level, `${PASTURE.icon} ${PASTURE.name}`);
+  add(BUILDINGS.galpao.level, `${BUILDINGS.galpao.icon} ${BUILDINGS.galpao.name}`);
   add(PET.level, `${PET.icon} Pet (${PET.breed})`);
   add(HORSE.level, `${HORSE.icon} Cavalo e ${SADDLE.icon} sela`);
   return L;

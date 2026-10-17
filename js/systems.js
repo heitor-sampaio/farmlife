@@ -316,7 +316,7 @@ function newQuest() {
   const xp = req.reduce((s, r) => s + core.ITEMS[r.id].xp * r.qty, 0);
   const who = CUSTOMERS[Math.floor(Math.random() * CUSTOMERS.length)];
   const bonus = GIFTS[Math.floor(Math.random() * GIFTS.length)]();
-  S().quest = { who, req, coins: Math.round(value * QUEST.mult), xp: Math.round(xp * 2.5) + 20, bonus, t: QUEST.due };
+  S().quest = { who, req, coins: Math.round(value * QUEST.mult), xp: Math.round(xp * 1.8) + 20, bonus, t: QUEST.due };
   H.emit('quest');
   H.dirty('panel');
 }
@@ -411,7 +411,7 @@ export function fairEnter(cat) {
   const score = Math.round(core.price(key) * (0.9 + Math.random() * 0.3));
   const place = 1 + f.rivals[cat].filter((x) => x > score).length;
   const prize = FAIR.prizes[place - 1];
-  const coins = prize ? Math.round(prize * S().level * 300) : 50;
+  const coins = prize ? Math.round(prize * S().level * 150) : 50;
   H.earn(coins);
   H.gainXp(prize ? 20 * (4 - place) : 5);
   f.done[cat] = { place, key, score };
@@ -439,8 +439,9 @@ export const ACHIEVEMENTS = [
   { id: 'colheita1000', icon: '🌾', name: 'Celeiro cheio',        desc: 'Colha 1.000 vezes',                       goal: 1000,   cur: () => st('harvest'), reward: 3000 },
   { id: 'pedidos50',    icon: '📦', name: 'Amigo da vila',        desc: 'Entregue 50 pedidos',                     goal: 50,     cur: () => st('orders'), reward: 2000 },
   { id: 'encomendas',   icon: '📜', name: 'Encomendas em dia',    desc: 'Entregue 5 encomendas especiais',         goal: 5,      cur: () => st('quests'), reward: 2500 },
-  { id: 'moedas',       icon: '💰', name: 'Fazendeiro de sucesso', desc: 'Ganhe 100.000 moedas',                   goal: 100000, cur: () => st('earned'), reward: 5000 },
-  { id: 'nivel8',       icon: '⭐', name: 'Mestre da fazenda',    desc: 'Chegue ao nível 8',                       goal: 8,      cur: () => S().level, reward: 3000 },
+  { id: 'moedas',       icon: '💰', name: 'Fazendeiro de sucesso', desc: 'Ganhe 250.000 moedas',                   goal: 250000, cur: () => st('earned'), reward: 5000 },
+  { id: 'nivel10',      icon: '🌟', name: 'Fazendeiro experiente', desc: 'Chegue ao nível 10',                     goal: 10,     cur: () => S().level, reward: 3000 },
+  { id: 'nivel8',       icon: '⭐', name: 'Mestre da fazenda',    desc: `Chegue ao nível ${core.MAX_LEVEL}`,           goal: core.MAX_LEVEL, cur: () => S().level, reward: 10000 },
   { id: 'mutadas',      icon: '🌈', name: 'Clima a favor',        desc: 'Colha 25 plantas mutadas',                goal: 25,     cur: () => st('mutated'), reward: 1500 },
   { id: 'gigante',      icon: '💪', name: 'Planta gigante',       desc: 'Colha uma planta gigante',                goal: 1,      cur: () => st('giants'), reward: 500 },
   { id: 'peixes',       icon: '🎣', name: 'Pescador',             desc: 'Pesque 50 vezes',                         goal: 50,     cur: () => st('fish'), reward: 1000 },
@@ -533,6 +534,23 @@ function petFind(quiet) {
   H.dirty('panel');
 }
 core.onNewDay((day, quiet) => petFind(quiet));
+
+// ================= O que cada nível libera (para o aviso de nível novo) =================
+import { BIG_FIELD, MACHINES, RODS, AXES, SAWMILL, PET, HORSE, HIVES as HV } from './data.js';
+core.onLevelUnlocks((lv) => {
+  const out = [];
+  for (const b of Object.values(BUILDINGS)) if (b.level === lv) out.push(`${b.icon} ${b.name} (obra)`);
+  for (const t of Object.values(FRUIT_TREES)) if (t.level === lv) out.push(`${t.icon} ${t.name}`);
+  if (HV.level === lv) out.push('🐝 Colmeias');
+  if (PASTURE.level === lv) out.push(`${PASTURE.icon} ${PASTURE.name}`);
+  if (BIG_FIELD.level === lv) out.push(`${BIG_FIELD.icon} ${BIG_FIELD.name}`);
+  for (const m of Object.values(MACHINES)) if (m.level === lv) out.push(`${m.icon} ${m.name}`);
+  for (const r of [...RODS, ...AXES]) if (r && r.level === lv && r.cost > 200) out.push(`${r.icon} ${r.name}`);
+  if (SAWMILL.level === lv) out.push(`${SAWMILL.icon} ${SAWMILL.name}`);
+  if (PET.level === lv) out.push(`${PET.icon} Pet`);
+  if (HORSE.level === lv) out.push(`${HORSE.icon} ${HORSE.name}`);
+  return out;
+});
 
 // ================= Ligação com o jogo =================
 core.onUpdate((dt, quiet) => {

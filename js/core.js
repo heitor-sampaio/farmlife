@@ -158,7 +158,7 @@ function newState() {
 }
 
 export const dayOf = (t) => Math.floor(t / DAY_LEN) + 1;
-export const xpNeed = (l) => Math.round(50 * Math.pow(l, 1.5));
+export const xpNeed = (l) => Math.round(90 * Math.pow(l, 2.3) / 10) * 10;
 export const autoWater = () => S.weather === 'chuva' || S.up.aspersor > 0;
 // Itens mutados ficam no inventário com a chave "base|mut1+mut2" (ex.: "tomate|congelada+eletrizada")
 export const MUT_IDS = Object.keys(MUTATIONS);
@@ -622,6 +622,7 @@ function onLevelUp(silent) {
   for (const u of Object.values(UPGRADES)) if (u.req.includes(S.level)) unlocks.push(u.icon + ' ' + u.name);
   for (const w of Object.values(WORKERS)) if (w.level === S.level) unlocks.push(w.icon + ' ' + w.name);
   for (const f of FIELDS) if (f.cost && f.level === S.level) unlocks.push(f.icon + ' ' + f.name);
+  for (const u of levelUnlocks) for (const t of u(S.level)) unlocks.push(t);
   notify(`⭐ Nível ${S.level}!${unlocks.length ? ' Desbloqueado: ' + unlocks.join(', ') : ''}`, 'level', silent);
   if (!silent) {
     sfx('level');
@@ -1727,6 +1728,8 @@ export function fullWarn(quiet) {
 }
 
 const updaters = [];
+const levelUnlocks = []; // outros módulos dizem o que liberam em cada nível
+export const onLevelUnlocks = (fn) => levelUnlocks.push(fn);
 let growMod = () => 1;
 let orderBonus = () => 1; // amizade com o morador aumenta o pagamento
 export const setOrderBonus = (fn) => { orderBonus = fn; };
