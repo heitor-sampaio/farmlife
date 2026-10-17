@@ -19,11 +19,13 @@ Depois acesse http://localhost:5173. Na primeira vez, precisa de internet para b
 
 | Ação | Teclado / mouse | Celular |
 |---|---|---|
-| Andar | `W` `A` `S` `D` ou setas (`Shift` corre) | Arrastar o dedo (joystick; mais longe = mais rápido) |
+| Andar | `W` `A` `S` `D` ou setas (`Shift` corre) | Arrastar o dedo na metade esquerda (joystick; mais longe = mais rápido) |
 | Usar ferramenta no lote à frente | `Espaço` ou `E` (segure e ande para repetir) | Botão ✋ (segure e ande para repetir) |
 | Ir até um lote e agir | Clique no lote (arraste para enfileirar vários) | Tocar no lote |
-| Escolher ferramenta/semente | `1`–`9` | Barra inferior |
+| Escolher ferramenta | `1`–`5` | Barra inferior |
+| Escolher semente | `6` (de novo troca de semente) ou a ▲ do botão de sementes | Botão de sementes (toque de novo para ver todas) |
 | Zoom | Roda do mouse ou `+` / `-` | Botões ＋ / － |
+| Girar a câmera | Botão direito + arrastar, ou `Q` / `R` (`C` ou 🧭 volta ao normal) | Arrastar na metade direita (ou com um 2º dedo); 🧭 volta ao normal |
 | Fechar painel | `Esc` | ✕ |
 
 ## Tutorial e Guia

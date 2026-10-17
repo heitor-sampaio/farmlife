@@ -121,6 +121,21 @@ let clock = 0;
 let zoom = 12;
 const camTarget = new THREE.Vector3();
 const ISO = new THREE.Vector3(1, 1.15, 1).normalize().multiplyScalar(40);
+const camOffset = new THREE.Vector3();
+let camYaw = 0;       // giro atual da câmera em volta do personagem (0 = vista padrão)
+let camYawTarget = 0; // para onde o giro está indo (suaviza o arrasto)
+const ROT_SPEED = 0.009; // radianos por pixel arrastado
+/** Gira (x, z) pelo ângulo da câmera: transforma direções da tela em direções do mundo. */
+function camDir(x, z) {
+  const c = Math.cos(camYaw), s = Math.sin(camYaw);
+  return [c * x + s * z, -s * x + c * z];
+}
+export function rotateCamera(d) { camYawTarget += d; }
+/** Volta para a vista padrão pelo caminho mais curto. */
+export function resetCamera() {
+  const full = Math.PI * 2;
+  camYawTarget = Math.round(camYawTarget / full) * full;
+}
 
 const plotVis = [];
 const animalVis = new Map();
@@ -139,6 +154,7 @@ let actionHeld = false;
 const JOY_RADIUS = 56;
 const JOY_DEAD = 8;
 const joy = { id: null, sx: 0, sy: 0, x: 0, y: 0, moved: false, el: null, knob: null };
+const rot = { id: null, x: 0, sx: 0, sy: 0, moved: false, mouse: false }; // arrasto que gira a câmera
 const ndc = new THREE.Vector2();
 let mouseIn = false;
 let dragging = false;
@@ -1239,7 +1255,9 @@ function updateCamera(dt) {
   // Ao dirigir, a câmera olha um pouco à frente da máquina
   const look = driving ? tmpLook.set(Math.sin(player.heading) * 2.5, 0, Math.cos(player.heading) * 2.5).add(player.pos) : player.pos;
   camTarget.lerp(look, 1 - Math.exp(-6 * dt));
-  camera.position.copy(camTarget).add(ISO);
+  camYaw += (camYawTarget - camYaw) * (1 - Math.exp(-14 * dt));
+  camOffset.copy(ISO).applyAxisAngle(UP_Y, camYaw);
+  camera.position.copy(camTarget).add(camOffset);
   camera.lookAt(camTarget);
 }
 
@@ -2308,6 +2326,8 @@ function updatePlayer(dt) {
     }
   }
 
+  if (ix || iz) [ix, iz] = camDir(ix, iz);
+
   if (driving) {
     driveMachine(dt, ix, iz, mag);
     return;
@@ -2823,7 +2843,20 @@ function endJoystick(e, tap) {
 function bindInput() {
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   canvas.addEventListener('pointerdown', (e) => {
+    // Botão direito do mouse: gira a câmera
+    if (e.pointerType !== 'touch' && e.button === 2) {
+      Object.assign(rot, { id: e.pointerId, x: e.clientX, sx: e.clientX, sy: e.clientY, moved: false, mouse: true });
+      try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* ponteiro sintético */ }
+      return;
+    }
     if (e.pointerType === 'touch') {
+      // Segundo dedo, ou dedo que começa na metade direita da tela: gira a câmera (toque rápido continua valendo como clique)
+      const right = e.clientX > canvas.clientWidth * 0.5;
+      if (rot.id === null && (joy.id !== null || right)) {
+        Object.assign(rot, { id: e.pointerId, x: e.clientX, sx: e.clientX, sy: e.clientY, moved: false, mouse: false });
+        try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* ponteiro sintético */ }
+        return;
+      }
       if (joy.id !== null) return;
       try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* ponteiro sintético ou já liberado */ }
       Object.assign(joy, { id: e.pointerId, sx: e.clientX, sy: e.clientY, x: e.clientX, y: e.clientY, moved: false });
@@ -2840,6 +2873,18 @@ function bindInput() {
     }
   });
   canvas.addEventListener('pointermove', (e) => {
+    if (e.pointerId === rot.id) {
+      if (!rot.moved && Math.hypot(e.clientX - rot.sx, e.clientY - rot.sy) > (rot.mouse ? 3 : 12)) {
+        rot.moved = true;
+        rot.x = e.clientX;
+        canvas.classList.add('rotating');
+      }
+      if (rot.moved) {
+        camYawTarget -= (e.clientX - rot.x) * ROT_SPEED;
+        rot.x = e.clientX;
+      }
+      return;
+    }
     if (e.pointerId === joy.id) {
       joy.x = e.clientX;
       joy.y = e.clientY;
@@ -2861,12 +2906,20 @@ function bindInput() {
       if (!queued(hit.i) && player.queue.length < 48) player.queue.push({ kind: 'tile', i: hit.i, quiet: true });
     }
   });
+  const endRot = (e, tap) => {
+    if (tap && !rot.moved && !rot.mouse) clickAt(e); // toque rápido na metade direita: anda/age como antes
+    rot.id = null;
+    rot.moved = false;
+    canvas.classList.remove('rotating');
+  };
   canvas.addEventListener('pointerup', (e) => {
+    if (e.pointerId === rot.id) { endRot(e, true); return; }
     if (e.pointerId === joy.id) endJoystick(e, true);
     dragging = false;
     fishMouse = false;
   });
   canvas.addEventListener('pointercancel', (e) => {
+    if (e.pointerId === rot.id) { endRot(e, false); return; }
     if (e.pointerId === joy.id) endJoystick(e, false);
     dragging = false;
   });
@@ -2889,6 +2942,9 @@ function bindInput() {
       ui.selectToolByIndex(+k - 1);
     } else if (k === '+' || k === '=') zoomBy(1 / 1.15);
     else if (k === '-') zoomBy(1.15);
+    else if (k === 'q') rotateCamera(Math.PI / 4);
+    else if (k === 'r') rotateCamera(-Math.PI / 4);
+    else if (k === 'c') resetCamera();
     keys.add(k);
   });
   window.addEventListener('keyup', (e) => {

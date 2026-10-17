@@ -29,6 +29,7 @@ ui.initUI({
   onHelp: () => tutorial.openGuide(),
   onPanel: (tab) => tutorial.onEvent('panel', tab),
   onZoom: (f) => world.zoomBy(f),
+  onCamReset: () => world.resetCamera(),
   onActionHeld: (held) => world.setActionHeld(held),
 });
 

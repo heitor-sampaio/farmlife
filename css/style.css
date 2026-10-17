@@ -138,6 +138,7 @@ kbd {
 .icon-btn:hover { filter: brightness(1.15); }
 .icon-btn:active { transform: scale(.92); }
 .icon-btn.dark { color: #fff; font-weight: 700; }
+#scene.rotating { cursor: grabbing; }
 
 /* ---------- Barra inferior ---------- */
 .bottom {
@@ -232,6 +233,32 @@ kbd {
 }
 .tool.empty .cnt { background: var(--red); box-shadow: 0 2px 0 #a63a37; }
 .tool-sep { width: 3px; margin: 6px 2px; border-radius: 3px; background: rgba(255, 255, 255, .3); }
+.tool .more {
+  position: absolute;
+  bottom: 2px;
+  right: 3px;
+  font-size: 9px;
+  color: var(--muted);
+  transition: transform .15s;
+}
+.tool.seedslot.open .more { transform: rotate(180deg); }
+.seed-picker {
+  pointer-events: auto;
+  width: min(420px, calc(100vw - 24px));
+  margin-bottom: 8px;
+  padding: 10px;
+  border-radius: 16px;
+  background: var(--wood);
+  box-shadow: 0 4px 0 rgba(0, 0, 0, .2), 0 10px 30px rgba(0, 0, 0, .25);
+  animation: pickerIn .15s ease-out;
+}
+.seed-picker[hidden] { display: none; }
+.sp-head { display: flex; align-items: center; justify-content: space-between; margin: 0 2px 8px; color: #fff; }
+.sp-head .btn { padding: 4px 10px; font-size: 12px; }
+.sp-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px 8px; }
+.sp-grid .tool { min-width: 0; }
+body.picking .action-btn, body.picking .side-ctrl { visibility: hidden; }
+@keyframes pickerIn { from { opacity: 0; transform: translateY(8px); } }
 
 .side-ctrl {
   position: fixed;
@@ -832,7 +859,10 @@ kbd {
   .hud { padding: 8px; gap: 6px; }
   .pill { padding: 5px 10px; }
   .icon-btn { width: 34px; height: 34px; font-size: 15px; }
-  .tool { min-width: 50px; padding: 5px 5px 4px; }
+  .toolbar { gap: 5px; padding: 6px; }
+  .tool { min-width: 46px; padding: 5px 3px 4px; }
+  .tool-sep { margin: 6px 0; }
+  .sp-grid .tool .tn { display: block; font-size: 10px; }
   .tool .ti { font-size: 20px; }
   .tool .tn { display: none; }
   .status { font-size: 12px; }

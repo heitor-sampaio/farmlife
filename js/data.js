@@ -4,7 +4,9 @@ export const COLS = 8;
 export const ROWS = 6;
 export const DAY_LEN = 180;            // duração de um dia do jogo, em segundos reais
 export const MAX_OFFLINE = 8 * 3600;   // progresso máximo simulado enquanto o jogador está fora
-export const SAVE_KEY = 'farmlife-save-v1';
+// Trocar a chave reinicia a fazenda de todos os jogadores (as chaves antigas são apagadas ao abrir o jogo)
+export const SAVE_KEY = 'farmlife-save-v2';
+export const OLD_SAVE_KEYS = ['farmlife-save-v1'];
 export const SOUND_KEY = 'farmlife-sound';
 
 // seed = preço da semente, sell = preço base de venda, time = segundos para crescer

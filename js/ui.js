@@ -454,38 +454,90 @@ function ordersHtml() {
 }
 
 // ================= Hotbar =================
+// As ferramentas ficam na barra; todas as sementes cabem num único botão que abre um seletor.
+let lastSeed = 'trigo';
+let pickerOpen = false;
+
+const unlockedSeeds = () => Object.keys(CROPS).filter((id) => CROPS[id].level <= core.S.level);
+/** Espaços da barra: as ferramentas e, no fim, o botão de sementes ("seeds"). */
+export const toolSlots = () => core.toolList().filter((id) => !id.startsWith('seed:')).concat('seeds');
+
+/** Semente que o botão de sementes mostra (a escolhida por último). */
+function currentSeed() {
+  if (core.tool.startsWith('seed:')) lastSeed = core.tool.slice(5);
+  if (!CROPS[lastSeed] || CROPS[lastSeed].level > core.S.level) lastSeed = 'trigo';
+  return lastSeed;
+}
+
 function renderToolbar() {
   const S = core.S;
   let h = '';
-  const list = core.toolList();
-  list.forEach((id, k) => {
+  toolSlots().forEach((id, k) => {
     const key = k < 9 ? `<kbd>${k + 1}</kbd>` : '';
-    if (id.startsWith('seed:') && (k === 0 || !list[k - 1].startsWith('seed:'))) h += '<span class="tool-sep"></span>';
-    const active = core.tool === id ? ' active' : '';
-    if (id.startsWith('seed:')) {
-      const cid = id.slice(5), c = CROPS[cid], n = S.seeds[cid] || 0;
-      h += `<button class="tool${active}${n ? '' : ' empty'}" data-tool="${id}" title="Sementes de ${c.name}">
-        ${key}<span class="ti">${c.icon}</span><span class="tn">${c.name}</span><span class="cnt">${n}</span></button>`;
-    } else {
-      const t = core.TOOLS.find((x) => x.id === id);
-      h += `<button class="tool${active}" data-tool="${id}" title="${t.name}">
-        ${key}<span class="ti">${t.icon}</span><span class="tn">${t.name}</span></button>`;
+    if (id === 'seeds') {
+      const cid = currentSeed(), c = CROPS[cid], n = S.seeds[cid] || 0;
+      const active = core.tool.startsWith('seed:') ? ' active' : '';
+      h += `<span class="tool-sep"></span><button class="tool seedslot${active}${n ? '' : ' empty'}${pickerOpen ? ' open' : ''}" data-slot="seeds" title="Sementes: ${c.name} (toque de novo para escolher outra)">
+        ${key}<span class="ti">${c.icon}</span><span class="tn">${c.name}</span><span class="cnt">${n}</span><span class="more" data-picker>▲</span></button>`;
+      return;
     }
+    const t = core.TOOLS.find((x) => x.id === id);
+    h += `<button class="tool${core.tool === id ? ' active' : ''}" data-tool="${id}" title="${t.name}">
+      ${key}<span class="ti">${t.icon}</span><span class="tn">${t.name}</span></button>`;
   });
   el.toolbar.innerHTML = h;
+  renderPicker();
+}
+
+function renderPicker() {
+  el.picker.hidden = !pickerOpen;
+  document.body.classList.toggle('picking', pickerOpen);
+  if (!pickerOpen) return;
+  const S = core.S;
+  const cur = core.tool.startsWith('seed:') ? core.tool.slice(5) : null;
+  el.picker.innerHTML = `<div class="sp-head"><b>🌱 Sementes</b><button class="btn ghost" data-shop>🏪 Comprar</button></div><div class="sp-grid">${
+    unlockedSeeds().map((id) => {
+      const c = CROPS[id], n = S.seeds[id] || 0;
+      return `<button class="tool${cur === id ? ' active' : ''}${n ? '' : ' empty'}" data-seed="${id}" title="${c.name}: ${n} sementes">
+        <span class="ti">${c.icon}</span><span class="tn">${c.name}</span><span class="cnt">${n}</span></button>`;
+    }).join('')}</div>`;
+}
+
+function setPicker(open) {
+  if (pickerOpen === open) return;
+  pickerOpen = open;
+  if (open) sfx('open');
+  renderToolbar();
 }
 
 export function selectTool(id) {
   core.setTool(id);
+  if (id.startsWith('seed:')) lastSeed = id.slice(5);
   if (id.startsWith('seed:') && !core.S.seeds[id.slice(5)]) {
     toast(`Sem sementes de ${CROPS[id.slice(5)].name}. Compre na loja! 🏪`);
     openPanel('loja');
   }
 }
 
+/** Botão de sementes: escolhe a última semente; se ela já está na mão, abre o seletor. */
+function seedSlot(fromKey) {
+  if (!core.tool.startsWith('seed:')) { selectTool('seed:' + currentSeed()); return; }
+  if (fromKey) {
+    // Pela tecla: passa para a próxima semente que você tem
+    const ids = unlockedSeeds();
+    const owned = ids.filter((id) => core.S.seeds[id] > 0);
+    const pool = owned.length ? owned : ids;
+    const next = pool[(pool.indexOf(currentSeed()) + 1) % pool.length];
+    selectTool('seed:' + next);
+    return;
+  }
+  setPicker(!pickerOpen);
+}
+
 export function selectToolByIndex(n) {
-  const list = core.toolList();
-  if (list[n]) selectTool(list[n]);
+  const id = toolSlots()[n];
+  if (id === 'seeds') seedSlot(true);
+  else if (id) selectTool(id);
 }
 
 // ================= HUD =================
@@ -534,17 +586,35 @@ export function initUI(h) {
     coins: $('#coins'), level: $('#level'), xpfill: $('#xpfill'), xptext: $('#xptext'),
     day: $('#day'), clock: $('#clock'), weather: $('#weather'),
     eventPill: $('#event-pill'), eventName: $('#event-name'), eventInfo: $('#event-info'),
-    toolbar: $('#toolbar'), status: $('#status'), prompt: $('#prompt'),
+    toolbar: $('#toolbar'), status: $('#status'), prompt: $('#prompt'), picker: $('#seed-picker'),
     panel: $('#panel'), tabContent: $('#tab-content'), badge: $('#badge'),
     fx: $('#fx'), toasts: $('#toasts'), modal: $('#modal'), btnSound: $('#btn-sound'), fade: $('#fade'),
   });
 
   el.toolbar.addEventListener('click', (e) => {
+    const slot = e.target.closest('[data-slot="seeds"]');
+    if (slot) {
+      // A setinha ▲ sempre abre o seletor; o resto do botão escolhe a semente
+      if (e.target.closest('[data-picker]')) setPicker(!pickerOpen);
+      else seedSlot(false);
+      slot.blur();
+      return;
+    }
     const b = e.target.closest('[data-tool]');
-    if (b) { selectTool(b.dataset.tool); b.blur(); }
+    if (b) { selectTool(b.dataset.tool); setPicker(false); b.blur(); }
+  });
+  el.picker.addEventListener('click', (e) => {
+    const s = e.target.closest('[data-seed]');
+    if (s) { selectTool('seed:' + s.dataset.seed); setPicker(false); return; }
+    if (e.target.closest('[data-shop]')) { setPicker(false); openPanel('loja'); }
+  });
+  // Toque/clique fora fecha o seletor
+  document.addEventListener('pointerdown', (e) => {
+    if (pickerOpen && !e.target.closest('#seed-picker') && !e.target.closest('[data-slot="seeds"]')) setPicker(false);
   });
   $('#zoom-in').addEventListener('click', () => handlers.onZoom(1 / 1.2));
   $('#zoom-out').addEventListener('click', () => handlers.onZoom(1.2));
+  $('#cam-reset').addEventListener('click', (e) => { handlers.onCamReset(); e.currentTarget.blur(); });
   // Botão de ação: segurar repete a ação ao andar sobre novos lotes
   const btnAction = $('#btn-action');
   btnAction.addEventListener('pointerdown', (e) => {

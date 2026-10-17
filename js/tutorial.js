@@ -20,7 +20,8 @@ const TAP = () => (isTouch() ? 'toque' : 'clique');
 
 /** Tecla de atalho de uma ferramenta na barra (1–9), ou vazio. */
 function keyOf(toolId) {
-  const k = core.toolList().indexOf(toolId);
+  const tools = core.toolList().filter((id) => !id.startsWith('seed:'));
+  const k = toolId.startsWith('seed:') ? tools.length : tools.indexOf(toolId);
   return k >= 0 && k < 9 && !isTouch() ? ` (tecla <kbd>${k + 1}</kbd>)` : '';
 }
 
@@ -35,13 +36,13 @@ const STEPS = [
   {
     id: 'andar', icon: '🚶', title: 'Ande pela fazenda', goal: 6, unit: 'm', reward: 0,
     body: () => (isTouch()
-      ? 'Arraste o dedo em qualquer lugar da tela para andar: aparece um <b>joystick</b> embaixo do dedo. Um toque rápido no chão também leva o fazendeiro até lá.'
-      : 'Use <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> ou as setas para andar (<kbd>Shift</kbd> corre). Você também pode clicar no chão para ir até lá.'),
+      ? 'Arraste o dedo na <b>metade esquerda</b> da tela para andar: aparece um <b>joystick</b> embaixo do dedo. Arrastar na metade direita gira a câmera, e um toque rápido no chão leva o fazendeiro até lá.'
+      : 'Use <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> ou as setas para andar (<kbd>Shift</kbd> corre). Você também pode clicar no chão para ir até lá, e girar a câmera arrastando com o <b>botão direito</b>.'),
   },
   {
     id: 'plantar', icon: '🌱', title: 'Plante trigo', event: 'plant', goal: 2, reward: 10, tool: 'seed:trigo',
     target: () => nearestTile((p) => p.s === 'tilled'),
-    body: () => `1. Escolha a semente <b>🌾 Trigo</b> na barra de baixo${keyOf('seed:trigo')}.<br>
+    body: () => `1. Escolha as <b>🌾 sementes de Trigo</b> no botão de sementes da barra de baixo${keyOf('seed:trigo')}. Toque nele de novo (ou na ▲) para trocar de semente.<br>
       2. Vá até a <b>terra arada</b> (marrom) que a seta mostra e use ${ACT()} de frente para ela, ou ${TAP()} no lote.
       ${core.S.seeds.trigo ? '' : '<br><b>Sem sementes?</b> Compre mais na 🏪 Loja.'}`,
   },
@@ -465,7 +466,7 @@ function setToolHint(id) {
   if (hinted !== id) clearToolHint();
   hinted = id;
   if (!id) return;
-  const b = document.querySelector(`.tool[data-tool="${id}"]`);
+  const b = document.querySelector(id.startsWith('seed:') ? '.tool.seedslot' : `.tool[data-tool="${id}"]`);
   if (b && !b.classList.contains('hint')) b.classList.add('hint');
 }
 function clearToolHint() {
@@ -542,8 +543,10 @@ const TOPICS = [
           ['Usar a ferramenta / interagir', '<kbd>Espaço</kbd> ou <kbd>E</kbd>', 'Botão ✋'],
           ['Repetir em vários lotes', 'Segurar <kbd>Espaço</kbd> e andar · arrastar o mouse sobre os lotes', 'Segurar ✋ e andar'],
           ['Ir até um lote e agir', 'Clique no lote', 'Toque no lote'],
-          ['Escolher ferramenta/semente', '<kbd>1</kbd> a <kbd>9</kbd>', 'Barra de baixo'],
+          ['Escolher ferramenta', 'Teclas <kbd>1</kbd> a <kbd>5</kbd>', 'Barra de baixo'],
+          ['Escolher semente', '<kbd>6</kbd> pega a semente; <kbd>6</kbd> de novo troca para a próxima · clique na ▲ para ver todas', 'Botão de sementes: toque de novo (ou na ▲) para ver todas'],
           ['Zoom', 'Roda do mouse · <kbd>+</kbd> <kbd>−</kbd>', 'Botões ＋ e －'],
+          ['Girar a câmera', 'Botão direito + arrastar · <kbd>Q</kbd> <kbd>R</kbd> · <kbd>C</kbd> ou 🧭 volta ao normal', 'Arrastar na metade direita da tela (ou com um 2º dedo) · 🧭 volta ao normal'],
           ['Fechar janelas', '<kbd>Esc</kbd>', '✕'],
         ],
       );

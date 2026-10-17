@@ -2,6 +2,14 @@
 
 Todas as mudanças do jogo, da mais nova para a mais antiga. Este arquivo é gerado a partir de `js/changelog.js` por `node tools/gerar-versao.mjs`.
 
+## v3.1.0 — Câmera giratória e seletor de sementes (17/10/2026)
+
+- 🎥 Gire a câmera em volta do fazendeiro: no PC, arraste com o botão direito do mouse (ou use Q e R); no celular, arraste na metade direita da tela ou com um segundo dedo.
+- 🕹️ O joystick do celular fica na metade esquerda da tela. Toques rápidos continuam funcionando em qualquer lugar.
+- 🧭 Novo botão (e a tecla C) para voltar a câmera à vista padrão. Andar e dirigir seguem a direção da câmera.
+- 🌱 Todas as sementes agora ficam num único botão da barra, com um seletor para trocar: a barra não estoura mais com muitas culturas.
+- 🔄 Todas as fazendas foram reiniciadas para todo mundo começar do zero com a nova progressão de construções.
+
 ## v3.0.0 — Construa a sua fazenda (17/10/2026)
 
 - 🏠 Nova progressão: o jogo começa só com o terreno, a casa e todas as ferramentas (🪓 machado e 🎣 vara inclusos).

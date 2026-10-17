@@ -1,6 +1,6 @@
 /* FarmLife — estado e regras do jogo (independente da renderização) */
 import {
-  COLS, ROWS, DAY_LEN, MAX_OFFLINE, SAVE_KEY, FIELDS, TOTAL_PLOTS, fieldOf,
+  COLS, ROWS, DAY_LEN, MAX_OFFLINE, SAVE_KEY, OLD_SAVE_KEYS, FIELDS, TOTAL_PLOTS, fieldOf,
   CROPS, PRODUCTS, ANIMALS, WATER_TIME, GROW_SPEED, PEN_SIZE, UPGRADES, CUSTOMERS,
   WORKERS, WORK_TIME, BIG_FIELD, BIG_CELLS, MACHINES, FISH, RODS, PET,
   MUTATIONS, WEATHER_EVENTS, EVENT_ROUND, EVENT_CHANCE, EVENT_COOLDOWN,
@@ -1400,6 +1400,14 @@ export function startGame() {
     S = newState();
     rollPrices();
   }
+  // Saves de versões antigas: apaga e avisa que a fazenda recomeçou do zero
+  let hadOld = false;
+  for (const k of OLD_SAVE_KEYS) {
+    try {
+      if (localStorage.getItem(k) !== null) { hadOld = true; localStorage.removeItem(k); }
+    } catch (e) { /* armazenamento indisponível */ }
+  }
+  if (hadOld && !loaded) notices.push(['🔄 O FarmLife mudou bastante: todas as fazendas recomeçaram do zero com a nova progressão. Boa sorte na fazenda nova!', 'level']);
   fillOrders();
   return away;
 }
