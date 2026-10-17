@@ -2,6 +2,13 @@
 
 Todas as mudanças do jogo, da mais nova para a mais antiga. Este arquivo é gerado a partir de `js/changelog.js` por `node tools/gerar-versao.mjs`.
 
+## v4.6.0 — Visual pintado (experimental) (17/10/2026)
+
+- ⚙️ O botão de configurações (no canto de cima) agora tem uma engrenagem e uma opção nova: 🎨 Visual Simples ou Pintado ✨. Fica salva neste aparelho.
+- ✨ No visual pintado: luz em faixas suaves e formas arredondadas, gramado com manchas de cor como pinceladas, nuvens fofas passando com a sombra correndo pelo chão e um acabamento de pintura (cores quentes, vinheta, brilho suave nas luzes e grão de papel).
+- 📱 Ele é um pouco mais pesado: se o celular ficar lento, volte para o visual Simples.
+- 🍂 Corrigido: no outono, as folhas que caíam viravam caixas grandes por um instante quando sumiam no chão.
+
 ## v4.5.0 — Painéis organizados (17/10/2026)
 
 - 🗂️ A Loja agora é dividida em categorias: 🌱 Sementes, 🐾 Animais, 🗺️ Terras, 🏭 Produção, 🪓 Ferramentas, 🛠️ Melhorias e 🌻 Decoração. A barra de categorias fica sempre visível no topo.

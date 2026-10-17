@@ -40,7 +40,7 @@ const STEPS = [
   {
     id: 'andar', icon: '🚶', title: 'Ande pela fazenda', goal: 6, unit: 'm', reward: 0,
     body: () => (isTouch()
-      ? `Arraste o dedo na <b>metade ${sideWord()}</b> da tela para andar: aparece um <b>joystick</b> embaixo do dedo. Arrastar na metade ${sideWord(true)} gira a câmera (dá para trocar o lado no menu 🔊), e um toque rápido no chão leva o fazendeiro até lá.`
+      ? `Arraste o dedo na <b>metade ${sideWord()}</b> da tela para andar: aparece um <b>joystick</b> embaixo do dedo. Arrastar na metade ${sideWord(true)} gira a câmera (dá para trocar o lado no menu ⚙️), e um toque rápido no chão leva o fazendeiro até lá.`
       : 'Use <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> ou as setas para andar (<kbd>Shift</kbd> corre). Você também pode clicar no chão para ir até lá, e girar a câmera arrastando com o <b>botão direito</b>.'),
   },
   {
@@ -645,7 +645,7 @@ const TOPICS = [
           ['Escolher semente', '<kbd>6</kbd> pega a semente; <kbd>6</kbd> de novo troca para a próxima · clique na ▲ para ver todas', 'Botão de sementes: toque de novo (ou na ▲) para ver todas'],
           ['Zoom', 'Roda do mouse · <kbd>+</kbd> <kbd>−</kbd>', 'Botões ＋ e －'],
           ['Girar a câmera', 'Botão direito + arrastar · <kbd>Q</kbd> <kbd>R</kbd> · <kbd>C</kbd> ou 🧭 volta ao normal', `Arrastar na metade ${sideWord(true)} da tela (ou com um 2º dedo) · 🧭 volta ao normal`],
-          ['Som e música', 'Botão 🔊 no topo: volume geral, música e efeitos', 'Botão 🔊 no topo'],
+          ['Configurações', 'Botão ⚙️ no topo: volume, música, efeitos e visual', 'Botão ⚙️ no topo (também o lado do joystick)'],
           ['Mapa e viagem rápida', '<kbd>M</kbd> ou 🗺️', 'Botão 🗺️'],
           ['Modo foto', '<kbd>P</kbd> ou 📷 · <kbd>Esc</kbd> sai', 'Botão 📷'],
           ['Colocar decoração', 'Clique no chão · <kbd>G</kbd> gira · <kbd>Enter</kbd> coloca · <kbd>Esc</kbd> cancela', 'Toque no chão · ✔ Colocar'],

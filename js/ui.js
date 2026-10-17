@@ -2,7 +2,7 @@
 import { CROPS, ANIMALS, PRODUCTS, UPGRADES, WORKERS, FIELDS, BIG_FIELD, BIG_CELLS, MACHINES, FISH, RODS, PET, MUTATIONS, RARITY_COLOR, WEATHER_EVENTS, AXES, LOG, WOOD, SAWMILL, PLANK, RECIPES, BUILDINGS, CARPENTRY, HORSE, SADDLE, PASTURE, CHEESERY, CHEESE, FACTORIES, ORCHARD, FRUIT_TREES, HIVES, GOODS, FAIR, FRIEND, CUSTOMERS, DECOR, STORAGE, COOP } from './data.js';
 import * as sys from './systems.js';
 import * as core from './core.js';
-import { joySide, setJoySide } from './prefs.js';
+import { joySide, setJoySide, gfxMode, setGfx } from './prefs.js';
 import { sfx, settings as audioSettings, setVolume, setMuted, unlockAudio } from './audio.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -879,7 +879,6 @@ export function bindJoyPick(root) {
 }
 
 // ================= Menu de som =================
-const soundIcon = () => (audioSettings.muted || audioSettings.master === 0 ? '🔇' : audioSettings.master < 0.4 ? '🔉' : '🔊');
 
 function renderSoundMenu() {
   const box = el.settings;
@@ -890,8 +889,9 @@ function renderSoundMenu() {
   });
   box.querySelector('#set-mute').checked = audioSettings.muted;
   renderJoyPick(box);
+  box.querySelectorAll('[data-gfx]').forEach((b) => b.classList.toggle('active', b.dataset.gfx === gfxMode()));
   box.classList.toggle('muted', audioSettings.muted);
-  setText(el.btnSound, soundIcon());
+  setText(el.btnSound, '⚙️');
 }
 
 function setSoundMenu(open) {
@@ -907,7 +907,7 @@ function setSoundMenu(open) {
 
 function initSoundMenu() {
   const box = el.settings;
-  setText(el.btnSound, soundIcon());
+  setText(el.btnSound, '⚙️');
   el.btnSound.addEventListener('click', (e) => {
     e.stopPropagation();
     unlockAudio();
@@ -916,6 +916,14 @@ function initSoundMenu() {
   });
   $('#settings-close').addEventListener('click', () => setSoundMenu(false));
   bindJoyPick(box);
+  box.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-gfx]');
+    if (!b) return;
+    setGfx(b.dataset.gfx);
+    if (handlers.onGfx) handlers.onGfx(gfxMode());
+    renderSoundMenu();
+    sfx('open');
+  });
   let previewT = 0;
   box.addEventListener('input', (e) => {
     const inp = e.target.closest('[data-vol]');

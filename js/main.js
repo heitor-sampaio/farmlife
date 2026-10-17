@@ -7,7 +7,7 @@ import { sfx, setMusicMood } from './audio.js';
 import * as tutorial from './tutorial.js';
 import * as updates from './updates.js';
 import * as character from './character.js';
-import { applyPrefs } from './prefs.js';
+import { applyPrefs, gfxMode } from './prefs.js';
 
 applyPrefs();
 
@@ -36,6 +36,7 @@ ui.initUI({
   onCamReset: () => world.resetCamera(),
   onPlaceDecor: (id) => world.startPlacing(id),
   onPlaceLot: (id) => world.startPlacingLot(id),
+  onGfx: (mode) => world.setVisual(mode),
   drawMap: (ctx, w, h) => world.drawMap(ctx, w, h),
   mapPlaces: () => world.mapPlaces(),
   mapBounds: () => world.mapBounds(),
@@ -46,6 +47,7 @@ ui.initUI({
 });
 
 await world.initWorld(document.getElementById('scene'));
+world.setVisual(gfxMode());
 document.getElementById('loading').remove();
 
 character.initCharacter({ setCharacter: world.setCharacter, setFocus: world.setFocus, toast: ui.toast });

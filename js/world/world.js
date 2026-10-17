@@ -7,6 +7,7 @@ import * as core from '../core.js';
 import * as ui from '../ui.js';
 import * as M from './models.js';
 import { NavGrid } from './nav.js';
+import { initPainted, setPainted, paintedFrame, renderScene } from './painted.js';
 import { joySide } from '../prefs.js';
 import { initCritters, updateCritters, syncPet, updatePet, pet, petInteract, petPettedToday, fauna } from './critters.js';
 
@@ -361,6 +362,7 @@ export async function initWorld(cv) {
   buildRain();
   buildWeatherFx();
   buildHelpers();
+  initPainted({ scene, renderer, camera });
   buildFishing();
   buildGuide();
 
@@ -407,6 +409,8 @@ function fieldBorder(f) {
   scene.add(border);
 }
 
+let groundFlat = null, groundPainted = null;
+
 function buildGround() {
   const geo = new THREE.PlaneGeometry(200, 160, 100, 80).toNonIndexed();
   geo.rotateX(-Math.PI / 2);
@@ -423,6 +427,31 @@ function buildGround() {
   ground.receiveShadow = true;
   scene.add(ground);
   seasonMats.push(ground.material);
+  groundFlat = ground;
+
+  // Gramado do visual pintado: manchas suaves de cor (claras, amareladas e azuladas), como pinceladas
+  const pg = new THREE.PlaneGeometry(200, 160, 200, 160);
+  pg.rotateX(-Math.PI / 2);
+  pg.translate((BOUNDS.minX + BOUNDS.maxX) / 2, 0, (BOUNDS.minZ + BOUNDS.maxZ) / 2);
+  const pos = pg.attributes.position;
+  const pc = new Float32Array(pos.count * 3);
+  const light = new THREE.Color(0xa6d672), warm = new THREE.Color(0xcdd27a), cool = new THREE.Color(0x3f8f55);
+  const wave = (x, z, f, p) => Math.sin(x * f + p) * Math.cos(z * f * 0.83 - p * 1.7) + Math.sin((x + z) * f * 0.61 + p * 2.3) * 0.6;
+  for (let k = 0; k < pos.count; k++) {
+    const x = pos.getX(k), z = pos.getZ(k);
+    tmp.copy(base);
+    const big = wave(x, z, 0.09, 1.3), mid = wave(x, z, 0.23, 4.1), fine = wave(x, z, 0.61, 7.7), brush = wave(x * 1.7, z * 0.6, 1.35, 2.9);
+    tmp.lerp(light, THREE.MathUtils.clamp(0.2 + big * 0.45 + fine * 0.18 + brush * 0.12, 0, 0.9));
+    tmp.lerp(warm, THREE.MathUtils.clamp(mid * 0.55 + brush * 0.1, 0, 0.6));
+    tmp.lerp(cool, THREE.MathUtils.clamp(-big * 0.55 - 0.05 - brush * 0.08, 0, 0.65));
+    pc[k * 3] = tmp.r; pc[k * 3 + 1] = tmp.g; pc[k * 3 + 2] = tmp.b;
+  }
+  pg.setAttribute("color", new THREE.BufferAttribute(pc, 3));
+  groundPainted = new THREE.Mesh(pg, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }));
+  groundPainted.receiveShadow = true;
+  groundPainted.visible = false;
+  scene.add(groundPainted);
+  seasonMats.push(groundPainted.material);
 
   // Ruas de terra e a borda do campo principal (os outros campos ganham borda quando são colocados)
   for (const [x1, z1, x2, z2] of ROADS) addStrip(x1, z1, x2, z2);
@@ -2621,7 +2650,7 @@ function updateLeaves(dt) {
       m.position.set(t.x + Math.cos(a) * r, t.h * rand(0.7, 1.05), t.z + Math.sin(a) * r);
       m.rotation.set(rand(-1, 1), rand(0, 6.28), rand(-1, 1));
       scene.add(m);
-      fallingLeaves.push({ m, t: 0, ph: rand(0, 6.28), fall: rand(0.45, 0.7), rest: 0 });
+      fallingLeaves.push({ m, s0: m.scale.clone(), t: 0, ph: rand(0, 6.28), fall: rand(0.45, 0.7), rest: 0 });
     }
   }
   const wind = sys.season().id === 'outono' && core.S.event && core.S.event.id === 'ventania' ? 1.6 : 0.35;
@@ -2640,7 +2669,7 @@ function updateLeaves(dt) {
       // Pousou: fica um pouco no chão e some
       m.rotation.x = m.rotation.z = 0;
       l.rest += dt;
-      if (l.rest > 2.5) m.scale.setScalar(Math.max(0.01, 1 - (l.rest - 2.5) * 2));
+      if (l.rest > 2.5) m.scale.copy(l.s0).multiplyScalar(Math.max(0.01, 1 - (l.rest - 2.5) * 2)); // encolhe a partir do tamanho da folha
       if (l.rest > 3) {
         scene.remove(m);
         fallingLeaves.splice(k, 1);
@@ -2764,7 +2793,7 @@ export function setPhotoMode(on, hideLabels) {
 export const isPhoto = () => photo;
 /** Foto da cena (sem a interface), como imagem PNG. */
 export function capture() {
-  renderer.render(scene, camera);
+  renderScene();
   return renderer.domElement.toDataURL('image/png');
 }
 
@@ -4564,8 +4593,17 @@ export function worldFrame(dt) {
   updateParticles(dt);
   updateHelpers(dt);
   updateGuide(dt);
-  renderer.render(scene, camera);
+  paintedFrame(dt, { center: camTarget, daylight: 1 - core.darkness(), rain: core.S.weather === 'chuva', windy: !!(core.S.event && core.S.event.id === 'ventania'), sunDir: tmpSun.copy(sun.position).sub(sun.target.position).normalize() });
+  renderScene();
+}
+
+const tmpSun = new THREE.Vector3();
+/** Visual do jogo: 'simple' (low-poly) ou 'painted' (luz em faixas, nuvens e acabamento de pintura). */
+export function setVisual(mode) {
+  const p = mode === 'painted';
+  setPainted(p);
+  if (groundFlat) { groundFlat.visible = !p; groundPainted.visible = p; }
 }
 
 // Usado pelos testes no console do navegador
-export const debug = { player, animalVis, npcs, machines, fishing, fishAction, startCast, pet, petInteract, randomSpot, fauna, get driving() { return driving; }, get riding() { return riding; }, get snowCap() { return snowCap; }, LOTS, lotValid, lotRect, placeLotNow, get lotPlacing() { return lotPlacing; }, paths, get PEN() { return PEN; }, get PAST() { return PAST; }, poopPos, crows, spawnCrow, get horse() { return horse; }, mountHorse, dismountHorse, enterMachine, exitMachine, bigCellAt, bigCellCenter, get zoom() { return zoom; }, get zoomMult() { return zoomMult; }, get camH() { return camera.top - camera.bottom; }, tileAt, tilePos, get nav() { return nav; } };
+export const debug = { player, animalVis, npcs, machines, fishing, fishAction, startCast, pet, petInteract, randomSpot, fauna, get driving() { return driving; }, get riding() { return riding; }, get snowCap() { return snowCap; }, fallingLeaves, LOTS, lotValid, lotRect, placeLotNow, get lotPlacing() { return lotPlacing; }, paths, get PEN() { return PEN; }, get PAST() { return PAST; }, poopPos, crows, spawnCrow, get horse() { return horse; }, mountHorse, dismountHorse, enterMachine, exitMachine, bigCellAt, bigCellCenter, get zoom() { return zoom; }, get zoomMult() { return zoomMult; }, get camH() { return camera.top - camera.bottom; }, tileAt, tilePos, get nav() { return nav; } };

@@ -19,14 +19,14 @@ Depois acesse http://localhost:5173. Na primeira vez, precisa de internet para b
 
 | Ação | Teclado / mouse | Celular |
 |---|---|---|
-| Andar | `W` `A` `S` `D` ou setas (`Shift` corre) | Arrastar o dedo no lado do joystick (direita por padrão; troca no menu 🔊) |
+| Andar | `W` `A` `S` `D` ou setas (`Shift` corre) | Arrastar o dedo no lado do joystick (direita por padrão; troca no menu ⚙️) |
 | Usar ferramenta no lote à frente | `Espaço` ou `E` (segure e ande para repetir) | Botão ✋ (segure e ande para repetir) |
 | Ir até um lote e agir | Clique no lote (arraste para enfileirar vários) | Tocar no lote |
 | Escolher ferramenta | `1`–`5` | Barra inferior |
 | Escolher semente | `6` (de novo troca de semente) ou a ▲ do botão de sementes | Botão de sementes (toque de novo para ver todas) |
 | Zoom | Roda do mouse ou `+` / `-` | Botões ＋ / － |
 | Girar a câmera | Botão direito + arrastar, ou `Q` / `R` (`C` ou 🧭 volta ao normal) | Arrastar no outro lado da tela (ou com um 2º dedo); 🧭 volta ao normal |
-| Som, música e controles | Botão 🔊: volume geral, música e efeitos | Botão 🔊 (também o lado do joystick) |
+| Configurações | Botão ⚙️: volume, música, efeitos e visual (Simples ou Pintado) | Botão ⚙️ (também o lado do joystick) |
 | Fechar painel | `Esc` | ✕ |
 
 ## Tutorial e Guia

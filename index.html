@@ -38,7 +38,7 @@
       <button class="menu-btn" data-open="oficina" title="Oficina: carpintaria e obras">🪚<span>Oficina</span></button>
     </nav>
     <div class="hud-btns">
-      <button class="icon-btn" id="btn-sound" title="Som, música e controles">🔊</button>
+      <button class="icon-btn" id="btn-sound" title="Configurações: som, visual e controles">⚙️</button>
       <button class="icon-btn" id="btn-map" title="Mapa e viagem rápida (M)">🗺️</button>
       <button class="icon-btn" id="btn-photo" title="Modo foto (P)">📷</button>
       <button class="icon-btn" id="btn-help" title="Guia da Fazenda">❓</button>
@@ -81,17 +81,21 @@
     <div id="tab-content" class="tab-content"></div>
   </aside>
 
-  <div id="settings" class="settings" hidden role="dialog" aria-label="Som e música">
-    <div class="set-head"><b>🎵 Som e música</b><button class="tab-close" id="settings-close" title="Fechar">✕</button></div>
+  <div id="settings" class="settings" hidden role="dialog" aria-label="Configurações">
+    <div class="set-head"><b>⚙️ Configurações</b><button class="tab-close" id="settings-close" title="Fechar">✕</button></div>
     <label class="set-row"><span>🔊 Volume geral</span><input type="range" min="0" max="100" step="1" data-vol="master"><output></output></label>
     <label class="set-row"><span>🎵 Música</span><input type="range" min="0" max="100" step="1" data-vol="music"><output></output></label>
     <label class="set-row"><span>🔔 Efeitos</span><input type="range" min="0" max="100" step="1" data-vol="sfx"><output></output></label>
     <label class="set-check"><input type="checkbox" id="set-mute"> 🔇 Silenciar tudo</label>
+    <div class="joy-pick gfx-pick">
+      <span>🎨 Visual</span>
+      <div class="seg"><button data-gfx="simple">Simples</button><button data-gfx="painted">Pintado ✨</button></div>
+    </div>
     <div class="joy-pick touch-only">
       <span>🕹️ Joystick de andar</span>
       <div class="seg"><button data-joy="left">◀ Esquerda</button><button data-joy="right">Direita ▶</button></div>
     </div>
-    <p class="set-hint">A música fica mais calma à noite. As configurações ficam salvas neste aparelho.</p>
+    <p class="set-hint">A música fica mais calma à noite. O visual pintado é experimental e um pouco mais pesado. As configurações ficam salvas neste aparelho.</p>
   </div>
 
   <div id="map" class="modal-bg map-bg" hidden>
