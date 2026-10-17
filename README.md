@@ -26,6 +26,12 @@ Depois acesse http://localhost:5173. Na primeira vez, precisa de internet para b
 | Zoom | Roda do mouse ou `+` / `-` | Botões ＋ / － |
 | Fechar painel | `Esc` | ✕ |
 
+## Tutorial e Guia
+
+- **Tutorial interativo** (jogos novos): 8 passos (andar, plantar, regar, arar, colher, vender, comprar e pedidos) com seta 3D no alvo, indicador na borda da tela, ferramenta destacada na barra e recompensa em moedas. Os textos se adaptam a teclado/mouse ou toque, e dá para pular.
+- **Dicas na hora certa**: ao liberar ou comprar algo novo (animais, pet, vara, campos, máquinas, funcionários) e na primeira noite, chuva ou pedido pronto.
+- **Guia da Fazenda (❓)**: 11 tópicos com tabelas geradas dos dados do jogo (preços, tempos, níveis) e o botão para refazer o tutorial.
+
 ## Mecânicas
 
 - **Lavoura**: are a grama, plante, regue e colha. Sem água, nada cresce.
@@ -35,6 +41,8 @@ Depois acesse http://localhost:5173. Na primeira vez, precisa de internet para b
 - **Tempo**: dia de 3 minutos com sol que muda as sombras, noite com lampiões e dias de chuva.
 - **Expansão**: no campo principal, compre lotes vizinhos um a um; na loja, compre campos inteiros novos (Leste, Sul e Lago, com 24 a 32 lotes cada), marcados no mapa com placas de venda.
 - **Pescaria**: com uma vara (bambu ou fibra) você pesca no lago: lance, espere a mordida (❗) e segure a ação no minigame para manter o peixe na faixa verde. Seis tipos de pesca, com bagres à noite, lagostins na chuva e uma rara carpa dourada.
+- **Pet**: uma border collie (nível 2) que segue o jogador, senta quando ele para, corre atrás dos passarinhos e ganha carinho (+10 XP por dia). Dá para trocar o nome.
+- **Fauna de cenário**: sapos na beira do lago (pulam na água se você chega perto), passarinhos que bicam o chão e voam quando alguém se aproxima, bandos no céu, joaninhas, borboletas de dia, coelhos, patos no lago e vaga-lumes à noite.
 - **Lavoura mecanizada**: um Campo de Trigo de 384 lotes trabalhado com máquinas que você dirige (trator com arado de 3 faixas, trator com plantadeira de 4 e colheitadeira de 5), guardadas num galpão. Entre e saia com `Espaço`/`E` ou ✋; dirija com `WASD` ou o joystick.
 - **Progresso**: níveis desbloqueiam culturas, animais, melhorias, campos e máquinas.
 - **Salvamento**: automático no `localStorage`, com até 8h de progresso enquanto você está fora.

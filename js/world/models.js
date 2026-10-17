@@ -940,3 +940,166 @@ export function makeCatch(color, junk = false) {
   g.add(box(0.02, 0.02, 0.01, 0x111111, -0.06, 0.03, 0.13));
   return g;
 }
+
+// ================= Pet e fauna =================
+/** Border collie preto e branco. Frente para +z. */
+export function makeDog() {
+  const black = 0x1d1d1d, white = 0xf4f2ec;
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  root.add(body);
+  body.add(ball(0.13, 0.12, 0.26, black, 0, 0.42, 0));
+  body.add(ball(0.1, 0.11, 0.1, white, 0, 0.4, 0.19));
+  body.add(ball(0.11, 0.06, 0.18, white, 0, 0.33, 0.02));
+  body.add(rot(cyl(0.075, 0.035, 0xd32f2f, 0, 0.52, 0.22), 0.7, 0, 0));
+  body.add(ball(0.02, 0.02, 0.02, 0xffd54f, 0, 0.47, 0.27));
+
+  const head = new THREE.Group();
+  head.position.set(0, 0.6, 0.27);
+  head.add(ball(0.105, 0.095, 0.105, black, 0, 0, 0));
+  head.add(box(0.035, 0.1, 0.03, white, 0, 0.03, 0.095));
+  head.add(ball(0.055, 0.045, 0.08, white, 0, -0.035, 0.1));
+  head.add(ball(0.022, 0.018, 0.015, 0x111111, 0, -0.015, 0.18));
+  head.add(ball(0.016, 0.016, 0.01, 0xc58b3a, -0.045, 0.02, 0.09));
+  head.add(ball(0.016, 0.016, 0.01, 0xc58b3a, 0.045, 0.02, 0.09));
+  head.add(rot(cone(0.04, 0.09, black, -0.07, 0.1, -0.01), 0, 0, 0.35));
+  head.add(rot(cone(0.04, 0.09, black, 0.07, 0.1, -0.01), 0, 0, -0.35));
+  const tongue = box(0.035, 0.006, 0.05, 0xff7b9c, 0, -0.07, 0.15);
+  tongue.visible = false;
+  head.add(tongue);
+  body.add(head);
+
+  const legs = [];
+  for (const [x, z] of [[-0.075, 0.15], [0.075, 0.15], [-0.075, -0.15], [0.075, -0.15]]) {
+    const p = new THREE.Group();
+    p.position.set(x, 0.32, z);
+    p.add(box(0.06, 0.24, 0.06, black, 0, -0.12, 0));
+    p.add(box(0.065, 0.1, 0.07, white, 0, -0.27, 0.005));
+    body.add(p);
+    legs.push(p);
+  }
+
+  const tail = new THREE.Group();
+  tail.position.set(0, 0.46, -0.24);
+  tail.rotation.x = -0.5;
+  tail.add(ball(0.045, 0.045, 0.14, black, 0, 0, -0.11));
+  tail.add(ball(0.04, 0.04, 0.05, white, 0, 0, -0.25));
+  body.add(tail);
+  return { root, body, head, legs, tail, tongue };
+}
+
+export function makeFrog() {
+  const g = new THREE.Group();
+  const green = 0x6aa84f;
+  g.add(ball(0.08, 0.055, 0.09, green, 0, 0.06, 0));
+  g.add(ball(0.06, 0.03, 0.07, 0xc5e1a5, 0, 0.035, 0.02));
+  for (const x of [-0.045, 0.045]) {
+    g.add(ball(0.025, 0.025, 0.025, green, x, 0.11, 0.05));
+    g.add(ball(0.014, 0.014, 0.01, 0x111111, x, 0.115, 0.07));
+    g.add(ball(0.04, 0.025, 0.06, 0x5b9a42, x * 1.9, 0.03, -0.04));
+  }
+  return g;
+}
+
+export function makeLadybug() {
+  const g = new THREE.Group();
+  g.add(ball(0.05, 0.035, 0.06, 0xd32f2f, 0, 0.03, 0));
+  g.add(ball(0.025, 0.022, 0.022, 0x111111, 0, 0.025, 0.06));
+  g.add(box(0.004, 0.012, 0.11, 0x111111, 0, 0.062, 0));
+  for (const [x, z] of [[-0.022, 0.02], [0.022, 0.02], [-0.026, -0.02], [0.026, -0.02]]) g.add(ball(0.009, 0.006, 0.009, 0x111111, x, 0.058, z));
+  g.scale.setScalar(1.4);
+  return g;
+}
+
+/** Passarinho com asas articuladas (wingL/wingR batem em torno de z). */
+export function makeBird(color) {
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  root.add(body);
+  body.add(ball(0.06, 0.055, 0.085, color, 0, 0.1, 0));
+  body.add(ball(0.045, 0.04, 0.06, 0xfff3e0, 0, 0.085, 0.02));
+  const head = new THREE.Group();
+  head.position.set(0, 0.15, 0.06);
+  head.add(ball(0.04, 0.04, 0.04, color, 0, 0, 0));
+  head.add(rot(cone(0.012, 0.035, 0xffa726, 0, -0.005, 0.045), Math.PI / 2, 0, 0));
+  head.add(ball(0.007, 0.007, 0.007, 0x111111, 0.028, 0.01, 0.025));
+  head.add(ball(0.007, 0.007, 0.007, 0x111111, -0.028, 0.01, 0.025));
+  body.add(head);
+  body.add(rot(box(0.05, 0.01, 0.08, color, 0, 0.12, -0.1), 0.35, 0, 0));
+  const wing = (s) => {
+    const p = new THREE.Group();
+    p.position.set(0.045 * s, 0.12, 0);
+    p.add(ball(0.06, 0.012, 0.045, color, 0.05 * s, 0, -0.01));
+    body.add(p);
+    return p;
+  };
+  const wingL = wing(-1), wingR = wing(1);
+  for (const x of [-0.02, 0.02]) body.add(cyl(0.005, 0.05, 0xffa726, x, 0.03, 0));
+  return { root, body, head, wingL, wingR };
+}
+
+/** Borboleta com dois pares de asas. */
+export function makeButterfly(color) {
+  const root = new THREE.Group();
+  root.add(rot(cyl(0.008, 0.07, 0x3e2723, 0, 0, 0), Math.PI / 2, 0, 0));
+  const wing = (s) => {
+    const p = new THREE.Group();
+    p.add(ball(0.05, 0.004, 0.04, color, 0.05 * s, 0, 0.015));
+    p.add(ball(0.035, 0.004, 0.03, color, 0.035 * s, 0, -0.03));
+    p.add(ball(0.012, 0.005, 0.012, 0x222222, 0.06 * s, 0.001, 0.02));
+    root.add(p);
+    return p;
+  };
+  return { root, wingL: wing(-1), wingR: wing(1) };
+}
+
+export function makeRabbit() {
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  root.add(body);
+  const fur = 0xb0a08f;
+  body.add(ball(0.11, 0.1, 0.14, fur, 0, 0.12, 0));
+  body.add(ball(0.04, 0.04, 0.04, 0xffffff, 0, 0.15, -0.14));
+  const head = new THREE.Group();
+  head.position.set(0, 0.2, 0.11);
+  head.add(ball(0.07, 0.065, 0.075, fur, 0, 0, 0));
+  head.add(ball(0.012, 0.01, 0.01, 0xf48fb1, 0, -0.005, 0.075));
+  for (const x of [-0.03, 0.03]) {
+    head.add(rot(box(0.03, 0.13, 0.015, fur, x, 0.1, -0.02), -0.2, 0, x * 3));
+    head.add(ball(0.01, 0.01, 0.008, 0x111111, x * 1.4, 0.015, 0.06));
+  }
+  body.add(head);
+  for (const x of [-0.06, 0.06]) body.add(ball(0.035, 0.03, 0.07, fur, x, 0.04, -0.03));
+  return { root, body, head };
+}
+
+export function makeDuck() {
+  const g = new THREE.Group();
+  g.add(ball(0.12, 0.08, 0.17, 0xf5f5f0, 0, 0.05, 0));
+  g.add(ball(0.08, 0.04, 0.12, 0x8d6e63, 0, 0.09, -0.02));
+  g.add(rot(cone(0.05, 0.08, 0xf5f5f0, 0, 0.08, -0.17), -1.9, 0, 0));
+  g.add(ball(0.055, 0.055, 0.055, 0x2e7d32, 0, 0.17, 0.12));
+  g.add(cyl(0.035, 0.03, 0xffffff, 0, 0.12, 0.11));
+  g.add(ball(0.03, 0.012, 0.04, 0xffa726, 0, 0.16, 0.18));
+  g.add(ball(0.008, 0.008, 0.008, 0x111111, 0.04, 0.18, 0.15));
+  g.add(ball(0.008, 0.008, 0.008, 0x111111, -0.04, 0.18, 0.15));
+  return g;
+}
+
+let fireflyTex = null;
+/** Vaga-lume: um brilho amarelo-esverdeado (só aparece à noite). */
+export function makeFirefly() {
+  if (!fireflyTex) {
+    fireflyTex = canvasTexture(64, 64, (g) => {
+      const grd = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+      grd.addColorStop(0, 'rgba(255,255,200,1)');
+      grd.addColorStop(0.25, 'rgba(220,255,120,.8)');
+      grd.addColorStop(1, 'rgba(180,255,80,0)');
+      g.fillStyle = grd;
+      g.fillRect(0, 0, 64, 64);
+    });
+  }
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: fireflyTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+  sp.scale.set(0.35, 0.35, 1);
+  return sp;
+}

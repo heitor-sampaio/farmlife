@@ -6,6 +6,7 @@ import * as core from '../core.js';
 import * as ui from '../ui.js';
 import * as M from './models.js';
 import { NavGrid } from './nav.js';
+import { initCritters, updateCritters, syncPet, updatePet, pet, petInteract, petPettedToday, fauna } from './critters.js';
 
 // ================= Layout do mundo =================
 const TILE = 1.08;
@@ -201,10 +202,22 @@ export async function initWorld(cv) {
   buildRain();
   buildHelpers();
   buildFishing();
+  buildGuide();
 
   player.m = M.makeFarmer();
   scene.add(player.m.root);
   camTarget.copy(player.pos);
+
+  initCritters({
+    scene, nav, player, POND, pickables, burst, sfx, core, followPath, randomSpot, inFieldOrPond,
+    clock: () => clock,
+    darkness: () => core.darkness(),
+    weather: () => core.S.weather,
+    fxAt: (pos, text) => {
+      const p = screenPosOf({ pos });
+      if (p) ui.fxAt(p.x, p.y, text);
+    },
+  });
 
   bindInput();
   window.addEventListener('resize', resize);
@@ -816,6 +829,113 @@ function buildHelpers() {
   scene.add(clickMarker);
 }
 
+// ================= Seta-guia (tutorial e dicas) =================
+let guideDesc = null;
+let guideArrow, guideRing, guideEdge;
+const tmpGuide = new THREE.Vector3();
+
+/** Define o alvo da seta-guia: { tile } | { spot } | { pond } | { field } | { big } | { machine } | null. */
+export function setGuide(desc) { guideDesc = desc; }
+
+function buildGuide() {
+  guideArrow = new THREE.Group();
+  const fill = new THREE.MeshBasicMaterial({ color: 0xffd54f });
+  const edge = new THREE.MeshBasicMaterial({ color: 0x6f4825, side: THREE.BackSide });
+  const headGeo = new THREE.ConeGeometry(0.3, 0.48, 4);
+  const shaftGeo = new THREE.BoxGeometry(0.17, 0.5, 0.17);
+  const part = (geo, mat, y, s = 1, flip = false) => {
+    const m = new THREE.Mesh(geo, mat);
+    m.position.y = y;
+    m.scale.setScalar(s);
+    if (flip) m.rotation.x = Math.PI;
+    m.renderOrder = 20;
+    guideArrow.add(m);
+  };
+  part(headGeo, fill, 0.24, 1, true);
+  part(headGeo, edge, 0.24, 1.18, true);
+  part(shaftGeo, fill, 0.72);
+  part(shaftGeo, edge, 0.72, 1.3);
+  guideArrow.visible = false;
+  scene.add(guideArrow);
+
+  const ringGeo = new THREE.RingGeometry(0.5, 0.64, 36);
+  ringGeo.rotateX(-Math.PI / 2);
+  guideRing = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xffd54f, transparent: true, opacity: 0.85, depthWrite: false }));
+  guideRing.renderOrder = 6;
+  guideRing.visible = false;
+  scene.add(guideRing);
+  guideEdge = document.getElementById('guide-edge');
+}
+
+function guidePos(d) {
+  if (d.tile != null) {
+    const t = tilePos(d.tile), v = plotVis[d.tile];
+    return { x: t.x, z: t.z, h: v.top + Math.max(0.5, v.cropH) + 0.55, gx: t.x, gz: t.z, gy: v.top + 0.02 };
+  }
+  if (d.spot) {
+    const sp = SPOTS[d.spot];
+    return { x: sp.at[0], z: sp.at[1], h: (sp.labelY || 1.4) + 0.55, gx: sp.point[0], gz: sp.point[1], gy: 0.04 };
+  }
+  if (d.pond) return { x: POND.x, z: POND.z, h: 1.3 };
+  if (d.field) { const [x, z] = FIELD_POS[d.field]; return { x, z, h: 1.6 }; }
+  if (d.big) return { x: BIG_X0 + 2, z: BIG.cz, h: 1.8 };
+  if (d.machine) {
+    const v = machines.get(d.machine);
+    return v ? { x: v.pos.x, z: v.pos.z, h: v.id === 'colheitadeira' ? 3.7 : 2.5, gx: v.pos.x, gz: v.pos.z, gy: 0.04 } : null;
+  }
+  return null;
+}
+
+function updateGuide(dt) {
+  const p = guideDesc && guidePos(guideDesc);
+  if (!p) {
+    guideArrow.visible = false;
+    guideRing.visible = false;
+    guideEdge.hidden = true;
+    return;
+  }
+  guideArrow.visible = true;
+  guideArrow.position.set(p.x, p.h + Math.abs(Math.sin(clock * 4)) * 0.28, p.z);
+  guideArrow.rotation.y += dt * 2;
+  guideRing.visible = p.gx != null;
+  if (guideRing.visible) {
+    guideRing.position.set(p.gx, p.gy, p.gz);
+    guideRing.scale.setScalar(1 + Math.sin(clock * 5) * 0.08);
+  }
+
+  // Alvo fora da tela: setinha na borda apontando para ele
+  tmpGuide.set(p.x, p.h, p.z).project(camera);
+  const rect = canvas.getBoundingClientRect();
+  const sx = ((tmpGuide.x + 1) / 2) * rect.width, sy = ((1 - tmpGuide.y) / 2) * rect.height;
+  const mx = 46, top = 110, bottom = 170;
+  const off = sx < mx || sx > rect.width - mx || sy < top || sy > rect.height - bottom;
+  guideEdge.hidden = !off;
+  if (!off) return;
+  const cx = rect.width / 2, cy = (top + rect.height - bottom) / 2;
+  const dx = sx - cx, dy = sy - cy;
+  const k = Math.min((rect.width / 2 - mx) / Math.max(1e-6, Math.abs(dx)), (rect.height - top - bottom) / 2 / Math.max(1e-6, Math.abs(dy)));
+  guideEdge.style.left = rect.left + cx + dx * k + 'px';
+  guideEdge.style.top = rect.top + cy + dy * k + 'px';
+  guideEdge.style.transform = `translate(-50%, -50%) rotate(${Math.atan2(dy, dx)}rad)`;
+}
+
+// ================= Fauna: lugares livres =================
+/** Ponto de grama livre (fora de campos, curral e lago), para os bichos de cenário. */
+function inFieldOrPond(x, z) {
+  if (FIELDS.some((f) => { const q = fieldRect(f, 0.6); return x > q.x1 && x < q.x2 && z > q.z1 && z < q.z2; })) return true;
+  if (x > PEN.x1 - 0.5 && x < PEN.x2 + 0.5 && z > PEN.z1 - 0.5 && z < PEN.z2 + 0.5) return true;
+  if (x > BIG_X0 - 1 && z > BIG_Z0 - 1 && z < BIG_Z0 + BIG_FIELD.rows + 1) return true;
+  return Math.hypot(x - POND.x, z - POND.z) < POND.r + 0.8;
+}
+
+function randomSpot() {
+  for (let k = 0; k < 80; k++) {
+    const x = rand(-13.5, 18), z = rand(-9.5, 14);
+    if (nav.free(x, z) && !inFieldOrPond(x, z)) return { x, z };
+  }
+  return { x: 3, z: 6 };
+}
+
 // ================= Câmera =================
 const tmpLook = new THREE.Vector3();
 function resize() {
@@ -1168,6 +1288,7 @@ function jobTarget(job) {
   if (job.kind === 'spot') { const s = SPOTS[job.key]; return { x: s.point[0], z: s.point[1], reach: 0.6 }; }
   if (job.kind === 'move') return { x: job.x, z: job.z, reach: 0.1 };
   if (job.kind === 'machine') { const v = machines.get(job.id); return v ? { x: v.pos.x, z: v.pos.z, reach: v.def.reach } : null; }
+  if (job.kind === 'pet') return pet.model ? { x: pet.pos.x, z: pet.pos.z, reach: 1.1 } : null;
   if (job.kind === 'fish') {
     // Vai até a beira do lago, do lado em que o pescador está
     const dx = player.pos.x - POND.x, dz = player.pos.z - POND.z, d = Math.hypot(dx, dz) || 1;
@@ -1224,6 +1345,7 @@ function performJob(job) {
   else if (job.kind === 'spot') openSpot(job.key);
   else if (job.kind === 'machine') enterMachine(job.id);
   else if (job.kind === 'fish') startCast(job.x, job.z);
+  else if (job.kind === 'pet') petInteract();
 }
 
 function startAction(kind) {
@@ -1289,6 +1411,7 @@ function getContext() {
     if (d < bd) { bd = d; best = { kind: 'animal', id: v.id }; }
   }
   if (best) return best;
+  if (pet.model && dist2(player.pos, pet.pos.x, pet.pos.z) < 1.3) return { kind: 'pet' };
   for (const v of machines.values()) {
     if (dist2(player.pos, v.pos.x, v.pos.z) < v.def.reach) return { kind: 'machine', id: v.id };
   }
@@ -1310,6 +1433,7 @@ function actionLabel(ctx) {
   if (ctx.kind === 'machine') return `Dirigir: ${MACHINES[ctx.id].name}`;
   if (ctx.kind === 'exit') return 'Sair da máquina';
   if (ctx.kind === 'fish') return FISH_LABEL[fishing.state] || null;
+  if (ctx.kind === 'pet') return `Fazer carinho em ${core.S.pet.name.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c])}`;
   if (ctx.kind === 'animal') { const a = core.findAnimal(ctx.id); return a ? core.animalActionLabel(a) : null; }
   if (ctx.kind === 'spot') {
     if (ctx.key === 'casa') return core.dayHours() >= 18 ? SPOTS.casa.text : null;
@@ -1324,6 +1448,7 @@ function infoText(ctx) {
   if (ctx.kind === 'machine') return `${MACHINES[ctx.id].icon} ${MACHINES[ctx.id].name}: ${MACHINES[ctx.id].desc}`;
   if (ctx.kind === 'exit') return machineInfo();
   if (ctx.kind === 'fish') return FISH_INFO[fishing.state];
+  if (ctx.kind === 'pet') return `🐶 ${core.S.pet.name}, sua border collie. ${petPettedToday() ? 'Já ganhou carinho hoje ❤️' : 'Faça carinho: +10 XP uma vez por dia.'}`;
   if (ctx.kind === 'animal') { const a = core.findAnimal(ctx.id); return a ? core.animalInfo(a) : null; }
   if (ctx.kind === 'spot') return SPOTS[ctx.key].info;
   return null;
@@ -1335,6 +1460,7 @@ function keyAction(repeat) {
   if (!ctx) return;
   if (ctx.kind === 'exit') { if (!repeat) exitMachine(); return; }
   if (ctx.kind === 'fish') { if (!repeat) fishAction(); return; }
+  if (ctx.kind === 'pet') { if (!repeat) petInteract(); return; }
   cancelJobs();
   if (ctx.kind === 'machine') { if (!repeat) enterMachine(ctx.id); return; }
   if (ctx.kind === 'tile') {
@@ -1833,6 +1959,7 @@ function clickAt(e) {
     return hit;
   }
   if (hit.kind === 'machine') { player.queue.push({ kind: 'machine', id: hit.id }); return hit; }
+  if (hit.kind === 'pet') { player.queue.push({ kind: 'pet' }); return hit; }
   if (hit.kind === 'tile') {
     player.queue.push({ kind: 'tile', i: hit.i });
   } else if (hit.kind === 'animal') {
@@ -2001,6 +2128,8 @@ export function screenPosOf(target) {
   if (target.tile != null) { v.copy(tilePos(target.tile)); v.y = 0.9; }
   else if (target.animal != null) { const a = animalVis.get(target.animal); if (!a) return null; v.copy(a.pos); v.y = 1.0; }
   else if (target.player) { v.copy(player.pos); v.y = driving ? 3 : 1.7; }
+  else if (target.pet) { v.copy(pet.pos); v.y = 1.0; }
+  else if (target.pos) { v.copy(target.pos); v.y = 1.0; }
   else if (target.machine) { const m = machines.get(target.machine); if (!m) return null; v.copy(m.pos); v.y = 2.6; }
   else return null;
   v.project(camera);
@@ -2035,6 +2164,9 @@ export function worldFrame(dt) {
   syncWorkers();
   updatePlayer(dt);
   updateFishing(dt);
+  syncPet();
+  updatePet(dt);
+  updateCritters(dt);
   updateAnimals(dt);
   updateWorkers(dt);
   updateMachines(dt);
@@ -2043,8 +2175,9 @@ export function worldFrame(dt) {
   updateSky(dt);
   updateParticles(dt);
   updateHelpers(dt);
+  updateGuide(dt);
   renderer.render(scene, camera);
 }
 
 // Usado pelos testes no console do navegador
-export const debug = { player, animalVis, npcs, machines, fishing, fishAction, startCast, get driving() { return driving; }, enterMachine, exitMachine, bigCellAt, bigCellCenter, get zoom() { return zoom; }, tileAt, tilePos, get nav() { return nav; } };
+export const debug = { player, animalVis, npcs, machines, fishing, fishAction, startCast, pet, petInteract, randomSpot, fauna, get driving() { return driving; }, enterMachine, exitMachine, bigCellAt, bigCellCenter, get zoom() { return zoom; }, tileAt, tilePos, get nav() { return nav; } };

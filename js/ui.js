@@ -1,5 +1,5 @@
 /* FarmLife — interface em HTML sobre a cena 3D (HUD, hotbar, painel, avisos) */
-import { CROPS, ANIMALS, PRODUCTS, UPGRADES, WORKERS, FIELDS, BIG_FIELD, BIG_CELLS, MACHINES, FISH, RODS, SOUND_KEY } from './data.js';
+import { CROPS, ANIMALS, PRODUCTS, UPGRADES, WORKERS, FIELDS, BIG_FIELD, BIG_CELLS, MACHINES, FISH, RODS, PET, SOUND_KEY } from './data.js';
 import * as core from './core.js';
 import { Sound, sfx } from './audio.js';
 
@@ -82,6 +82,7 @@ export function setPrompt(html) {
 // ================= Painel lateral =================
 /** Abre o painel numa aba; anchor rola até uma seção (ex.: "campos"). */
 export function openPanel(tab, anchor) {
+  if (handlers.onPanel) handlers.onPanel(tab);
   currentTab = tab;
   document.querySelectorAll('.tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
   document.querySelectorAll('[data-open]').forEach((b) => b.classList.toggle('active', b.dataset.open === tab));
@@ -172,6 +173,21 @@ function shopHtml() {
       </div></div>`;
   }
   h += `</div><p class="hint">Peixes do lago: ${Object.values(FISH).filter((f) => !f.junk).map((f) => `${f.icon} ${f.name}`).join(', ')}. À noite aparecem mais bagres; na chuva, lagostins.</p>`;
+
+  const pet = S.pet;
+  const petLocked = !pet.owned && PET.level > S.level;
+  const esc = (t) => String(t).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]);
+  h += `<h3 id="sec-pet">🐶 Pet</h3><div class="cards">
+    <div class="card${petLocked ? ' locked' : ''}${pet.owned ? ' hired' : ''}">
+      <div class="ico">${PET.icon}</div>
+      <div class="info"><b>${pet.owned ? esc(pet.name) + ' <small>✔ sua border collie</small>' : PET.breed}</b>
+        <small>Uma cachorrinha esperta que segue você pela fazenda e adora correr atrás dos passarinhos. Faça carinho todo dia (+${PET.xp} XP).</small></div>
+      <div class="btns">${pet.owned
+        ? '<button class="btn ghost" data-act="petname">Renomear</button>'
+        : petLocked
+          ? `<span class="req">🔒 Nível ${PET.level}</span>`
+          : `<button class="btn alt" data-act="pet" ${S.coins < PET.cost ? 'disabled' : ''}>🪙${fmt(PET.cost)}</button>`}
+      </div></div></div>`;
 
   const big = S.big.owned;
   const bigLocked = !big && BIG_FIELD.level > S.level;
@@ -454,6 +470,11 @@ export function initUI(h) {
     else if (act === 'field') core.buyField(id);
     else if (act === 'bigfield') core.buyBigField();
     else if (act === 'rod') core.buyRod(+id);
+    else if (act === 'pet') core.buyPet();
+    else if (act === 'petname') {
+      const name = prompt('Qual o nome da sua border collie?', core.S.pet.name);
+      if (name) core.renamePet(name);
+    }
     else if (act === 'machine') core.buyMachine(id);
     else if (act === 'sell') core.sell(id, +b.dataset.q);
     else if (act === 'sellall') core.sellAll();
@@ -469,8 +490,7 @@ export function initUI(h) {
     try { localStorage.setItem(SOUND_KEY, Sound.on ? '1' : '0'); } catch (e) { /* ignora */ }
     if (Sound.on) sfx('coin');
   });
-  $('#btn-help').addEventListener('click', openHelp);
-  $('#btn-start').addEventListener('click', closeHelp);
+  $('#btn-help').addEventListener('click', () => handlers.onHelp());
   el.modal.addEventListener('click', (e) => { if (e.target === el.modal) closeHelp(); });
   $('#btn-reset').addEventListener('click', () => {
     if (!confirm('Recomeçar a fazenda do zero? Todo o progresso será perdido.')) return;
@@ -488,7 +508,6 @@ export function initUI(h) {
   });
 
   markDirty('panel', 'toolbar');
-  if (!core.S.seen) openHelp();
 }
 
 export function uiFrame(dt) {

@@ -2,7 +2,7 @@
 import {
   COLS, ROWS, DAY_LEN, MAX_OFFLINE, SAVE_KEY, FIELDS, TOTAL_PLOTS, fieldOf,
   CROPS, PRODUCTS, ANIMALS, WATER_TIME, GROW_SPEED, PEN_SIZE, UPGRADES, CUSTOMERS,
-  WORKERS, WORK_TIME, BIG_FIELD, BIG_CELLS, MACHINES, FISH, RODS,
+  WORKERS, WORK_TIME, BIG_FIELD, BIG_CELLS, MACHINES, FISH, RODS, PET,
 } from './data.js';
 
 // ================= Utilidades =================
@@ -35,12 +35,13 @@ for (const [id, p] of Object.entries(PRODUCTS)) ITEMS[id] = { ...p };
 for (const [id, f] of Object.entries(FISH)) ITEMS[id] = { name: f.name, icon: f.icon, sell: f.sell, xp: f.xp };
 
 // ================= Ganchos para a interface/cena =================
-const hooks = { fx() {}, toast() {}, sfx() {}, dirty() {} };
+const hooks = { fx() {}, toast() {}, sfx() {}, dirty() {}, event() {} };
 export function setHooks(h) { Object.assign(hooks, h); }
 const toast = (msg, type) => hooks.toast(msg, type);
 const sfx = (name) => hooks.sfx(name);
 const fx = (target, text, cls) => hooks.fx(target, text, cls);
 const markDirty = (...parts) => hooks.dirty(...parts);
+const emit = (name, data) => hooks.event(name, data);
 
 // Avisos gerados durante simulações silenciosas (offline, sono), mostrados depois
 const notices = [];
@@ -106,6 +107,8 @@ function newState() {
     bought: 0,
     stats: { harvest: 0, earned: 0, orders: 0, fish: 0 },
     fishing: { rod: 0 },
+    pet: { owned: false, name: PET.defaultName, day: 0 },
+    tutorial: { step: 0, count: 0, done: false, tips: {} },
     savedAt: Date.now(),
     seen: false,
   };
@@ -152,6 +155,7 @@ export function buyField(id) {
   if (!f || fieldOwned(id) || f.level > S.level) return false;
   if (!spend(f.cost)) return false;
   S.fields[id] = true;
+  emit('field', id);
   for (let i = f.start; i < f.start + f.count; i++) S.plots[i] = { s: 'grass', crop: null, g: 0, w: 0 };
   toast(`${f.icon} ${f.name} é seu! ${f.count} novos lotes para plantar.`, 'good');
   sfx('level');
@@ -289,6 +293,13 @@ function earn(n) {
   markDirty('panel');
 }
 
+/** Recompensa (moedas e XP) dada pelo tutorial. */
+export function giveReward(coins = 0, xp = 0) {
+  if (coins) earn(coins);
+  if (xp) gainXp(xp);
+  markDirty('panel');
+}
+
 function addItem(id, n) {
   S.inv[id] = (S.inv[id] || 0) + n;
   markDirty('panel');
@@ -304,6 +315,7 @@ function gainXp(n, silent = false) {
 }
 
 function onLevelUp(silent) {
+  emit('level', S.level);
   const unlocks = [];
   for (const c of Object.values(CROPS)) if (c.level === S.level) unlocks.push(c.icon + ' ' + c.name);
   for (const a of Object.values(ANIMALS)) if (a.level === S.level) unlocks.push(a.icon + ' ' + a.name);
@@ -363,6 +375,12 @@ export function tileActionLabel(i) {
  * Com quiet = true, não mostra avisos de erro (usado em ações em sequência).
  */
 export function useTile(i, quiet = false) {
+  const res = useTileInner(i, quiet);
+  if (res) emit(res);
+  return res;
+}
+
+function useTileInner(i, quiet) {
   const p = S.plots[i];
   const target = { tile: i };
 
@@ -554,6 +572,7 @@ export function buyBigField() {
   if (S.big.owned || BIG_FIELD.level > S.level) return;
   if (!spend(BIG_FIELD.cost)) return;
   S.big.owned = true;
+  emit('bigfield');
   toast(`${BIG_FIELD.icon} O ${BIG_FIELD.name} é seu! ${BIG_CELLS} lotes. Compre as máquinas para trabalhar nele.`, 'good');
   sfx('level');
 }
@@ -564,6 +583,7 @@ export function buyMachine(id) {
   if (!S.big.owned) { toast(`Compre o ${BIG_FIELD.name} antes das máquinas.`, 'bad'); sfx('error'); return; }
   if (!spend(m.cost)) return;
   S.machines[id] = { x: null, z: null, h: 0 }; // a cena estaciona no galpão
+  emit('machine', id);
   toast(`${m.icon} ${m.name} chegou ao galpão! Chegue perto e aperte Espaço para dirigir.`, 'good');
   sfx('level');
 }
@@ -598,6 +618,34 @@ export function bigWork(machine, k) {
   return null;
 }
 
+// ================= Pet =================
+export function buyPet() {
+  if (S.pet.owned || PET.level > S.level) return;
+  if (!spend(PET.cost)) return;
+  S.pet.owned = true;
+  emit('pet');
+  toast(`${PET.icon} ${S.pet.name} chegou! Ela vai seguir você pela fazenda. Faça carinho todo dia.`, 'good');
+  sfx('bark');
+  markDirty('panel');
+}
+
+export function renamePet(name) {
+  name = String(name || '').trim().slice(0, 18);
+  if (!name) return;
+  S.pet.name = name;
+  markDirty('panel');
+}
+
+/** Carinho no pet: uma vez por dia dá XP. Retorna true se ganhou o bônus. */
+export function petDog() {
+  const day = dayOf(S.time);
+  if (S.pet.day === day) return false;
+  S.pet.day = day;
+  gainXp(PET.xp);
+  toast(`❤️ ${S.pet.name} adorou o carinho! +${PET.xp} XP`, 'good');
+  return true;
+}
+
 // ================= Pescaria =================
 export const rod = () => RODS[S.fishing.rod] || null;
 
@@ -607,6 +655,7 @@ export function buyRod(level) {
   if (level > 1 && S.fishing.rod < level - 1) { toast('Compre a vara anterior primeiro.', 'bad'); return; }
   if (!spend(r.cost)) return;
   S.fishing.rod = level;
+  emit('rod', level);
   tool = 'vara';
   toast(`${r.icon} ${r.name} comprada! Vá até o lago e aperte Espaço para pescar.`, 'good');
   sfx('coin');
@@ -636,6 +685,7 @@ export function catchFish(id) {
   addItem(id, 1);
   gainXp(f.xp);
   S.stats.fish = (S.stats.fish || 0) + 1;
+  emit('fish', id);
   const msg = f.junk ? `${f.icon} Ops… você pescou uma ${f.name.toLowerCase()}.` : `🎣 Você pescou: ${f.icon} ${f.name}! (vale 🪙${price(id)})`;
   toast(msg, f.rare ? 'level' : f.junk ? '' : 'good');
   sfx(f.rare ? 'level' : 'catch');
@@ -711,6 +761,7 @@ export function hireWorker(id) {
   if (S.workers[id] || w.level > S.level) return;
   if (!spend(w.hire)) return;
   S.workers[id] = true;
+  emit('worker', id);
   toast(`${w.icon} ${w.name} contratado! Salário: 🪙${w.wage} por dia.`, 'good');
   sfx('coin');
 }
@@ -729,6 +780,7 @@ export function buySeed(id, qty) {
   if (c.level > S.level) return;
   if (!spend(c.seed * qty)) return;
   S.seeds[id] = (S.seeds[id] || 0) + qty;
+  emit('buy-seed', id);
   sfx('coin');
   if (!tool.startsWith('seed:') || !S.seeds[tool.slice(5)]) tool = 'seed:' + id;
   markDirty('toolbar');
@@ -740,6 +792,7 @@ export function buyAnimal(type) {
   if (S.animals.length >= penSize()) { toast('🏡 Curral cheio! Compre a melhoria "Curral maior".', 'bad'); sfx('error'); return; }
   if (!spend(def.cost)) return;
   S.animals.push({ id: S.nextId++, type, fed: false, p: 0, ready: false });
+  emit('animal', type);
   toast(`${def.icon} Uma ${def.name.toLowerCase()} chegou ao curral! Alimente-a com 🌾 trigo.`, 'good');
   sfx('coin');
 }
@@ -760,6 +813,7 @@ export function sell(id, qty) {
   S.inv[id] -= qty;
   earn(price(id) * qty);
   sfx('coin');
+  emit('sell', id);
 }
 
 export function sellAll() {
@@ -773,6 +827,7 @@ export function sellAll() {
   if (!total) { toast('Nada para vender.'); return; }
   earn(total);
   toast(`💰 Você vendeu tudo por 🪙${fmt(total)}!`, 'good');
+  emit('sell');
   sfx('coin');
 }
 
@@ -784,6 +839,7 @@ export function fulfillOrder(k) {
   earn(o.coins);
   gainXp(o.xp);
   S.stats.orders++;
+  emit('order');
   fillOrders();
   toast(`📦 Pedido entregue para ${o.who}! +🪙${fmt(o.coins)} · +${o.xp} XP`, 'good');
   sfx('coin');
@@ -847,6 +903,8 @@ function load() {
       fields: { ...base.fields, ...d.fields },
       machines: { ...base.machines, ...d.machines },
       fishing: { ...base.fishing, ...d.fishing },
+      pet: { ...base.pet, ...d.pet },
+      tutorial: d.tutorial ? { ...base.tutorial, ...d.tutorial, tips: { ...(d.tutorial.tips || {}) } } : { ...base.tutorial, done: true },
       big: d.big && Array.isArray(d.big.s) && d.big.s.length === BIG_CELLS ? d.big : base.big,
     };
     // Saves antigos têm só o campo principal: completa com os lotes dos campos novos

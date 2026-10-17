@@ -39,6 +39,9 @@ export const Sound = {
         case 'splash': this.tone(320, 0.12, 'triangle', 0.08, 0, -180); this.tone(520, 0.08, 'sine', 0.04, 0.04, -200); break;
         case 'bite': [1180, 1180].forEach((f, k) => this.tone(f, 0.07, 'square', 0.05, k * 0.11)); break;
         case 'catch': [660, 880, 1320].forEach((f, k) => this.tone(f, 0.12, 'triangle', 0.1, k * 0.08)); break;
+        case 'bark': this.tone(420, 0.09, 'sawtooth', 0.05, 0, -160); this.tone(380, 0.1, 'sawtooth', 0.05, 0.16, -150); break;
+        case 'croak': this.tone(150, 0.09, 'square', 0.035, 0, 30); this.tone(130, 0.12, 'square', 0.035, 0.12, 20); break;
+        case 'chirp': [2600, 3100, 2800].forEach((f, k) => this.tone(f, 0.05, 'sine', 0.025, k * 0.07, 400)); break;
         case 'sleep': [784, 659, 523, 392].forEach((f, k) => this.tone(f, 0.3, 'sine', 0.08, k * 0.18)); break;
       }
     } catch (e) { /* áudio indisponível */ }

@@ -84,6 +84,9 @@ export const RODS = [
   { name: 'Vara de fibra', icon: '🎣', cost: 1500, level: 4, zone: 0.36, bite: 1.35, wait: 0.7, desc: 'Faixa de captura maior, peixes mordem mais rápido e mais chance de peixes raros.' },
 ];
 
+// Pet: um border collie que acompanha o jogador
+export const PET = { breed: 'Border collie', icon: '🐶', cost: 400, level: 2, defaultName: 'Pipoca', xp: 10 };
+
 export const WATER_TIME = [40, 70, 110, 180];
 export const GROW_SPEED = [1, 1.2, 1.45, 1.75];
 export const PEN_SIZE = [4, 8, 12];

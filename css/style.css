@@ -432,6 +432,166 @@ kbd {
 .reward { font-size: 14px; font-weight: 700; }
 .hint { margin: 10px 0 0; font-size: 12px; color: var(--muted); }
 
+/* ---------- Tutorial e dicas ---------- */
+.tut {
+  position: fixed;
+  top: 66px;
+  left: 14px;
+  z-index: 26;
+  width: 340px;
+  max-width: calc(100vw - 28px);
+  padding: 12px 14px;
+  border: 3px solid #f5b82e;
+  border-radius: 16px;
+  background: var(--paper);
+  box-shadow: 0 5px 0 #e0b84a, 0 14px 30px rgba(0, 0, 0, .25);
+  font-size: 14px;
+  line-height: 1.45;
+  animation: toastIn .25s ease-out;
+}
+.tut[hidden] { display: none; }
+.tut.tip { border-color: #64b5f6; box-shadow: 0 5px 0 #3d8fd1, 0 14px 30px rgba(0, 0, 0, .25); }
+.tut.flash { border-color: var(--green); box-shadow: 0 5px 0 var(--green-dark), 0 14px 30px rgba(0, 0, 0, .25); }
+.tut-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px; }
+.tut-step { color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.tut-min {
+  width: 26px;
+  height: 22px;
+  border: 0;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, .06);
+  font-weight: 700;
+  cursor: pointer;
+}
+.tut-title { display: flex; align-items: center; gap: 8px; font-size: 17px; cursor: default; }
+.tut-title span { font-size: 22px; }
+.tut-body { margin: 6px 0 8px; }
+.tut-body kbd { font-size: .8em; }
+.tut-ok { margin: 4px 0; font-size: 15px; }
+.tut-flow { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 8px 0; }
+.tut-flow span {
+  padding: 3px 8px;
+  border-radius: 99px;
+  background: var(--paper-2);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.tut-flow span + span::before { content: '→ '; color: var(--muted); }
+.tut-flow.big span { font-size: 14px; padding: 5px 10px; }
+.tut-goals { margin: 6px 0; padding-left: 18px; }
+.tut-goals li { margin: 3px 0; }
+.tut-progress {
+  position: relative;
+  height: 16px;
+  margin-bottom: 8px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: var(--paper-2);
+}
+.tut-progress[hidden] { display: none; }
+.tut-progress i { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, #9be15d, #5cb85c); transition: width .3s; }
+.tut-progress span { position: relative; display: block; font-size: 11px; font-weight: 700; line-height: 16px; text-align: center; }
+.tut-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.tut-btns { display: flex; gap: 6px; margin-left: auto; }
+.tut-btns [hidden] { display: none; }
+.tut-link { padding: 0; border: 0; background: none; color: var(--muted); font-size: 12px; text-decoration: underline; cursor: pointer; }
+.tut-link[hidden] { display: none; }
+.tut.min .tut-body, .tut.min .tut-progress, .tut.min .tut-foot { display: none; }
+.tut.min .tut-title { cursor: pointer; font-size: 15px; }
+
+.tool.hint { animation: toolHint 1s ease-in-out infinite; }
+@keyframes toolHint {
+  0%, 100% { box-shadow: 0 3px 0 var(--line), 0 0 0 0 rgba(245, 184, 46, .9); }
+  50% { box-shadow: 0 3px 0 var(--line), 0 0 0 6px rgba(245, 184, 46, .45); transform: translateY(-3px); }
+}
+
+.guide-edge {
+  position: fixed;
+  z-index: 24;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 3px solid #6f4825;
+  border-radius: 50%;
+  background: #ffd54f;
+  color: #6f4825;
+  font-size: 22px;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .3);
+  pointer-events: none;
+}
+.guide-edge[hidden] { display: none; }
+
+/* ---------- Guia da Fazenda ---------- */
+.modal.guide {
+  display: flex;
+  flex-direction: column;
+  max-width: 860px;
+  height: min(86vh, 680px);
+  padding: 0;
+  overflow: hidden;
+}
+.guide-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  background: var(--paper-2);
+}
+.guide-head h2 { margin: 0; font-size: 1.3rem; }
+.guide-wrap { display: grid; flex: 1; grid-template-columns: 200px minmax(0, 1fr); min-height: 0; }
+.guide-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 8px;
+  overflow-y: auto;
+  border-right: 2px solid var(--line);
+}
+.g-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.g-nav span { width: 22px; text-align: center; }
+.g-nav:hover { background: rgba(0, 0, 0, .05); }
+.g-nav.active { background: #fff3b0; box-shadow: inset 0 0 0 2px #f5b82e; }
+.guide-content { padding: 16px 20px 24px; overflow-y: auto; line-height: 1.55; user-select: text; }
+.guide-content h3 { margin: 0 0 10px; font-size: 1.2rem; }
+.g-list { padding-left: 20px; }
+.g-list li { margin: 6px 0; }
+.g-table-wrap { margin: 10px 0; overflow-x: auto; }
+.g-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.g-table th { padding: 6px 8px; background: var(--paper-2); text-align: left; white-space: nowrap; }
+.g-table td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.g-table.has-ico td:first-child { font-size: 18px; }
+.g-lock { color: var(--muted); font-size: 11px; white-space: nowrap; }
+.g-road { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.g-lv { display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; border-left: 4px solid var(--line); border-radius: 8px; background: #fffdf6; }
+.g-lv span { color: var(--muted); font-size: 13px; }
+.g-lv.done { border-left-color: var(--green); }
+.g-lv.done span { color: var(--ink); }
+.g-lv.next { border-left-color: #f5b82e; background: #fff8d6; }
+
+@media (max-width: 700px) {
+  .guide-wrap { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .guide-nav { flex-direction: row; padding: 8px; overflow-x: auto; overflow-y: hidden; border-right: 0; border-bottom: 2px solid var(--line); }
+  .g-nav { flex-shrink: 0; padding: 6px 10px; white-space: nowrap; }
+  .guide-content { padding: 12px 14px 20px; }
+}
+@media (max-width: 600px) {
+  .tut { left: 8px; width: auto; right: 8px; max-width: none; font-size: 13px; }
+}
+
 /* ---------- Minigame de pesca ---------- */
 .fishgame {
   position: fixed;
@@ -569,9 +729,6 @@ kbd {
   animation: toastIn .25s ease-out;
 }
 .modal h2 { margin-top: 0; }
-.modal ul { padding: 0; list-style: none; }
-.modal li { display: flex; gap: 10px; margin: 9px 0; line-height: 1.5; }
-.modal li > span:first-child { width: 24px; flex-shrink: 0; text-align: center; }
 
 .loading {
   position: fixed;
@@ -612,7 +769,7 @@ kbd {
   .tool .tn { display: none; }
   .status { font-size: 12px; }
   .panel { top: auto; left: 8px; right: 8px; bottom: 8px; width: auto; max-width: none; height: 68vh; transform: translateY(calc(100% + 30px)); }
-  .side-ctrl { bottom: auto; top: 110px; right: 8px; }
+  .side-ctrl { bottom: 205px; right: 8px; }
   .action-btn { right: 14px; bottom: 120px; }
 }
 
