@@ -1,6 +1,6 @@
 /* FarmLife — mundo 3D: cena, câmera isométrica, personagem, animais e interações */
 import * as THREE from 'three';
-import { ANIMALS, PRODUCTS, CROPS, WORKERS, FIELDS, TOTAL_PLOTS, fieldOf, BIG_FIELD, BIG_CELLS, MACHINES, FISH, MUTATIONS, CHOP_TREES, SAWMILL, BUILDINGS, RECIPES, CARPENTRY } from '../data.js';
+import { ANIMALS, PRODUCTS, CROPS, WORKERS, FIELDS, TOTAL_PLOTS, fieldOf, BIG_FIELD, BIG_CELLS, MACHINES, FISH, MUTATIONS, CHOP_TREES, SAWMILL, BUILDINGS, RECIPES, CARPENTRY, HORSE, SADDLE, RIDE_MULT } from '../data.js';
 import { sfx } from '../audio.js';
 import * as core from '../core.js';
 import * as ui from '../ui.js';
@@ -131,6 +131,27 @@ function camDir(x, z) {
   return [c * x + s * z, -s * x + c * z];
 }
 export function rotateCamera(d) { camYawTarget += d; }
+let focus = false; // criação do personagem: câmera bem perto, de frente para ele
+export function setFocus(on) { focus = on; if (on) cancelJobs(); }
+const tmpFocus = new THREE.Vector3();
+
+/** Troca o modelo do jogador (e o motorista das máquinas) para o personagem escolhido. */
+export function setCharacter(gender) {
+  M.setFarmerStyle(gender);
+  const old = player.m;
+  const m = M.makeFarmer();
+  m.root.visible = old.root.visible;
+  scene.remove(old.root);
+  scene.add(m.root);
+  player.m = m;
+  // As máquinas são recriadas no próximo quadro com o motorista novo
+  for (const [id, v] of [...machines]) {
+    if (driving === id) continue;
+    scene.remove(v.m.root);
+    pickables.splice(pickables.indexOf(v.m.root), 1);
+    machines.delete(id);
+  }
+}
 /** Volta para a vista padrão pelo caminho mais curto. */
 export function resetCamera() {
   const full = Math.PI * 2;
@@ -236,6 +257,7 @@ export async function initWorld(cv) {
   buildFishing();
   buildGuide();
 
+  M.setFarmerStyle(core.S.char.gender);
   player.m = M.makeFarmer();
   scene.add(player.m.root);
   camTarget.copy(player.pos);
@@ -1164,6 +1186,7 @@ function guidePos(d) {
     return { x: sp.at[0], z: sp.at[1], h: (sp.labelY || 1.4) + 0.55, gx: sp.point[0], gz: sp.point[1], gy: 0.04 };
   }
   if (d.pond) return { x: POND.x, z: POND.z, h: 1.3 };
+  if (d.horse) return horse ? { x: horse.pos.x, z: horse.pos.z, h: 2.6, gx: horse.pos.x, gz: horse.pos.z, gy: 0.04 } : null;
   if (d.tree != null) { const v = grove[d.tree]; return v ? { x: v.x, z: v.z, h: 3.3 } : null; }
   if (d.field) { const [x, z] = FIELD_POS[d.field]; return { x, z, h: 1.6 }; }
   if (d.big) return { x: BIG_X0 + 2, z: BIG.cz, h: 1.8 };
@@ -1247,13 +1270,19 @@ export function zoomBy(f) {
 }
 
 function updateCamera(dt) {
-  const want = driving ? 1.4 : 1;
+  const want = focus ? 0.3 : driving ? 1.4 : riding ? 1.15 : 1;
   if (Math.abs(zoomMult - want) > 0.002) {
     zoomMult += (want - zoomMult) * Math.min(1, dt * 2);
     resize();
   }
   // Ao dirigir, a câmera olha um pouco à frente da máquina
-  const look = driving ? tmpLook.set(Math.sin(player.heading) * 2.5, 0, Math.cos(player.heading) * 2.5).add(player.pos) : player.pos;
+  let look = driving ? tmpLook.set(Math.sin(player.heading) * 2.5, 0, Math.cos(player.heading) * 2.5).add(player.pos) : player.pos;
+  if (focus) {
+    // Personagem de frente para a câmera, um pouco acima do centro (o cartão fica embaixo)
+    player.heading = Math.PI / 4 + camYaw;
+    const [dx, dz] = camDir(0.3, 0.3);
+    look = tmpFocus.set(player.pos.x + dx, (riding ? 1.2 : 0.55), player.pos.z + dz);
+  }
   camTarget.lerp(look, 1 - Math.exp(-6 * dt));
   camYaw += (camYawTarget - camYaw) * (1 - Math.exp(-14 * dt));
   camOffset.copy(ISO).applyAxisAngle(UP_Y, camYaw);
@@ -1642,6 +1671,7 @@ function jobTarget(job) {
   if (job.kind === 'machine') { const v = machines.get(job.id); return v ? { x: v.pos.x, z: v.pos.z, reach: v.def.reach } : null; }
   if (job.kind === 'tree') { const v = grove[job.i]; return v && v.state === 'up' ? { x: v.x, z: v.z, reach: 1.25 } : null; }
   if (job.kind === 'pet') return pet.model ? { x: pet.pos.x, z: pet.pos.z, reach: 1.1 } : null;
+  if (job.kind === 'horse') return horse ? { x: horse.pos.x, z: horse.pos.z, reach: 1.3 } : null;
   if (job.kind === 'fish') {
     // Vai até a beira do lago, do lado em que o pescador está
     const dx = player.pos.x - POND.x, dz = player.pos.z - POND.z, d = Math.hypot(dx, dz) || 1;
@@ -1702,6 +1732,7 @@ function performJob(job) {
   else if (job.kind === 'machine') enterMachine(job.id);
   else if (job.kind === 'fish') startCast(job.x, job.z);
   else if (job.kind === 'pet') petInteract();
+  else if (job.kind === 'horse') mountHorse();
   else if (job.kind === 'tree') {
     // Clicou na árvore: continua cortando até ela cair
     if (doChop(job.i, job.quiet) === 'hit') player.queue.unshift({ kind: 'tree', i: job.i, quiet: true });
@@ -1942,6 +1973,147 @@ function updateLights(dt) {
     headLight.position.set(v.pos.x + s * front, y, v.pos.z + c * front);
     headLight.target.position.set(v.pos.x + s * (front + 9), 0, v.pos.z + c * (front + 9));
   }
+}
+
+// ================= Cavalo =================
+const HORSE_HOME = [-6.3, 1.9]; // perto do portão do curral
+const SADDLE_Y = 0.98;          // altura do fazendeiro montado
+let horse = null;
+let riding = false;
+
+function syncHorse() {
+  const H = core.S.horse;
+  if (H.owned && !horse) {
+    const m = M.makeHorse();
+    const x = H.x ?? HORSE_HOME[0], z = H.z ?? HORSE_HOME[1];
+    const pos = new THREE.Vector3(x, 0, z);
+    m.root.position.copy(pos);
+    m.root.userData.pick = { kind: 'horse' };
+    scene.add(m.root);
+    pickables.push(m.root);
+    horse = { m, pos, heading: H.h || 0, home: { x, z }, phase: 0, moving: false, running: false, target: null, t: 2, graze: 0, steps: 0 };
+  } else if (!H.owned && horse) {
+    if (riding) dismountHorse();
+    scene.remove(horse.m.root);
+    pickables.splice(pickables.indexOf(horse.m.root), 1);
+    horse = null;
+  }
+  if (horse) horse.m.saddle.visible = !!H.saddle;
+}
+
+function mountHorse() {
+  if (!horse || riding || driving) return;
+  if (!core.S.horse.saddle) {
+    ui.toast(`${HORSE.icon} Para montar, compre a ${SADDLE.icon} sela na loja.`);
+    ui.openPanel('loja', 'cavalo');
+    return;
+  }
+  if (fishing.state !== 'idle') endFishing();
+  cancelJobs();
+  riding = true;
+  player.pos.set(horse.pos.x, 0, horse.pos.z);
+  player.heading = horse.heading;
+  sfx('neigh');
+  ui.toast(`${HORSE.icon} Montado! Ande normalmente${'ontouchstart' in window ? '' : ' (Shift galopa)'}. Use a ação de novo para descer.`);
+}
+
+function dismountHorse() {
+  if (!riding) return;
+  riding = false;
+  const s = Math.sin(horse.heading), c = Math.cos(horse.heading);
+  // Desce ao lado do cavalo, num lugar livre
+  let spot = null;
+  for (const [lx, lz] of [[0.9, 0], [-0.9, 0], [0, -1.4], [0, 1.4], [1.4, 0], [-1.4, 0]]) {
+    const x = horse.pos.x + c * lx + s * lz, z = horse.pos.z - s * lx + c * lz;
+    if (nav.free(x, z)) { spot = { x, z }; break; }
+  }
+  if (!spot) spot = { x: horse.pos.x, z: horse.pos.z };
+  player.pos.set(spot.x, 0, spot.z);
+  player.m.legL.rotation.z = 0;
+  player.m.legR.rotation.z = 0;
+  horse.home = { x: horse.pos.x, z: horse.pos.z };
+  horse.t = 4;
+  horse.target = null;
+  Object.assign(core.S.horse, { x: horse.pos.x, z: horse.pos.z, h: horse.heading });
+  sfx('hoof');
+}
+
+function updateHorse(dt) {
+  if (!horse) return;
+  const m = horse.m;
+  if (riding) {
+    horse.pos.set(player.pos.x, 0, player.pos.z);
+    horse.heading = lerpAngle(horse.heading, player.heading, 1 - Math.exp(-10 * dt));
+    horse.moving = player.moving;
+    horse.running = player.running;
+    horse.graze = 0;
+    core.S.horse.x = horse.pos.x;
+    core.S.horse.z = horse.pos.z;
+    core.S.horse.h = horse.heading;
+  } else {
+    // Passeia devagar perto de onde ficou e pasta
+    horse.moving = false;
+    horse.running = false;
+    if (horse.target) {
+      const dx = horse.target.x - horse.pos.x, dz = horse.target.z - horse.pos.z;
+      const d = Math.hypot(dx, dz);
+      if (d < 0.05) {
+        horse.target = null;
+        horse.t = 3 + Math.random() * 5;
+      } else {
+        const step = Math.min(d, 0.9 * dt);
+        horse.pos.x += (dx / d) * step;
+        horse.pos.z += (dz / d) * step;
+        horse.heading = lerpAngle(horse.heading, Math.atan2(dx, dz), 1 - Math.exp(-5 * dt));
+        horse.moving = true;
+      }
+    } else {
+      horse.t -= dt;
+      if (horse.t <= 0) {
+        const a = Math.random() * Math.PI * 2, rr = 0.6 + Math.random() * 1.6;
+        const x = horse.home.x + Math.cos(a) * rr, z = horse.home.z + Math.sin(a) * rr;
+        if (nav.free(x, z) && nav.lineFree(horse.pos.x, horse.pos.z, x, z)) horse.target = { x, z };
+        else horse.t = 1;
+      }
+    }
+    // Pasta quando está parado
+    const want = !horse.moving && horse.t > 1.5 ? 1 : 0;
+    horse.graze += (want - horse.graze) * Math.min(1, dt * 2);
+  }
+  // Andadura: pernas em diagonal, mais rápido a galope
+  const speed = horse.moving ? (riding ? (horse.running ? 16 : 11) : 6) : 0;
+  const prev = horse.phase;
+  horse.phase += dt * speed;
+  if (riding && horse.moving && Math.floor(horse.phase / Math.PI) !== Math.floor(prev / Math.PI)) sfx('hoof');
+  const amp = horse.moving ? (horse.running ? 0.75 : 0.5) : 0;
+  const sw = Math.sin(horse.phase) * amp;
+  const ease = Math.min(1, dt * 12);
+  const L = m.legs;
+  L.fl.rotation.x += (sw - L.fl.rotation.x) * ease;
+  L.br.rotation.x += (sw - L.br.rotation.x) * ease;
+  L.fr.rotation.x += (-sw - L.fr.rotation.x) * ease;
+  L.bl.rotation.x += (-sw - L.bl.rotation.x) * ease;
+  m.body.position.y = horse.moving ? Math.abs(Math.cos(horse.phase)) * (horse.running ? 0.09 : 0.05) : Math.sin(clock * 1.5) * 0.008;
+  m.neck.rotation.x = 0.55 + horse.graze * 1.15 + (horse.moving ? Math.sin(horse.phase * 2) * 0.05 : 0);
+  m.tail.rotation.z = Math.sin(clock * 2.3) * 0.25;
+  m.root.position.copy(horse.pos);
+  m.root.rotation.y = horse.heading;
+  if (riding) poseRider();
+}
+
+/** Fazendeiro montado: sentado na sela, pernas abertas nos estribos. */
+function poseRider() {
+  const m = player.m;
+  const y = SADDLE_Y + horse.m.body.position.y;
+  m.root.position.set(horse.pos.x, y, horse.pos.z);
+  m.root.rotation.y = horse.heading;
+  m.legL.rotation.set(-0.35, 0, -0.42);
+  m.legR.rotation.set(-0.35, 0, 0.42);
+  m.body.rotation.x = horse.running ? 0.18 : 0.06;
+  for (const t of Object.values(m.tools)) t.visible = false;
+  // Mãos nas rédeas
+  m.armR.rotation.x = -0.9;
+  if (!m.torch.visible) m.armL.rotation.x = -0.9;
 }
 
 // ================= Serraria =================
@@ -2205,6 +2377,7 @@ function openSpot(key) {
 /** O que está ao alcance do personagem (para a tecla de ação). */
 function getContext() {
   if (driving) return { kind: 'exit', id: driving };
+  if (riding) return { kind: 'dismount' };
   if (fishing.state !== 'idle') return { kind: 'fish' };
   let best = null;
   let bd = 1.25;
@@ -2214,6 +2387,7 @@ function getContext() {
   }
   if (best) return best;
   if (pet.model && dist2(player.pos, pet.pos.x, pet.pos.z) < 1.3) return { kind: 'pet' };
+  if (horse && dist2(player.pos, horse.pos.x, horse.pos.z) < 1.5) return { kind: 'horse' };
   if (core.tool === 'machado') {
     const t = nearestTree(1.5);
     if (t) return { kind: 'tree', i: t.i };
@@ -2238,6 +2412,8 @@ function actionLabel(ctx) {
   if (ctx.kind === 'tile') return core.tileActionLabel(ctx.i);
   if (ctx.kind === 'machine') return `Dirigir: ${MACHINES[ctx.id].name}`;
   if (ctx.kind === 'exit') return 'Sair da máquina';
+  if (ctx.kind === 'dismount') return 'Descer do cavalo';
+  if (ctx.kind === 'horse') return core.S.horse.saddle ? 'Montar no cavalo' : 'Ver o cavalo';
   if (ctx.kind === 'fish') return FISH_LABEL[fishing.state] || null;
   if (ctx.kind === 'tree') {
     const a = core.axe();
@@ -2261,6 +2437,8 @@ function infoText(ctx) {
   if (ctx.kind === 'tile') return core.plotInfo(ctx.i);
   if (ctx.kind === 'machine') return `${MACHINES[ctx.id].icon} ${MACHINES[ctx.id].name}: ${MACHINES[ctx.id].desc}`;
   if (ctx.kind === 'exit') return machineInfo();
+  if (ctx.kind === 'dismount') return `${HORSE.icon} Cavalgando! ${'ontouchstart' in window ? 'Leve o joystick até a borda para galopar.' : 'Segure Shift para galopar.'} Clique no chão para ir até lá.`;
+  if (ctx.kind === 'horse') return core.S.horse.saddle ? `${HORSE.icon} Seu cavalo, já selado. Monte para andar bem mais rápido.` : `${HORSE.icon} Seu cavalo. Compre a ${SADDLE.icon} sela na loja (🪙${SADDLE.cost}) para montar.`;
   if (ctx.kind === 'fish') return FISH_INFO[fishing.state];
   if (ctx.kind === 'tree') return core.treeInfo(ctx.i);
   if (ctx.kind === 'pet') return `🐶 ${core.S.pet.name}, sua border collie. ${petPettedToday() ? 'Já ganhou carinho hoje ❤️' : 'Faça carinho: +10 XP uma vez por dia.'}`;
@@ -2277,6 +2455,8 @@ function keyAction(repeat) {
   const ctx = getContext();
   if (!ctx) return;
   if (ctx.kind === 'exit') { if (!repeat) exitMachine(); return; }
+  if (ctx.kind === 'dismount') { if (!repeat) dismountHorse(); return; }
+  if (ctx.kind === 'horse') { if (!repeat) mountHorse(); return; }
   if (ctx.kind === 'fish') { if (!repeat) fishAction(); return; }
   if (ctx.kind === 'pet') { if (!repeat) petInteract(); return; }
   if (ctx.kind === 'tree') { doChop(ctx.i, repeat); return; }
@@ -2332,6 +2512,7 @@ function updatePlayer(dt) {
     driveMachine(dt, ix, iz, mag);
     return;
   }
+  if (riding) speed *= RIDE_MULT;
 
   if (fishing.state !== 'idle') {
     if (fishing.state === 'waiting' || fishing.state === 'bite') {
@@ -2782,6 +2963,17 @@ function clickAt(e) {
   if (fishing.state === 'reeling' || fishing.state === 'caught' || fishing.state === 'casting') { fishMouse = true; return hit; }
   if (fishing.state === 'waiting' && hit.kind !== 'water') endFishing();
   cancelJobs();
+  if (riding) {
+    // Montado: qualquer clique leva o cavalo até aquele ponto do chão
+    const pt = new THREE.Vector3();
+    if (!raycaster.ray.intersectPlane(pickPlane, pt)) return hit;
+    player.queue.push({ kind: 'move', x: pt.x, z: pt.z });
+    clickMarker.position.set(pt.x, 0.03, pt.z);
+    clickMarker.material.opacity = 0.9;
+    clickMarker.scale.setScalar(1);
+    return hit;
+  }
+  if (hit.kind === 'horse') { player.queue.push({ kind: 'horse' }); return hit; }
   if (hit.kind === 'water') {
     if (!core.S.fishing.rod) ui.toast('🎣 Compre uma vara de pesca na loja para pescar aqui.');
     else if (fishing.state === 'idle') player.queue.push({ kind: 'fish', x: hit.x, z: hit.z });
@@ -3004,7 +3196,7 @@ export function screenPosOf(target) {
   const v = new THREE.Vector3();
   if (target.tile != null) { v.copy(tilePos(target.tile)); v.y = 0.9; }
   else if (target.animal != null) { const a = animalVis.get(target.animal); if (!a) return null; v.copy(a.pos); v.y = 1.0; }
-  else if (target.player) { v.copy(player.pos); v.y = driving ? 3 : 1.7; }
+  else if (target.player) { v.copy(player.pos); v.y = driving ? 3 : riding ? 2.6 : 1.7; }
   else if (target.pet) { v.copy(pet.pos); v.y = 1.0; }
   else if (target.pos) { v.copy(target.pos); v.y = 1.0; }
   else if (target.machine) { const m = machines.get(target.machine); if (!m) return null; v.copy(m.pos); v.y = 2.6; }
@@ -3017,6 +3209,8 @@ export function screenPosOf(target) {
 /** Recomeço do jogo: limpa animais, tarefas e volta o personagem ao início. */
 export function onReset() {
   if (driving) exitMachine();
+  if (riding) dismountHorse();
+  if (horse) { scene.remove(horse.m.root); pickables.splice(pickables.indexOf(horse.m.root), 1); horse = null; }
   if (fishing.state !== 'idle') endFishing();
   for (const v of animalVis.values()) {
     scene.remove(v.m.root);
@@ -3037,9 +3231,11 @@ export function worldFrame(dt) {
   syncPlots();
   syncBig();
   syncMachines();
+  syncHorse();
   syncAnimals();
   syncWorkers();
   updatePlayer(dt);
+  updateHorse(dt);
   updateFishing(dt);
   updateMailbox();
   updateGrove(dt);
@@ -3063,4 +3259,4 @@ export function worldFrame(dt) {
 }
 
 // Usado pelos testes no console do navegador
-export const debug = { player, animalVis, npcs, machines, fishing, fishAction, startCast, pet, petInteract, randomSpot, fauna, get driving() { return driving; }, enterMachine, exitMachine, bigCellAt, bigCellCenter, get zoom() { return zoom; }, tileAt, tilePos, get nav() { return nav; } };
+export const debug = { player, animalVis, npcs, machines, fishing, fishAction, startCast, pet, petInteract, randomSpot, fauna, get driving() { return driving; }, get riding() { return riding; }, get horse() { return horse; }, mountHorse, dismountHorse, enterMachine, exitMachine, bigCellAt, bigCellCenter, get zoom() { return zoom; }, get zoomMult() { return zoomMult; }, get camH() { return camera.top - camera.bottom; }, tileAt, tilePos, get nav() { return nav; } };

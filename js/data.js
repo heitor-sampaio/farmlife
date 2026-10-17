@@ -88,6 +88,10 @@ export const RODS = [
 
 // Pet: um border collie que acompanha o jogador
 export const PET = { breed: 'Border collie', icon: '🐶', cost: 400, level: 2, defaultName: 'Pipoca', xp: 10 };
+// Cavalo: com a sela, o fazendeiro monta e anda bem mais rápido
+export const HORSE = { name: 'Cavalo', icon: '🐴', cost: 1200, level: 3, desc: 'Um cavalo manso que pasta perto do portão do curral. Com uma sela, você monta e anda bem mais rápido pela fazenda.' };
+export const SADDLE = { name: 'Sela', icon: '🏇', cost: 350, level: 3, desc: 'Sela de couro para montar no cavalo: cavalgue quase duas vezes mais rápido (e galope com Shift).' };
+export const RIDE_MULT = 1.75; // velocidade a cavalo em relação a pé
 
 // Mutações: plantas crescendo durante um evento climático podem ganhar a mutação dele.
 // O bônus de cada mutação soma: valor = base × (1 + Σ(mult − 1)).

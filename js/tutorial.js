@@ -2,7 +2,7 @@
 import {
   CROPS, ANIMALS, PRODUCTS, UPGRADES, WORKERS, FIELDS, BIG_FIELD, BIG_CELLS, MACHINES, FISH, RODS, PET, WATER_TIME, PEN_SIZE,
   WEATHER_EVENTS, MUTATIONS, RARITY_COLOR, EVENT_ROUND, EVENT_CHANCE, AXES, LOG, WOOD, SAWMILL, PLANK,
-  BEAM, RECIPES, BUILDINGS, CARPENTRY, CHOP_TREES,
+  BEAM, RECIPES, BUILDINGS, CARPENTRY, CHOP_TREES, HORSE, SADDLE, RIDE_MULT,
 } from './data.js';
 import * as core from './core.js';
 import { CHANGELOG, VERSION, compareVersions } from './changelog.js';
@@ -28,7 +28,7 @@ function keyOf(toolId) {
 // ================= Passos do tutorial =================
 const STEPS = [
   {
-    id: 'boas-vindas', icon: '🌻', title: 'Bem-vindo ao FarmLife!', intro: true,
+    id: 'boas-vindas', icon: '🌻', title: () => `${core.gw('Bem-vindo', 'Bem-vinda')}, ${core.playerName()}!`, intro: true,
     body: () => `Você herdou um pequeno terreno, uma casa e as ferramentas do seu avô. O resto, você vai construir com madeira! Neste tutorial você aprende:
       <div class="tut-flow"><span>🌱 Plantar</span><span>💧 Regar</span><span>🧺 Colher</span><span>🪓 Cortar</span><span>🪚 Serrar</span><span>🛖 Construir</span><span>💰 Vender</span></div>
       Leva uns 6 minutos, e cada passo concluído dá moedas.`,
@@ -169,6 +169,15 @@ const TIPS = {
     body: () => `Você tem um 🪓 <b>machado</b>! O <b>bosque</b> fica a oeste (siga a seta). Com a 🪓 <b>Machado</b> selecionado, chegue perto de uma árvore e use ${ACT()}, ou ${TAP()} na árvore para o fazendeiro cortar até ela cair.
       Os 🪵 <b>troncos</b> viram tábuas e vigas na ${CARPENTRY.icon} mesa de carpintaria, para construir. A árvore volta a crescer depois de um tempo.`,
   },
+  horse: {
+    title: 'Seu cavalo chegou!', target: { horse: true },
+    body: () => `O ${HORSE.icon} cavalo pasta perto do portão do curral (a seta). ${core.S.horse.saddle ? `Chegue perto e use ${ACT()} para montar.` : `Para montar, compre a ${SADDLE.icon} <b>sela</b> na loja (🪙${SADDLE.cost}).`}`,
+  },
+  saddle: {
+    title: 'Hora de cavalgar!', target: { horse: true },
+    body: () => `Chegue perto do ${HORSE.icon} cavalo e use ${ACT()} (ou ${TAP()} nele) para <b>montar</b>. A cavalo você anda <b>${String(RIDE_MULT).replace('.', ',')}× mais rápido</b>${isTouch() ? ' (joystick na borda galopa)' : ' (<kbd>Shift</kbd> galopa)'}.
+      Para descer, use ${ACT()} de novo. Montado, você não usa ferramentas: desça para trabalhar.`,
+  },
   bench: {
     title: 'Mesa de carpintaria', target: { spot: 'mesa' },
     body: () => `Entre a casa e o celeiro fica a ${CARPENTRY.icon} <b>${CARPENTRY.name}</b>: ali você transforma 🪵 troncos em 🟫 tábuas e tábuas em 📏 vigas, na mão.
@@ -267,9 +276,12 @@ function nearestTile(pred) {
   return best === null ? null : { tile: best };
 }
 
+const creating = () => !core.S.char.chosen || !document.getElementById('char').hidden;
+
 function render() {
   if (!ready) return;
   const card = el.card;
+  if (creating()) { card.hidden = true; return; } // primeiro a criação do personagem
   // Fica logo abaixo do HUD (que quebra em mais linhas em telas estreitas)
   card.style.top = Math.round(document.querySelector('.hud').getBoundingClientRect().bottom + 6) + 'px';
   if (active()) {
@@ -279,7 +291,7 @@ function render() {
     card.className = 'tut' + (minimized ? ' min' : '') + (stepFlash > 0 ? ' flash' : '');
     el.stepLabel.textContent = s.intro ? 'Tutorial' : s.final ? 'Tutorial concluído' : `Passo ${n} de ${PLAY_STEPS}`;
     el.icon.textContent = stepFlash > 0 ? '✔' : s.icon;
-    el.title.textContent = stepFlash > 0 ? 'Muito bem!' : s.title;
+    el.title.textContent = stepFlash > 0 ? 'Muito bem!' : typeof s.title === 'function' ? s.title() : s.title;
     el.body.innerHTML = stepFlash > 0 ? `<p class="tut-ok">${flashText}</p>` : s.body();
     const goal = s.goal || 0;
     const prog = s.id === 'andar' ? Math.min(goal, Math.floor(walked)) : Math.min(goal, T().count);
@@ -376,6 +388,7 @@ function onNext() {
 // ================= Eventos do jogo =================
 export function onEvent(name, data) {
   if (!ready || !core.S) return;
+  if (name === 'char') { render(); return; }
   // Dicas por evento (aparecem depois do tutorial)
   if (name === 'animal') queueTip('animal');
   else if (name === 'pet') queueTip('pet');
@@ -387,6 +400,8 @@ export function onEvent(name, data) {
   else if (name === 'weather') queueTip('weather');
   else if (name === 'axe') queueTip('axe');
   else if (name === 'sawmill') queueTip('sawmill');
+  else if (name === 'horse') queueTip('horse');
+  else if (name === 'saddle') queueTip('saddle');
   else if (name === 'build' && !(data === 'celeiro' && active())) queueTip('built-' + data);
   else if (name === 'level') {
     if (data >= 2) queueTip('level2');
@@ -405,6 +420,7 @@ export function onEvent(name, data) {
 // ================= Quadro =================
 export function tutorialFrame(dt) {
   if (!ready || !core.S) return;
+  if (creating()) { api.setGuide(null); return; }
 
   if (stepFlash > 0) {
     stepFlash -= dt;
@@ -489,6 +505,7 @@ function roadmap() {
   AXES.forEach((a) => a && add(a.level, `${a.icon} ${a.name}`));
   add(SAWMILL.level, `${SAWMILL.icon} ${SAWMILL.name}`);
   add(PET.level, `${PET.icon} Pet (${PET.breed})`);
+  add(HORSE.level, `${HORSE.icon} Cavalo e ${SADDLE.icon} sela`);
   return L;
 }
 
@@ -516,6 +533,7 @@ const TOPICS = [
       <p>Com o dinheiro, você compra sementes melhores, animais, melhorias e terreno. Cada colheita, produto e pedido dá <b>XP</b>, e cada nível libera coisas novas (veja <b>🏆 Progressão</b>).</p>
       <p>O jogo salva sozinho, e a fazenda continua crescendo enquanto você está fora (até 8 horas).</p>
       <button class="btn" data-guide="restart">🔁 Refazer o tutorial</button>
+      <button class="btn alt" data-guide="char">👤 Trocar personagem</button>
       <details class="g-cheat"${core.S.god ? ' open' : ''}><summary>🧪 Códigos de teste</summary>
         <form data-guide="cheat"><input id="cheat-code" placeholder="Digite um código" autocomplete="off" autocapitalize="off" spellcheck="false">
         <button class="btn alt">Ativar</button></form>
@@ -547,6 +565,7 @@ const TOPICS = [
           ['Escolher semente', '<kbd>6</kbd> pega a semente; <kbd>6</kbd> de novo troca para a próxima · clique na ▲ para ver todas', 'Botão de sementes: toque de novo (ou na ▲) para ver todas'],
           ['Zoom', 'Roda do mouse · <kbd>+</kbd> <kbd>−</kbd>', 'Botões ＋ e －'],
           ['Girar a câmera', 'Botão direito + arrastar · <kbd>Q</kbd> <kbd>R</kbd> · <kbd>C</kbd> ou 🧭 volta ao normal', 'Arrastar na metade direita da tela (ou com um 2º dedo) · 🧭 volta ao normal'],
+          ['Som e música', 'Botão 🔊 no topo: volume geral, música e efeitos', 'Botão 🔊 no topo'],
           ['Fechar janelas', '<kbd>Esc</kbd>', '✕'],
         ],
       );
@@ -619,6 +638,15 @@ const TOPICS = [
       senta quando você para e adora espantar passarinhos.</p>
       <p>Chegue perto e use ${ACT()} para fazer <b>carinho</b>: ela pula de alegria e você ganha <b>+${PET.xp} XP</b> uma vez por dia. Troque o nome na loja.</p>
       <p>🐸 A fazenda também tem sapos, passarinhos, joaninhas, borboletas, coelhos, patos e vaga-lumes à noite. Eles só enfeitam: chegue perto para ver como reagem!</p>`,
+  },
+  {
+    id: 'cavalo', icon: '🐴', title: 'Cavalo',
+    html: () => `<p>No nível ${HORSE.level}, depois de construir o 🐾 curral, compre um <b>${HORSE.icon} cavalo</b> na loja (🪙${core.fmt(HORSE.cost)}${lock(HORSE.level)}). Ele pasta perto do portão do curral, ou onde você o deixou.</p>
+      <ul class="g-list">
+        <li>Com a <b>${SADDLE.icon} sela</b> (🪙${SADDLE.cost}), chegue perto e use ${ACT()} (ou ${TAP()} nele) para <b>montar</b>.</li>
+        <li>A cavalo você anda <b>${String(RIDE_MULT).replace('.', ',')}× mais rápido</b>. ${isTouch() ? 'Leve o joystick até a borda' : 'Segure <kbd>Shift</kbd>'} para galopar. Um ${TAP()} no chão leva o cavalo até lá.</li>
+        <li>Montado, você não usa ferramentas nem entra nas máquinas: use ${ACT()} para descer. O cavalo fica onde você desceu.</li>
+      </ul>`,
   },
   {
     id: 'ajudantes', icon: '👷', title: 'Funcionários',
@@ -716,6 +744,7 @@ export function initTutorial(a) {
   });
   el.content.addEventListener('click', (e) => {
     if (e.target.closest('[data-guide="restart"]')) restartTutorial();
+    if (e.target.closest('[data-guide="char"]')) { closeGuide(); api.openCharacter(); }
   });
   el.content.addEventListener('submit', (e) => {
     const f = e.target.closest('[data-guide="cheat"]');

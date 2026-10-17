@@ -4,7 +4,7 @@ import {
   CROPS, PRODUCTS, ANIMALS, WATER_TIME, GROW_SPEED, PEN_SIZE, UPGRADES, CUSTOMERS,
   WORKERS, WORK_TIME, BIG_FIELD, BIG_CELLS, MACHINES, FISH, RODS, PET,
   MUTATIONS, WEATHER_EVENTS, EVENT_ROUND, EVENT_CHANCE, EVENT_COOLDOWN,
-  AXES, LOG, WOOD, CHOP_TREES, SAWMILL, PLANK, BEAM, RECIPES, BUILDINGS, CARPENTRY,
+  AXES, LOG, WOOD, CHOP_TREES, SAWMILL, PLANK, BEAM, RECIPES, BUILDINGS, CARPENTRY, HORSE, SADDLE,
 } from './data.js';
 
 // ================= Utilidades =================
@@ -124,6 +124,8 @@ function newState() {
     wood: { axe: 1, trees: CHOP_TREES.map(() => ({ hits: 0, t: 0 })) }, // t > 0: árvore cortada, crescendo de novo
     saw: { owned: false, queue: 0, t: 0, ready: 0 }, // serraria: troncos na fila, progresso do atual, tábuas prontas
     pet: { owned: false, name: PET.defaultName, day: 0 },
+    char: { chosen: false, gender: 'm', name: '' }, // personagem escolhido na primeira vez
+    horse: { owned: false, saddle: false, x: null, z: null, h: 0 }, // onde o cavalo ficou da última vez
     bench: 'tabuas', // receita escolhida na mesa de carpintaria
     god: false,      // cheat de teste: moedas infinitas e nível máximo
     tutorial: { step: 0, count: 0, done: false, tips: {} },
@@ -834,6 +836,46 @@ export function petDog() {
   return true;
 }
 
+// ================= Personagem =================
+export const CHAR_DEFAULT = { m: 'Fazendeiro', f: 'Fazendeira' };
+/** Escolhe a palavra conforme o personagem (ex.: gw('Bem-vindo', 'Bem-vinda')). */
+export const gw = (m, f) => (S.char.gender === 'f' ? f : m);
+export const playerName = () => S.char.name || CHAR_DEFAULT[S.char.gender];
+
+export function setCharacter(gender, name) {
+  const C = S.char;
+  C.gender = gender === 'f' ? 'f' : 'm';
+  C.name = String(name || '').replace(/[<>&"]/g, '').replace(/\s+/g, ' ').trim().slice(0, 16).trim() || CHAR_DEFAULT[C.gender];
+  const first = !C.chosen;
+  C.chosen = true;
+  save();
+  emit('char', first);
+  markDirty('panel');
+}
+
+// ================= Cavalo =================
+export function buyHorse() {
+  if (S.horse.owned || HORSE.level > S.level) return;
+  if (!needBuilt('curral', 'ter um cavalo')) return;
+  if (!spend(HORSE.cost)) return;
+  S.horse.owned = true;
+  toast(`${HORSE.icon} Seu cavalo chegou! Ele pasta perto do portão do curral.${S.horse.saddle ? '' : ` Compre a ${SADDLE.icon} sela para montar.`}`, 'good');
+  sfx('neigh');
+  emit('horse');
+  markDirty('panel');
+}
+
+export function buySaddle() {
+  if (S.horse.saddle || SADDLE.level > S.level) return;
+  if (!S.horse.owned) { toast(`Compre o ${HORSE.icon} cavalo antes da sela.`, 'bad'); sfx('error'); return; }
+  if (!spend(SADDLE.cost)) return;
+  S.horse.saddle = true;
+  toast(`${SADDLE.icon} Sela colocada! Chegue perto do cavalo e use a ação para montar.`, 'good');
+  sfx('level');
+  emit('saddle');
+  markDirty('panel');
+}
+
 // ================= Lenha =================
 export const axe = () => AXES[S.wood.axe] || null;
 export const treeDown = (i) => S.wood.trees[i].t > 0;
@@ -989,7 +1031,7 @@ export const MAX_LEVEL = Math.max(
   ...Object.values(MACHINES).map((m) => m.level),
   ...RODS.filter(Boolean).map((r) => r.level),
   ...AXES.filter(Boolean).map((a) => a.level),
-  BIG_FIELD.level, SAWMILL.level, PET.level,
+  BIG_FIELD.level, SAWMILL.level, PET.level, HORSE.level, SADDLE.level,
 );
 
 /** Liga/desliga o godmode. Ao desligar, volta às moedas e ao nível de antes. */
@@ -1366,6 +1408,8 @@ function load() {
         trees: CHOP_TREES.map((_, k) => (d.wood && d.wood.trees && d.wood.trees[k]) || { hits: 0, t: 0 }),
       },
       pet: { ...base.pet, ...d.pet },
+      horse: { ...base.horse, ...d.horse },
+      char: { ...base.char, ...d.char },
       tutorial: d.tutorial ? { ...base.tutorial, ...d.tutorial, tips: { ...(d.tutorial.tips || {}) } } : { ...base.tutorial, done: true },
       big: d.big && Array.isArray(d.big.s) && d.big.s.length === BIG_CELLS ? d.big : base.big,
     };

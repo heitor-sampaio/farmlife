@@ -1,7 +1,7 @@
 /* FarmLife — interface em HTML sobre a cena 3D (HUD, hotbar, painel, avisos) */
-import { CROPS, ANIMALS, PRODUCTS, UPGRADES, WORKERS, FIELDS, BIG_FIELD, BIG_CELLS, MACHINES, FISH, RODS, PET, MUTATIONS, RARITY_COLOR, WEATHER_EVENTS, AXES, LOG, WOOD, SAWMILL, PLANK, RECIPES, BUILDINGS, CARPENTRY, SOUND_KEY } from './data.js';
+import { CROPS, ANIMALS, PRODUCTS, UPGRADES, WORKERS, FIELDS, BIG_FIELD, BIG_CELLS, MACHINES, FISH, RODS, PET, MUTATIONS, RARITY_COLOR, WEATHER_EVENTS, AXES, LOG, WOOD, SAWMILL, PLANK, RECIPES, BUILDINGS, CARPENTRY, HORSE, SADDLE } from './data.js';
 import * as core from './core.js';
-import { Sound, sfx } from './audio.js';
+import { sfx, settings as audioSettings, setVolume, setMuted, unlockAudio } from './audio.js';
 
 const $ = (sel) => document.querySelector(sel);
 const setText = (el, v) => { v = String(v); if (el.textContent !== v) el.textContent = v; };
@@ -17,7 +17,7 @@ export const markDirty = (...parts) => parts.forEach((p) => dirty.add(p));
 export const isPanelOpen = () => el.panel.classList.contains('open');
 export const isModalOpen = () => !el.modal.hidden;
 /** Verdadeiro quando o teclado deve ir para a interface, e não para o personagem. */
-export const uiBlocking = () => isModalOpen();
+export const uiBlocking = () => isModalOpen() || !document.getElementById('char').hidden;
 
 // ================= Efeitos e avisos =================
 export function fxAt(x, y, text, cls = '') {
@@ -224,6 +224,35 @@ function shopHtml() {
           ? `<span class="req">🔒 Nível ${PET.level}</span>`
           : `<button class="btn alt" data-act="pet" ${S.coins < PET.cost ? 'disabled' : ''}>🪙${fmt(PET.cost)}</button>`}
       </div></div></div>`;
+
+  {
+    const H = S.horse;
+    const hLocked = !H.owned && HORSE.level > S.level;
+    const sLocked = !H.saddle && SADDLE.level > S.level;
+    h += `<h3 id="sec-cavalo">🐴 Cavalo</h3><div class="cards">
+      <div class="card${hLocked ? ' locked' : ''}${H.owned ? ' hired' : ''}">
+        <div class="ico">${HORSE.icon}</div>
+        <div class="info"><b>${HORSE.name}${H.owned ? ' <small>✔ seu</small>' : ''}</b><small>${HORSE.desc}</small></div>
+        <div class="btns">${H.owned
+          ? '<span class="req">✔ Comprado</span>'
+          : hLocked
+            ? `<span class="req">🔒 Nível ${HORSE.level}</span>`
+            : !core.built('curral')
+              ? '<span class="req">🏗️ Construa o curral</span>'
+              : `<button class="btn alt" data-act="horse" ${S.coins < HORSE.cost ? 'disabled' : ''}>🪙${fmt(HORSE.cost)}</button>`}
+        </div></div>
+      <div class="card${sLocked ? ' locked' : ''}${H.saddle ? ' hired' : ''}">
+        <div class="ico">${SADDLE.icon}</div>
+        <div class="info"><b>${SADDLE.name}${H.saddle ? ' <small>✔ no cavalo</small>' : ''}</b><small>${SADDLE.desc}</small></div>
+        <div class="btns">${H.saddle
+          ? '<span class="req">✔ Comprada</span>'
+          : sLocked
+            ? `<span class="req">🔒 Nível ${SADDLE.level}</span>`
+            : !H.owned
+              ? '<span class="req">Compre o cavalo</span>'
+              : `<button class="btn alt" data-act="saddle" ${S.coins < SADDLE.cost ? 'disabled' : ''}>🪙${fmt(SADDLE.cost)}</button>`}
+        </div></div></div>`;
+  }
 
   const big = S.big.owned;
   const bigLocked = !big && BIG_FIELD.level > S.level;
@@ -550,6 +579,7 @@ function renderHud() {
   }
   lastCoins = S.coins;
   setText(el.coins, S.god ? '∞' : core.fmt(S.coins));
+  setText(el.brandName, S.char.chosen ? `Fazenda ${core.gw('do', 'da')} ${core.playerName()}` : 'FarmLife');
   setText(el.level, S.level);
   const need = core.xpNeed(S.level);
   el.xpfill.style.width = Math.min(100, (S.xp / need) * 100) + '%';
@@ -572,6 +602,69 @@ function renderHud() {
   }
 }
 
+// ================= Menu de som =================
+const soundIcon = () => (audioSettings.muted || audioSettings.master === 0 ? '🔇' : audioSettings.master < 0.4 ? '🔉' : '🔊');
+
+function renderSoundMenu() {
+  const box = el.settings;
+  box.querySelectorAll('[data-vol]').forEach((inp) => {
+    const v = Math.round(audioSettings[inp.dataset.vol] * 100);
+    inp.value = v;
+    inp.nextElementSibling.textContent = v + '%';
+  });
+  box.querySelector('#set-mute').checked = audioSettings.muted;
+  box.classList.toggle('muted', audioSettings.muted);
+  setText(el.btnSound, soundIcon());
+}
+
+function setSoundMenu(open) {
+  const box = el.settings;
+  if (open) {
+    // Logo abaixo do botão de som (o HUD quebra em mais linhas em telas estreitas)
+    box.style.top = Math.round(el.btnSound.getBoundingClientRect().bottom + 8) + 'px';
+    renderSoundMenu();
+  }
+  box.hidden = !open;
+  el.btnSound.classList.toggle('active', open);
+}
+
+function initSoundMenu() {
+  const box = el.settings;
+  setText(el.btnSound, soundIcon());
+  el.btnSound.addEventListener('click', (e) => {
+    e.stopPropagation();
+    unlockAudio();
+    setSoundMenu(box.hidden);
+    el.btnSound.blur();
+  });
+  $('#settings-close').addEventListener('click', () => setSoundMenu(false));
+  let previewT = 0;
+  box.addEventListener('input', (e) => {
+    const inp = e.target.closest('[data-vol]');
+    if (inp) {
+      setVolume(inp.dataset.vol, inp.value / 100);
+      if (audioSettings.muted && inp.value > 0) setMuted(false);
+      // Prévia do volume dos efeitos
+      if (inp.dataset.vol !== 'music' && performance.now() - previewT > 180) { previewT = performance.now(); sfx('coin'); }
+    } else if (e.target.id === 'set-mute') {
+      setMuted(e.target.checked);
+    }
+    renderSoundMenu();
+  });
+  // Toque/clique fora fecha o menu
+  document.addEventListener('pointerdown', (e) => {
+    if (!box.hidden && !e.target.closest('#settings') && !e.target.closest('#btn-sound')) setSoundMenu(false);
+  });
+  // O navegador só libera o áudio depois de um toque ou tecla: aí a música começa
+  const unlock = () => {
+    unlockAudio();
+    window.removeEventListener('pointerdown', unlock, true);
+    window.removeEventListener('keydown', unlock, true);
+  };
+  window.addEventListener('pointerdown', unlock, true);
+  window.addEventListener('keydown', unlock, true);
+}
+
 // ================= Modal =================
 export function openHelp() { el.modal.hidden = false; }
 function closeHelp() {
@@ -586,9 +679,9 @@ export function initUI(h) {
     coins: $('#coins'), level: $('#level'), xpfill: $('#xpfill'), xptext: $('#xptext'),
     day: $('#day'), clock: $('#clock'), weather: $('#weather'),
     eventPill: $('#event-pill'), eventName: $('#event-name'), eventInfo: $('#event-info'),
-    toolbar: $('#toolbar'), status: $('#status'), prompt: $('#prompt'), picker: $('#seed-picker'),
+    brandName: $('#brand-name'), toolbar: $('#toolbar'), status: $('#status'), prompt: $('#prompt'), picker: $('#seed-picker'),
     panel: $('#panel'), tabContent: $('#tab-content'), badge: $('#badge'),
-    fx: $('#fx'), toasts: $('#toasts'), modal: $('#modal'), btnSound: $('#btn-sound'), fade: $('#fade'),
+    fx: $('#fx'), toasts: $('#toasts'), modal: $('#modal'), btnSound: $('#btn-sound'), fade: $('#fade'), settings: $('#settings'),
   });
 
   el.toolbar.addEventListener('click', (e) => {
@@ -652,6 +745,8 @@ export function initUI(h) {
     else if (act === 'bench') core.setBench(id);
     else if (act === 'tab') { openPanel(id); return; }
     else if (act === 'pet') core.buyPet();
+    else if (act === 'horse') core.buyHorse();
+    else if (act === 'saddle') core.buySaddle();
     else if (act === 'petname') {
       const name = prompt('Qual o nome da sua border collie?', core.S.pet.name);
       if (name) core.renamePet(name);
@@ -663,14 +758,7 @@ export function initUI(h) {
     else if (act === 'skip') core.skipOrder(+b.dataset.k);
   });
 
-  try { Sound.on = localStorage.getItem(SOUND_KEY) !== '0'; } catch (e) { /* ignora */ }
-  setText(el.btnSound, Sound.on ? '🔊' : '🔇');
-  el.btnSound.addEventListener('click', () => {
-    Sound.on = !Sound.on;
-    setText(el.btnSound, Sound.on ? '🔊' : '🔇');
-    try { localStorage.setItem(SOUND_KEY, Sound.on ? '1' : '0'); } catch (e) { /* ignora */ }
-    if (Sound.on) sfx('coin');
-  });
+  initSoundMenu();
   $('#btn-help').addEventListener('click', () => handlers.onHelp());
   el.modal.addEventListener('click', (e) => { if (e.target === el.modal) closeHelp(); });
   $('#btn-reset').addEventListener('click', () => {

@@ -3,9 +3,10 @@ import { MAX_OFFLINE } from './data.js';
 import * as core from './core.js';
 import * as ui from './ui.js';
 import * as world from './world/world.js';
-import { sfx } from './audio.js';
+import { sfx, setMusicMood } from './audio.js';
 import * as tutorial from './tutorial.js';
 import * as updates from './updates.js';
+import * as character from './character.js';
 
 core.setHooks({
   toast: ui.toast,
@@ -25,7 +26,7 @@ const away = core.startGame();
 const isNewGame = core.S.time === 0;
 
 ui.initUI({
-  onReset: () => { core.resetGame(); world.onReset(); tutorial.onReset(); },
+  onReset: () => { core.resetGame(); world.onReset(); tutorial.onReset(); character.openCharacter(); },
   onHelp: () => tutorial.openGuide(),
   onPanel: (tab) => tutorial.onEvent('panel', tab),
   onZoom: (f) => world.zoomBy(f),
@@ -36,7 +37,10 @@ ui.initUI({
 await world.initWorld(document.getElementById('scene'));
 document.getElementById('loading').remove();
 
+character.initCharacter({ setCharacter: world.setCharacter, setFocus: world.setFocus, toast: ui.toast });
+
 tutorial.initTutorial({
+  openCharacter: character.openCharacter,
   setGuide: world.setGuide,
   tilePos: world.tilePos,
   playerPos: () => world.debug.player.pos,
@@ -44,9 +48,10 @@ tutorial.initTutorial({
 });
 
 updates.initUpdates({ save: core.save, openGuide: tutorial.openGuide, isNewGame });
+if (!core.S.char.chosen) character.openCharacter();
 
 if (away) {
-  setTimeout(() => ui.toast(`👋 Bem-vindo de volta! Você ficou fora ${core.fmtDuration(away)} e a fazenda continuou crescendo.`, 'good'), 400);
+  setTimeout(() => ui.toast(`👋 ${core.gw('Bem-vindo', 'Bem-vinda')} de volta, ${core.playerName()}! Você ficou fora ${core.fmtDuration(away)} e a fazenda continuou crescendo.`, 'good'), 400);
 }
 
 let last = performance.now();
@@ -56,6 +61,7 @@ function loop(now) {
   if (dt > 1) core.simulate(Math.min(dt, MAX_OFFLINE), true); // aba ficou em segundo plano
   else if (dt > 0) core.update(dt, false);
   for (const [msg, type] of core.takeNotices()) ui.toast(msg, type);
+  setMusicMood(core.darkness() > 0.55 ? 'night' : 'day');
   const step = Math.min(dt, 0.1);
   world.worldFrame(step);
   ui.uiFrame(step);

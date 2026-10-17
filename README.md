@@ -26,6 +26,7 @@ Depois acesse http://localhost:5173. Na primeira vez, precisa de internet para b
 | Escolher semente | `6` (de novo troca de semente) ou a ▲ do botão de sementes | Botão de sementes (toque de novo para ver todas) |
 | Zoom | Roda do mouse ou `+` / `-` | Botões ＋ / － |
 | Girar a câmera | Botão direito + arrastar, ou `Q` / `R` (`C` ou 🧭 volta ao normal) | Arrastar na metade direita (ou com um 2º dedo); 🧭 volta ao normal |
+| Som e música | Botão 🔊: volume geral, música e efeitos | Botão 🔊 |
 | Fechar painel | `Esc` | ✕ |
 
 ## Tutorial e Guia
@@ -36,6 +37,7 @@ Depois acesse http://localhost:5173. Na primeira vez, precisa de internet para b
 
 ## Mecânicas
 
+- **Personagem**: na primeira vez, escolha entre fazendeiro e fazendeira (com prévia 3D) e o seu nome. Dá para trocar depois pelo Guia.
 - **Lavoura**: are a grama, plante, regue e colha. Sem água, nada cresce.
 - **Construções**: o jogo começa só com a Casa (dormir à noite), a Loja, o quadro de Pedidos e todas as ferramentas. O Celeiro (libera a venda), o Curral (libera os animais) e o Galpão (libera as máquinas) são construídos com madeira, entregue aos poucos no canteiro de cada obra.
 - **Lenha e carpintaria**: corte as árvores do bosque com o machado para ganhar troncos; na mesa de carpintaria, serre troncos em tábuas e pregue tábuas em vigas, na mão. A Serraria (nível 3) serra tábuas sozinha, até com o jogo fechado.
@@ -45,6 +47,7 @@ Depois acesse http://localhost:5173. Na primeira vez, precisa de internet para b
 - **Expansão**: no campo principal, compre lotes vizinhos um a um; na loja, compre campos inteiros novos (Leste, Sul e Lago, com 24 a 32 lotes cada), marcados no mapa com placas de venda.
 - **Pescaria**: com uma vara (bambu ou fibra) você pesca no lago: lance, espere a mordida (❗) e segure a ação no minigame para manter o peixe na faixa verde. Seis tipos de pesca, com bagres à noite, lagostins na chuva e uma rara carpa dourada.
 - **Clima e mutações**: eventos climáticos (chuva, ventania, neve, sol escaldante, tempestade de raios, arco-íris e eclipse) dão mutações às plantas que estão crescendo. As mutações se acumulam até a planta amadurecer, vão para o item colhido e aumentam o preço de venda conforme a raridade (cada uma soma o seu bônus, de ×1,5 a ×20). Vale também para o Campo de Trigo e para os funcionários.
+- **Cavalo**: no nível 3, com o curral construído, compre um cavalo que pasta perto do portão do curral. Com a sela, monte e cavalgue 1,75× mais rápido (galope com Shift ou com o joystick na borda); use a ação para descer.
 - **Pet**: uma border collie (nível 2) que segue o jogador, senta quando ele para, corre atrás dos passarinhos e ganha carinho (+10 XP por dia). Dá para trocar o nome.
 - **Fauna de cenário**: sapos na beira do lago (pulam na água se você chega perto), passarinhos que bicam o chão e voam quando alguém se aproxima, bandos no céu, joaninhas, borboletas de dia, coelhos, patos no lago e vaga-lumes à noite.
 - **Lavoura mecanizada**: um Campo de Trigo de 384 lotes trabalhado com máquinas que você dirige (trator com arado de 3 faixas, trator com plantadeira de 4 e colheitadeira de 5), guardadas num galpão. Entre e saia com `Espaço`/`E` ou ✋; dirija com `WASD` ou o joystick.

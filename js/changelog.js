@@ -3,6 +3,32 @@
 
 export const CHANGELOG = [
   {
+    version: '3.4.0', date: '2026-10-17', title: 'Música e volumes',
+    items: [
+      '🎵 Música de fundo tocada na hora pelo próprio jogo: acordes suaves, baixo e uma melodia que vai mudando.',
+      '🌙 À noite a música fica mais lenta e calma; de dia volta a ficar animada.',
+      '🔊 O botão de som agora abre um menu com volume geral, da música e dos efeitos, além de silenciar tudo. As escolhas ficam salvas.',
+    ],
+  },
+  {
+    version: '3.3.0', date: '2026-10-17', title: 'Seu personagem',
+    items: [
+      '👩‍🌾 No primeiro jogo, escolha entre fazendeiro e fazendeira, com prévia 3D, e diga o seu nome.',
+      '🌻 O jogo chama você pelo nome: no tutorial, nas boas-vindas e no topo da tela (Fazenda do/da ...).',
+      '🚜 O motorista das máquinas é o seu personagem.',
+      '👤 Dá para trocar o personagem e o nome a qualquer momento no ❓ Guia, em Primeiros passos.',
+    ],
+  },
+  {
+    version: '3.2.0', date: '2026-10-17', title: 'Cavalo',
+    items: [
+      '🐴 Cavalo na loja (nível 3, precisa do curral): ele pasta perto do portão do curral.',
+      '🏇 Compre a sela e monte no cavalo: ande 1,75× mais rápido e galope com Shift (ou com o joystick na borda).',
+      '🐎 Cavalo animado com trote, galope, cauda balançando e pausas para pastar; o fazendeiro monta na sela.',
+      '📖 Novo tópico "Cavalo" no Guia e dicas na hora da compra.',
+    ],
+  },
+  {
     version: '3.1.0', date: '2026-10-17', title: 'Câmera giratória e seletor de sementes',
     items: [
       '🎥 Gire a câmera em volta do fazendeiro: no PC, arraste com o botão direito do mouse (ou use Q e R); no celular, arraste na metade direita da tela ou com um segundo dedo.',

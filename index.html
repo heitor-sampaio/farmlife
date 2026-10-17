@@ -17,7 +17,7 @@
   <canvas id="scene"></canvas>
 
   <header class="hud">
-    <div class="pill brand">🌻 <span>FarmLife</span></div>
+    <div class="pill brand">🌻 <span id="brand-name">FarmLife</span></div>
     <div class="pill coins" title="Moedas">🪙 <b id="coins">0</b></div>
     <div class="pill level" title="Nível e experiência">
       <span>Nv <b id="level">1</b></span>
@@ -38,7 +38,7 @@
       <button class="menu-btn" data-open="oficina" title="Oficina: carpintaria e obras">🪚<span>Oficina</span></button>
     </nav>
     <div class="hud-btns">
-      <button class="icon-btn" id="btn-sound" title="Som ligado/desligado">🔊</button>
+      <button class="icon-btn" id="btn-sound" title="Som e música">🔊</button>
       <button class="icon-btn" id="btn-help" title="Guia da Fazenda">❓</button>
       <button class="icon-btn" id="btn-reset" title="Recomeçar fazenda">🔄</button>
     </div>
@@ -68,6 +68,32 @@
     </nav>
     <div id="tab-content" class="tab-content"></div>
   </aside>
+
+  <div id="settings" class="settings" hidden role="dialog" aria-label="Som e música">
+    <div class="set-head"><b>🎵 Som e música</b><button class="tab-close" id="settings-close" title="Fechar">✕</button></div>
+    <label class="set-row"><span>🔊 Volume geral</span><input type="range" min="0" max="100" step="1" data-vol="master"><output></output></label>
+    <label class="set-row"><span>🎵 Música</span><input type="range" min="0" max="100" step="1" data-vol="music"><output></output></label>
+    <label class="set-row"><span>🔔 Efeitos</span><input type="range" min="0" max="100" step="1" data-vol="sfx"><output></output></label>
+    <label class="set-check"><input type="checkbox" id="set-mute"> 🔇 Silenciar tudo</label>
+    <p class="set-hint">A música fica mais calma à noite. As configurações ficam salvas neste aparelho.</p>
+  </div>
+
+  <div id="char" class="char" hidden>
+    <div class="char-card" role="dialog" aria-labelledby="char-title">
+      <div class="char-step" id="char-step">Novo jogo</div>
+      <h2 id="char-title">Quem vai cuidar da fazenda?</h2>
+      <div class="char-opts">
+        <button class="char-opt" data-g="m"><span>👨</span><b>Fazendeiro</b></button>
+        <button class="char-opt" data-g="f"><span>👩</span><b>Fazendeira</b></button>
+      </div>
+      <label class="char-name"><span id="char-label">Como você quer ser chamado?</span>
+        <input id="char-name" maxlength="16" autocomplete="off" autocapitalize="words" spellcheck="false"></label>
+      <div class="char-btns">
+        <button class="btn ghost" id="char-cancel" hidden>Cancelar</button>
+        <button class="btn" id="char-ok">Começar a jogar ▶</button>
+      </div>
+    </div>
+  </div>
 
   <div id="fishgame" class="fishgame" hidden>
     <div class="fish-title">🎣 Puxe!</div>

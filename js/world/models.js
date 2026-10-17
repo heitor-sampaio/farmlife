@@ -309,7 +309,14 @@ export function makeCrop(id, stage) {
 }
 
 // ================= Fazendeiro =================
-export function makeFarmer(colors = {}) {
+// Estilo do personagem do jogador (também usado pelo motorista das máquinas)
+let farmerStyle = 'm';
+export function setFarmerStyle(g) { farmerStyle = g === 'f' ? 'f' : 'm'; }
+const FEMALE_COLORS = { shirt: 0x1f9e89, band: 0xe75480, hair: 0x7a3b1d, hat: 0xf0d58a };
+
+/** Fazendeiro(a). Sem cores, usa o personagem escolhido pelo jogador. */
+export function makeFarmer(colors, female = false) {
+  if (!colors) { female = farmerStyle === 'f'; colors = female ? FEMALE_COLORS : {}; }
   const {
     skin = 0xf1c27d, shirt = 0xd9534f, denim = 0x3d5a9e, boot = 0x5a3a22,
     hat = 0xe7c66a, band = 0xb23a2e, hair = 0x6b4423,
@@ -358,6 +365,21 @@ export function makeFarmer(colors = {}) {
   head.add(cyl(0.28, 0.03, hat, 0, 0.15, 0));
   head.add(cyl(0.16, 0.14, hat, 0, 0.22, 0));
   head.add(cyl(0.165, 0.035, band, 0, 0.17, 0));
+  if (female) {
+    // Cabelo comprido com rabo de cavalo, cílios e uma florzinha no chapéu
+    head.add(box(0.3, 0.36, 0.07, hair, 0, -0.07, -0.14));
+    for (const s of [-1, 1]) {
+      head.add(box(0.05, 0.3, 0.22, hair, s * 0.155, -0.05, -0.02));
+      head.add(box(0.06, 0.26, 0.09, hair, s * 0.15, -0.3, 0.06)); // mechas sobre os ombros
+      head.add(box(0.06, 0.015, 0.02, 0x2b1d14, s * 0.065, 0.06, 0.132));
+    }
+    head.add(box(0.29, 0.06, 0.06, hair, 0, 0.09, 0.115));
+    head.add(ball(0.05, 0.05, 0.05, band, 0, -0.18, -0.19));
+    head.add(box(0.07, 0.025, 0.02, 0xd9475f, 0, -0.08, 0.132));
+    head.add(rot(box(0.1, 0.34, 0.09, hair, 0, -0.36, -0.2), 0.15, 0, 0));
+    head.add(ball(0.045, 0.045, 0.02, 0xfff3b0, 0.12, 0.2, 0.12));
+    head.add(ball(0.03, 0.03, 0.02, 0xe75480, 0.12, 0.2, 0.135));
+  }
   body.add(head);
 
   // Ferramentas na mão direita
@@ -1297,4 +1319,68 @@ export function makeConstruction(w, d) {
   g.add(box(0.8, 0.1, 0.25, 0xd7b98a, -w / 2 + 0.7, 0.05, d / 2 + 0.35));
   g.add(box(0.8, 0.1, 0.25, 0xc9a874, -w / 2 + 0.75, 0.15, d / 2 + 0.38));
   return { group: g, stages };
+}
+
+/** Cavalo (frente para +z). Pernas, pescoço e cauda giram pelos pivôs; a sela aparece quando comprada. */
+export function makeHorse() {
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  root.add(body);
+  const coat = 0x8b5a2b, dark = 0x2b1d14, hoof = 0x3a2a1a, light = 0xa8743f;
+  // Corpo
+  body.add(box(0.56, 0.52, 1.3, coat, 0, 1.08, 0));
+  body.add(box(0.5, 0.46, 0.3, light, 0, 1.06, 0.62));
+  body.add(box(0.5, 0.44, 0.26, coat, 0, 1.1, -0.62));
+  // Pernas (pivô no ombro/quadril)
+  const leg = (x, z) => {
+    const p = new THREE.Group();
+    p.position.set(x, 0.9, z);
+    p.add(box(0.15, 0.5, 0.17, coat, 0, -0.25, 0));
+    p.add(box(0.12, 0.34, 0.13, coat, 0, -0.66, 0));
+    p.add(box(0.15, 0.08, 0.17, 0xf2ead8, 0, -0.8, 0));
+    p.add(box(0.16, 0.08, 0.18, hoof, 0, -0.87, 0.01));
+    body.add(p);
+    return p;
+  };
+  const legs = { fl: leg(-0.19, 0.48), fr: leg(0.19, 0.48), bl: leg(-0.19, -0.5), br: leg(0.19, -0.5) };
+  // Pescoço e cabeça (pivô na frente do corpo)
+  const neck = new THREE.Group();
+  neck.position.set(0, 1.2, 0.58);
+  neck.rotation.x = 0.55;
+  const n = box(0.3, 0.72, 0.32, coat, 0, 0.3, 0);
+  neck.add(n);
+  neck.add(box(0.09, 0.74, 0.12, dark, 0, 0.32, -0.17));
+  const head = new THREE.Group();
+  head.position.set(0, 0.66, 0);
+  head.rotation.x = -1.45; // cabeça olhando para frente
+  head.add(box(0.27, 0.27, 0.5, coat, 0, 0.0, 0.2));
+  head.add(box(0.23, 0.22, 0.2, 0x5a3a20, 0, -0.03, 0.5));
+  head.add(box(0.08, 0.02, 0.32, 0xf2ead8, 0, 0.14, 0.32));
+  for (const s of [-1, 1]) {
+    head.add(box(0.03, 0.05, 0.05, 0x111111, s * 0.14, 0.06, 0.14));
+    head.add(rot(cone(0.05, 0.16, coat, s * 0.08, 0.2, -0.02), -0.2, 0, s * 0.15));
+  }
+  head.add(box(0.08, 0.12, 0.16, dark, 0, 0.17, -0.02));
+  neck.add(head);
+  body.add(neck);
+  // Cauda
+  const tail = new THREE.Group();
+  tail.position.set(0, 1.22, -0.76);
+  tail.rotation.x = -0.45;
+  tail.add(box(0.11, 0.62, 0.12, dark, 0, -0.3, 0));
+  tail.add(box(0.15, 0.2, 0.15, dark, 0, -0.62, 0));
+  body.add(tail);
+  // Sela, manta e estribos
+  const saddle = new THREE.Group();
+  saddle.add(box(0.66, 0.04, 0.6, 0xb23a2e, 0, 1.35, -0.02));
+  saddle.add(box(0.5, 0.09, 0.48, 0x6d3b1f, 0, 1.4, -0.02));
+  saddle.add(box(0.42, 0.12, 0.08, 0x5a2f18, 0, 1.48, -0.24));
+  saddle.add(cyl(0.035, 0.12, 0x5a2f18, 0, 1.5, 0.2));
+  for (const s of [-1, 1]) {
+    saddle.add(box(0.025, 0.55, 0.04, 0x3e2210, s * 0.3, 1.1, 0));
+    saddle.add(box(0.1, 0.03, 0.12, 0x9aa3ad, s * 0.31, 0.82, 0));
+  }
+  saddle.visible = false;
+  body.add(saddle);
+  return { root, body, legs, neck, head, tail, saddle };
 }
