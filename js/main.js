@@ -29,12 +29,13 @@ const away = core.startGame();
 const isNewGame = core.S.time === 0;
 
 ui.initUI({
-  onReset: () => { core.resetGame(); world.onReset(); tutorial.onReset(); character.openCharacter(); },
+  onReset: () => { core.resetGame(); location.reload(); },
   onHelp: () => tutorial.openGuide(),
   onPanel: (tab) => tutorial.onEvent('panel', tab),
   onZoom: (f) => world.zoomBy(f),
   onCamReset: () => world.resetCamera(),
   onPlaceDecor: (id) => world.startPlacing(id),
+  onPlaceLot: (id) => world.startPlacingLot(id),
   drawMap: (ctx, w, h) => world.drawMap(ctx, w, h),
   mapPlaces: () => world.mapPlaces(),
   mapBounds: () => world.mapBounds(),

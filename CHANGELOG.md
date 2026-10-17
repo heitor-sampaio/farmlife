@@ -2,6 +2,15 @@
 
 Todas as mudanças do jogo, da mais nova para a mais antiga. Este arquivo é gerado a partir de `js/changelog.js` por `node tools/gerar-versao.mjs`.
 
+## v4.4.0 — Fazenda maior e do seu jeito (17/10/2026)
+
+- 🗺️ O mapa ficou bem maior e mais organizado: a sede (casa, carpintaria, armazém, pedidos e loja) fica em fila na rua principal, e em volta há muito mais espaço, com uma rua entre os campos e uma estrada ao sul.
+- 📍 Você escolhe onde fica cada obra nova (curral, galinheiro, queijaria, fábricas e galpão) e cada compra grande (campos, serraria, Campo de Trigo e pasto): o retângulo fica verde onde cabe. Um caminho de terra liga a porta até a rua mais próxima.
+- 🏬 O Celeiro agora se chama Armazém, que é o que ele é: onde a colheita fica guardada e é vendida.
+- 🌾 Os campos comprados ganharam nomes novos (Campo da Colina, Campo Comprido e Campo do Vale), já que agora eles ficam onde você quiser.
+- 🌲 O bosque foi para o oeste da fazenda e o pomar para trás da sede.
+- 🏡 Quem já jogava: o que você tinha construído ou comprado foi para um lugar padrão no mapa novo, as decorações voltaram para a Loja (seção Decoração) e as máquinas e o cavalo voltaram para casa.
+
 ## v4.3.0 — Galinheiro e estações mais bonitas (17/10/2026)
 
 - 🐔 Galinheiro novo, ao lado do lago: uma obra de madeira (12 🟫 tábuas e 3 📏 vigas, nível 2) com casinha, rampa, ninhos, comedouro e um cercado próprio.

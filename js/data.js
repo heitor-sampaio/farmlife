@@ -49,7 +49,7 @@ export const ANIMALS = {
   porco:   { name: 'Porco',   icon: '🐖', cost: 3500, product: 'trufa', time: 200, level: 11, f: 'Porca',   m: 'Cachaço',  baby: 'Leitão',   babyIcon: '🐷', colors: [['Rosa', 'Rosa'], ['Malhada', 'Malhado'], ['Preta', 'Preto'], ['Caramelo', 'Caramelo']] },
 };
 // Filhotes: só fêmeas produzem; com um macho adulto da mesma espécie, cada produção tem chance de nascer um filhote
-// Pasto: campo grande a leste do Campo de Trigo só para o gado (vacas, touros e bezerros), com muito mais vagas.
+// Pasto: campo grande só para o gado (vacas, touros e bezerros), com muito mais vagas.
 // No pasto o gado come capim: não precisa de trigo.
 // Queijaria: transforma o leite das vacas em queijo (2 🥛 → 1 🧀), sozinha, até com o jogo fechado. É uma obra de madeira.
 export const CHEESERY = { name: 'Queijaria', icon: '🧀', level: 8, time: 90, milk: 2, capacity: 10 }; // construída com madeira (BUILDINGS.queijaria)
@@ -60,9 +60,9 @@ export const BREED = { chance: 0.03, grow: 900 }; // 3% por produção; o filhot
 // Campos de plantio. O principal se expande lote a lote; os outros são comprados inteiros na loja.
 export const FIELDS = [
   { id: 'principal', name: 'Campo principal', icon: '🏡', cols: COLS, rows: ROWS, cost: 0, level: 1 },
-  { id: 'leste', name: 'Campo do Leste', icon: '🌄', cols: 6, rows: 4, cost: 4000, level: 5 },
-  { id: 'sul', name: 'Campo do Sul', icon: '🌾', cols: 8, rows: 4, cost: 12000, level: 9 },
-  { id: 'lago', name: 'Campo do Lago', icon: '🦆', cols: 6, rows: 5, cost: 25000, level: 13 },
+  { id: 'leste', name: 'Campo da Colina', icon: '🌄', cols: 6, rows: 4, cost: 4000, level: 5 },
+  { id: 'sul', name: 'Campo Comprido', icon: '🌾', cols: 8, rows: 4, cost: 12000, level: 9 },
+  { id: 'lago', name: 'Campo do Vale', icon: '🏞️', cols: 6, rows: 5, cost: 25000, level: 13 },
 ];
 let fieldStart = 0;
 for (const f of FIELDS) { f.start = fieldStart; f.count = f.cols * f.rows; fieldStart += f.count; }
@@ -159,12 +159,12 @@ export const WOOD = { logs: [2, 3], xp: 3, regrow: 300 }; // troncos por árvore
 // Serraria: transforma troncos em tábuas, um tronco por vez
 export const SAWMILL = { name: 'Serraria', icon: '🪚', cost: 2000, level: 4, time: 15, perLog: 2, capacity: 20 };
 export const PLANK = { name: 'Tábuas de madeira', icon: '🟫', sell: 22, xp: 1 };
-// Posições das árvores do bosque (oeste do mapa, entre o curral e o Campo do Sul)
+// Posições das árvores do bosque (oeste do mapa, no fim da rua principal)
 export const CHOP_TREES = [
-  [-13.2, 6.0], [-11.0, 5.5], [-8.9, 6.3], [-14.2, 8.9],
-  [-12.4, 8.5], [-10.1, 8.9], [-7.9, 8.3],
-  [-13.4, 11.1], [-11.2, 11.7], [-8.8, 11.0], [-6.6, 10.4],
-  [-12.0, 13.5],
+  [-34.5, 1.0], [-31.0, 2.5], [-27.5, 1.5], [-33.5, 6.5],
+  [-30.0, 7.5], [-27.0, 6.5], [-34.0, 12.0],
+  [-30.5, 13.0], [-27.5, 12.0], [-33.0, 17.5], [-29.5, 18.5],
+  [-27.0, 17.0],
 ];
 
 // Carpintaria: o jogador transforma troncos à mão em materiais de construção (work = golpes de serrote/martelo)
@@ -175,13 +175,13 @@ export const RECIPES = [
 ];
 export const CARPENTRY = { name: 'Mesa de carpintaria', icon: '🪚' };
 // Construções feitas com madeira (o jogo começa só com a casa). O material é entregue aos poucos no canteiro.
-// Galinheiro: casa das galinhas (e dos galos e pintinhos), ao lado do lago
+// Galinheiro: casa das galinhas (e dos galos e pintinhos)
 export const COOP = { slots: 12 };
 
 export const BUILDINGS = {
-  celeiro: { name: 'Celeiro', icon: '🛖', cost: { madeira: 10, viga: 2 }, desc: 'Libera a venda da colheita, dos produtos e dos peixes.' },
+  celeiro: { name: 'Armazém', icon: '🏬', cost: { madeira: 10, viga: 2 }, desc: 'Libera a venda da colheita, dos produtos e dos peixes.' },
   curral:  { name: 'Curral',  icon: '🐾', cost: { madeira: 14, viga: 4 }, desc: 'Libera a compra de ovelhas, vacas e porcos, e o cocho.' },
-  galinheiro: { name: 'Galinheiro', icon: '🐔', cost: { madeira: 12, viga: 3 }, level: 2, desc: `Casa das galinhas, ao lado do lago: até ${COOP.slots} aves, com ninhos e comedouro próprio.` },
+  galinheiro: { name: 'Galinheiro', icon: '🐔', cost: { madeira: 12, viga: 3 }, level: 2, desc: `Casa das galinhas: até ${COOP.slots} aves, com ninhos e comedouro próprio.` },
   galpao:  { name: 'Galpão das máquinas', icon: '🚜', cost: { madeira: 24, viga: 8 }, level: 12, desc: 'Garagem das máquinas do Campo de Trigo: é preciso para comprá-las.' },
   queijaria: { name: 'Queijaria', icon: '🧀', cost: { madeira: 20, viga: 6 }, level: 8, fem: true, desc: 'Transforma o leite das vacas em queijo, sozinha.' },
 };
@@ -194,7 +194,7 @@ export const UPGRADES = {
   regador:  { name: 'Regador reforçado', icon: '🚿', costs: [150, 800, 2500], req: [1, 4, 8], effect: (l) => `Água dura ${WATER_TIME[l]}s` },
   adubo:    { name: 'Adubo orgânico',    icon: '🧪', costs: [500, 2000, 12000], req: [3, 7, 17], effect: (l) => `Crescimento +${Math.round((GROW_SPEED[l] - 1) * 100)}%` },
   curral:   { name: 'Curral maior',      icon: '🏡', costs: [1000, 4000],       req: [4, 10],    effect: (l) => `${PEN_SIZE[l]} vagas para animais` },
-  alimentador: { name: 'Alimentador automático', icon: '⚙️', costs: [2000], req: [6], effect: (l) => (l ? 'Animais comem 🌾 do celeiro sozinhos' : 'Alimentação manual') },
+  alimentador: { name: 'Alimentador automático', icon: '⚙️', costs: [2000], req: [6], effect: (l) => (l ? 'Animais comem 🌾 do armazém sozinhos' : 'Alimentação manual') },
   aspersor: { name: 'Aspersores',        icon: '⛲', costs: [8000],            req: [14],       effect: (l) => (l ? 'Rega tudo automaticamente' : 'Rega manual') },
 };
 
@@ -263,7 +263,7 @@ for (const [id, f] of Object.entries(FACTORIES)) {
   BUILDINGS[id] = { name: f.name, icon: f.icon, cost: f.cost, level: f.level, fem: f.fem, desc: f.desc };
 }
 
-// Pomar: seis covas ao norte do Campo de Trigo. A muda cresce e depois dá frutas de tempos em tempos.
+// Pomar: seis covas atrás da sede, no norte da fazenda. A muda cresce e depois dá frutas de tempos em tempos.
 export const ORCHARD = { slots: 6, grow: 360, stock: 3 };
 export const FRUIT_TREES = {
   maca:    { name: 'Macieira',   fruit: 'maca',    icon: '🍎', cost: 800,  level: 5, every: 120 },
@@ -305,11 +305,11 @@ export const FAIR = {
   prizes: [3, 1.6, 0.8], // 🥇 🥈 🥉 (× nível × 300 moedas)
 };
 
-// ================= Decoração e espaço no celeiro =================
+// ================= Decoração e espaço no armazém =================
 // r: raio que ocupa no chão (0 = dá para passar por cima); special: efeito no jogo
 export const DECOR = {
   espantalho: { name: 'Espantalho',        icon: '👒', cost: 300,  r: 0.3,  level: 2, desc: 'Espanta os corvos das plantações num raio de 8 m.' },
-  bau:        { name: 'Baú',               icon: '🧰', cost: 800,  r: 0.4,  level: 1, desc: '+100 de espaço no celeiro (cada baú colocado).' },
+  bau:        { name: 'Baú',               icon: '🧰', cost: 800,  r: 0.4,  level: 1, desc: '+100 de espaço no armazém (cada baú colocado).' },
   canteiro:   { name: 'Canteiro de flores', icon: '🌷', cost: 120,  r: 0.45, level: 1, desc: 'Flores coloridas num canteiro de madeira.' },
   banco:      { name: 'Banco',             icon: '🪑', cost: 150,  r: 0.45, level: 1, desc: 'Um banco de praça para descansar.' },
   lampiao:    { name: 'Lampião',           icon: '🏮', cost: 250,  r: 0.2,  level: 2, desc: 'Acende sozinho à noite.' },
@@ -320,7 +320,7 @@ export const DECOR = {
   fonte:      { name: 'Fonte',             icon: '⛲', cost: 2500, r: 0.75, level: 4, desc: 'Uma fonte de pedra com água.' },
   estatua:    { name: 'Estátua de galo',   icon: '🐓', cost: 1500, r: 0.4,  level: 3, desc: 'Um galo dourado de enfeite.' },
 };
-export const STORAGE = { base: 500, chest: 100 }; // itens no celeiro (sem contar sementes)
+export const STORAGE = { base: 500, chest: 100 }; // itens no armazém (sem contar sementes)
 
 // ================= Corvos e o faro do pet =================
 // A cada round há chance de um corvo pousar numa planta crescendo; se ninguém espantar, ela volta ao começo.

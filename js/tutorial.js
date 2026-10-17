@@ -34,7 +34,7 @@ const STEPS = [
   {
     id: 'boas-vindas', icon: '🌻', title: () => `${core.gw('Bem-vindo', 'Bem-vinda')}, ${core.playerName()}!`, intro: true,
     body: () => `Você herdou um pequeno terreno, uma casa e as ferramentas do seu avô. O resto, você vai construir com madeira! Neste tutorial você aprende:
-      <div class="tut-flow"><span>🌱 Plantar</span><span>💧 Regar</span><span>🧺 Colher</span><span>🪓 Cortar</span><span>🪚 Serrar</span><span>🛖 Construir</span><span>💰 Vender</span></div>
+      <div class="tut-flow"><span>🌱 Plantar</span><span>💧 Regar</span><span>🧺 Colher</span><span>🪓 Cortar</span><span>🪚 Serrar</span><span>🏬 Construir</span><span>💰 Vender</span></div>
       Leva uns 6 minutos, e cada passo concluído dá moedas.`,
   },
   {
@@ -71,17 +71,17 @@ const STEPS = [
   {
     id: 'cortar', icon: '🪓', title: 'Corte uma árvore', event: 'chop', goal: 1, reward: 10, tool: 'machado',
     target: () => nearestTree(),
-    body: () => `Para vender a colheita você precisa de um <b>🛖 Celeiro</b>, e ele é feito de madeira. Siga a seta até o <b>bosque</b>, escolha o <b>🪓 Machado</b>${keyOf('machado')}
+    body: () => `Para vender a colheita você precisa de um <b>🏬 Armazém</b>, e ele é feito de madeira. Siga a seta até o <b>bosque</b>, escolha o <b>🪓 Machado</b>${keyOf('machado')}
       e use ${ACT()} perto de uma árvore (segure para continuar), ou ${TAP()} nela. Cada árvore derrubada dá ${WOOD.logs[0]}–${WOOD.logs[1]} 🪵 troncos.`,
   },
   {
     id: 'serrar', icon: '🪚', title: 'Serre tábuas', event: 'craft', match: 'tabuas', goal: 2, reward: 10,
     target: () => ({ spot: 'mesa' }),
-    body: () => `Leve os troncos até a <b>${CARPENTRY.icon} ${CARPENTRY.name}</b> (a seta, entre a casa e o celeiro). Com <b>Tábuas</b> escolhido, use ${ACT()} na mesa
+    body: () => `Leve os troncos até a <b>${CARPENTRY.icon} ${CARPENTRY.name}</b> (a seta, entre a casa e o armazém). Com <b>Tábuas</b> escolhido, use ${ACT()} na mesa
       (segure para continuar) ou ${TAP()} nela: a cada 3 golpes de serrote, 1 🪵 vira 2 🟫 tábuas.`,
   },
   {
-    id: 'construir', icon: '🏗️', title: 'Construa o celeiro', event: 'build', match: 'celeiro', goal: 1, reward: 30, live: true,
+    id: 'construir', icon: '🏗️', title: 'Construa o armazém', event: 'build', match: 'celeiro', goal: 1, reward: 30, live: true,
     done: () => core.built('celeiro'),
     target: () => {
       const miss = core.buildMissing('celeiro');
@@ -96,15 +96,15 @@ const STEPS = [
       const miss = core.buildMissing('celeiro');
       const inv = core.S.inv;
       const cost = Object.entries(BUILDINGS.celeiro.cost).map(([id, q]) => `${q} ${core.ITEMS[id].icon}`).join(' + ');
-      return `O celeiro custa <b>${cost}</b>. As <b>📏 vigas</b> também saem da mesa: abra a <b>🪚 Oficina</b> (botão no topo) e escolha <b>Viga</b> (3 🟫 → 1 📏).
-        Leve a madeira até o <b>canteiro 🏗️</b> do celeiro e use ${ACT()} para entregar (dá para entregar aos poucos).
+      return `O armazém custa <b>${cost}</b>. As <b>📏 vigas</b> também saem da mesa: abra a <b>🪚 Oficina</b> (botão no topo) e escolha <b>Viga</b> (3 🟫 → 1 📏).
+        Leve a madeira até o <b>canteiro 🏗️</b> do armazém e use ${ACT()} para entregar (dá para entregar aos poucos).
         <br>Falta: <b>${miss.map((x) => `${x.qty} ${core.ITEMS[x.id].icon}`).join(' + ') || 'nada!'}</b> · você tem 🪵${inv.tronco || 0} 🟫${inv.madeira || 0} 📏${inv.viga || 0}`;
     },
   },
   {
-    id: 'vender', icon: '🛖', title: 'Venda no Celeiro', event: 'sell', goal: 1, reward: 20,
+    id: 'vender', icon: '🏬', title: 'Venda no Armazém', event: 'sell', goal: 1, reward: 20,
     target: () => ({ spot: 'celeiro' }),
-    body: () => `Celeiro pronto! Use ${ACT()} nele para abrir (ou o botão 🛖 no topo) e venda o seu trigo.
+    body: () => `Armazém pronto! Use ${ACT()} nele para abrir (ou o botão 🏬 no topo) e venda o seu trigo.
       <br>Os preços mudam todo dia: <b class="up">▲</b> está caro, <b class="down">▼</b> está barato.`,
   },
   {
@@ -131,11 +131,11 @@ const PLAY_STEPS = STEPS.filter((s) => !s.intro && !s.final).length;
 const TIPS = {
   level2: {
     title: 'Nível 2: galinhas!', target: { spot: 'galinheiro' },
-    body: () => `Agora dá para criar 🐔 <b>galinhas</b> (botam 🥚). Elas moram no <b>Galinheiro</b>, ao lado do lago${core.built('galinheiro') ? ': compre na 🏪 Loja.' : `: construa-o com madeira (${costTxt('galinheiro')}) no canteiro marcado pela seta e depois compre as aves na 🏪 Loja.`} No nível ${PET.level} dá para adotar uma 🐶 <b>border collie</b>.`,
+    body: () => `Agora dá para criar 🐔 <b>galinhas</b> (botam 🥚). Elas moram no <b>Galinheiro</b>${core.built('galinheiro') ? ': compre na 🏪 Loja.' : `: escolha onde ele fica na 🪚 Oficina (Obras), leve a madeira (${costTxt('galinheiro')}) até o canteiro e depois compre as aves na 🏪 Loja.`} No nível ${PET.level} dá para adotar uma 🐶 <b>border collie</b>.`,
   },
   animal: {
     title: 'Cuidando dos animais', target: { spot: 'cocho' },
-    body: () => `Os animais vivem no <b>Curral</b>, a oeste. Eles comem 🌾 <b>trigo</b>: chegue perto de um e use ${ACT()}, ou use o <b>cocho</b> (a seta) para alimentar todos.
+    body: () => `Os animais vivem no <b>Curral</b>. Eles comem 🌾 <b>trigo</b>: chegue perto de um e use ${ACT()}, ou use o <b>cocho</b> (a seta) para alimentar todos.
       Quando aparecer o produto (🥚) em cima deles, colete e venda.`,
   },
   pet: {
@@ -159,7 +159,7 @@ const TIPS = {
   },
   bigfield: {
     title: 'Campo de Trigo', target: { big: true },
-    body: () => `O ${BIG_FIELD.icon} <b>${BIG_FIELD.name}</b> fica a leste, depois do Campo do Leste. Ele é grande demais para a enxada:
+    body: () => `O ${BIG_FIELD.icon} <b>${BIG_FIELD.name}</b> fica onde você o colocou (a seta). Ele é grande demais para a enxada:
       compre as <b>máquinas</b> na Loja e trabalhe dirigindo. O trigo de lá cresce <b>sem rega</b>.`,
   },
   machine: {
@@ -170,12 +170,12 @@ const TIPS = {
   },
   axe: {
     title: 'Hora de cortar lenha', target: () => nearestTree(),
-    body: () => `Você tem um 🪓 <b>machado</b>! O <b>bosque</b> fica a oeste (siga a seta). Com a 🪓 <b>Machado</b> selecionado, chegue perto de uma árvore e use ${ACT()}, ou ${TAP()} na árvore para o fazendeiro cortar até ela cair.
+    body: () => `Você tem um 🪓 <b>machado</b>! O <b>bosque</b> fica no oeste da fazenda (siga a seta). Com a 🪓 <b>Machado</b> selecionado, chegue perto de uma árvore e use ${ACT()}, ou ${TAP()} na árvore para o fazendeiro cortar até ela cair.
       Os 🪵 <b>troncos</b> viram tábuas e vigas na ${CARPENTRY.icon} mesa de carpintaria, para construir. A árvore volta a crescer depois de um tempo.`,
   },
   'built-queijaria': {
     title: 'Queijaria pronta!', target: { spot: 'queijaria' },
-    body: () => `Leve o 🥛 leite das vacas até a ${CHEESERY.icon} <b>Queijaria</b> (a seta, ao lado da loja) e use ${ACT()}: cada ${CHEESERY.milk} leites viram 1 ${CHEESE.icon} <b>queijo</b> em ${core.fmtDuration(CHEESERY.time)},
+    body: () => `Leve o 🥛 leite das vacas até a ${CHEESERY.icon} <b>Queijaria</b> (a seta) e use ${ACT()}: cada ${CHEESERY.milk} leites viram 1 ${CHEESE.icon} <b>queijo</b> em ${core.fmtDuration(CHEESERY.time)},
       até com o jogo fechado. Volte para coletar: o queijo vale 🪙${CHEESE.sell}, bem mais que o leite.`,
   },
   quest: {
@@ -185,12 +185,12 @@ const TIPS = {
   },
   tree: {
     title: 'Muda plantada! 🌱', target: { spot: 'pomar:0' },
-    body: () => `O <b>pomar</b> fica ao norte do Campo de Trigo (a seta). A muda cresce em ~${Math.round(ORCHARD.grow / 180)} dias e depois dá frutas sozinha: chegue perto e use ${ACT()} para colher.
+    body: () => `O <b>pomar</b> fica atrás da sede, no norte da fazenda (a seta). A muda cresce em ~${Math.round(ORCHARD.grow / 180)} dias e depois dá frutas sozinha: chegue perto e use ${ACT()} para colher.
       As frutas viram suco, torta e geleia na 🥖 padaria. Colmeias 🐝 deixam o pomar mais rápido.`,
   },
   decor: {
     title: 'Fazenda com a sua cara 🌻', target: null,
-    body: () => `Decorações podem ser movidas quando quiser: chegue perto e use ${ACT()}. O 👒 espantalho espanta corvos e o 🧰 baú aumenta o espaço do celeiro.`,
+    body: () => `Decorações podem ser movidas quando quiser: chegue perto e use ${ACT()}. O 👒 espantalho espanta corvos e o 🧰 baú aumenta o espaço do armazém.`,
   },
   crow: {
     title: 'Corvos! 🐦‍⬛', target: null,
@@ -199,7 +199,7 @@ const TIPS = {
   },
   pasture: {
     title: 'Pasto comprado!', target: { pasture: true },
-    body: () => `O ${PASTURE.icon} <b>${PASTURE.name}</b> fica a leste, depois do Campo de Trigo (siga a seta). Todo o gado mora lá agora: até ${PASTURE.slots} cabeças,
+    body: () => `O ${PASTURE.icon} <b>${PASTURE.name}</b> fica onde você o colocou (siga a seta). Todo o gado mora lá agora: até ${PASTURE.slots} cabeças,
       comendo capim, sem precisar de 🌾 trigo. As vacas fazem o ${MANURE.icon} esterco no pasto. O curral fica livre para os outros animais.`,
   },
   birth: {
@@ -233,21 +233,21 @@ const TIPS = {
   },
   bench: {
     title: 'Mesa de carpintaria', target: { spot: 'mesa' },
-    body: () => `Entre a casa e o celeiro fica a ${CARPENTRY.icon} <b>${CARPENTRY.name}</b>: ali você transforma 🪵 troncos em 🟫 tábuas e tábuas em 📏 vigas, na mão.
+    body: () => `Entre a casa e o armazém fica a ${CARPENTRY.icon} <b>${CARPENTRY.name}</b>: ali você transforma 🪵 troncos em 🟫 tábuas e tábuas em 📏 vigas, na mão.
       Escolha a receita na <b>🪚 Oficina</b> (botão no topo) e use ${ACT()} na mesa. Na Oficina você também vê o que falta para cada obra.`,
   },
   ...Object.fromEntries(Object.entries(FACTORIES).map(([id, f]) => ['built-' + id, {
     title: `${f.name} ${f.fem ? 'pronta' : 'pronto'}!`, target: { spot: id },
-    body: () => `${f.icon} ${f.desc} Chegue perto e use ${ACT()}: ${f.fem ? 'ela' : 'ele'} pega no celeiro o material da receita (${f.recipes.map((r) => `${sys.ioText(r.in)} → ${GOODS[r.out].icon}`).join(' · ')}) e trabalha sozinh${f.fem ? 'a' : 'o'}.
+    body: () => `${f.icon} ${f.desc} Chegue perto e use ${ACT()}: ${f.fem ? 'ela' : 'ele'} pega no armazém o material da receita (${f.recipes.map((r) => `${sys.ioText(r.in)} → ${GOODS[r.out].icon}`).join(' · ')}) e trabalha sozinh${f.fem ? 'a' : 'o'}.
       ${f.recipes.length > 1 ? 'Escolha a receita na 🪚 Oficina.' : ''}`,
   }])),
   'built-celeiro': {
-    title: 'Celeiro construído!', target: { spot: 'celeiro' },
-    body: () => `Agora dá para <b>vender</b> a colheita, os produtos e os peixes no 🛖 Celeiro (ou pelo botão 🛖 no topo).`,
+    title: 'Armazém construído!', target: { spot: 'celeiro' },
+    body: () => `Agora dá para <b>vender</b> a colheita, os produtos e os peixes no 🏬 Armazém (ou pelo botão 🏬 no topo).`,
   },
   'built-curral': {
     title: 'Curral construído!', target: { spot: 'loja' },
-    body: () => `O 🐾 Curral está pronto. Compre ovelhas, vacas e porcos na 🏪 Loja (conforme o nível) e alimente com 🌾 trigo no <b>cocho</b>. As 🐔 galinhas moram no galinheiro, ao lado do lago.`,
+    body: () => `O 🐾 Curral está pronto. Compre ovelhas, vacas e porcos na 🏪 Loja (conforme o nível) e alimente com 🌾 trigo no <b>cocho</b>. As 🐔 galinhas moram no galinheiro, uma obra à parte.`,
   },
   'built-galinheiro': {
     title: 'Galinheiro construído!', target: { spot: 'galinheiro' },
@@ -260,7 +260,7 @@ const TIPS = {
   },
   sawmill: {
     title: 'Serraria pronta!', target: { spot: 'serraria' },
-    body: () => `Leve 🪵 troncos até a <b>Serraria</b> (a seta) e use ${ACT()}: ela pega os troncos do celeiro e transforma cada um em ${SAWMILL.perLog} ${PLANK.icon} <b>tábuas</b>, um a cada ${SAWMILL.time}s.
+    body: () => `Leve 🪵 troncos até a <b>Serraria</b> (a seta) e use ${ACT()}: ela pega os troncos do armazém e transforma cada um em ${SAWMILL.perLog} ${PLANK.icon} <b>tábuas</b>, um a cada ${SAWMILL.time}s.
       Volte depois para coletar as tábuas prontas. Ela continua serrando mesmo com o jogo fechado.`,
   },
   weather: {
@@ -608,8 +608,8 @@ const TOPICS = [
   {
     id: 'inicio', icon: '🌻', title: 'Primeiros passos',
     html: () => `<p>O FarmLife gira em torno de um ciclo simples:</p>
-      <div class="tut-flow big"><span>⛏️ Arar</span><span>🌱 Plantar</span><span>💧 Regar</span><span>🧺 Colher</span><span>🛖 Vender</span><span>🏪 Comprar</span></div>
-      <p>Você começa só com a casa e as ferramentas. O 🛖 <b>Celeiro</b>, o 🐾 <b>Curral</b> e o 🚜 <b>Galpão</b> são construídos com madeira: corte árvores 🪓, serre na mesa de carpintaria 🪚 e entregue no canteiro 🏗️ (veja <b>🏗️ Construções</b>).</p>
+      <div class="tut-flow big"><span>⛏️ Arar</span><span>🌱 Plantar</span><span>💧 Regar</span><span>🧺 Colher</span><span>🏬 Vender</span><span>🏪 Comprar</span></div>
+      <p>Você começa só com a casa e as ferramentas. O 🏬 <b>Armazém</b>, o 🐾 <b>Curral</b> e o 🚜 <b>Galpão</b> são construídos com madeira: corte árvores 🪓, serre na mesa de carpintaria 🪚 e entregue no canteiro 🏗️ (veja <b>🏗️ Construções</b>).</p>
       <p>Com o dinheiro, você compra sementes melhores, animais, melhorias e terreno. Cada colheita, produto e pedido dá <b>XP</b>, e cada nível libera coisas novas (veja <b>🏆 Progressão</b>).</p>
       <p>O jogo salva sozinho, e a fazenda continua crescendo enquanto você está fora (até 8 horas).</p>
       <button class="btn" data-guide="restart">🔁 Refazer o tutorial</button>
@@ -668,7 +668,7 @@ const TOPICS = [
   {
     id: 'dinheiro', icon: '💰', title: 'Vender e comprar',
     html: () => `<ul class="g-list">
-      <li>🛖 <b>Celeiro:</b> depois de construído (${costTxt('celeiro')}), venda colheitas, produtos e peixes. Os preços mudam todo dia (<b class="up">▲</b> caro, <b class="down">▼</b> barato), então às vezes vale esperar.</li>
+      <li>🏬 <b>Armazém:</b> depois de construído (${costTxt('celeiro')}), venda colheitas, produtos e peixes. Os preços mudam todo dia (<b class="up">▲</b> caro, <b class="down">▼</b> barato), então às vezes vale esperar.</li>
       <li>📦 <b>Pedidos:</b> os moradores pagam <b>bem mais</b> que o mercado e dão XP extra. Veja no <b>quadro de Pedidos</b> (a cartinha ✉️ em cima dele avisa quando chega pedido novo ou dá para entregar algum) ou no botão 📦 do topo. Recuse (✖) os que não interessam para receber outro.</li>
       <li>🏪 <b>Loja:</b> sementes, campos, pet, pesca, máquinas, animais, funcionários e melhorias.</li>
       <li>🔒 <b>Terrenos:</b> no campo principal, os lotes bloqueados com 🪙 ao lado dos seus podem ser comprados um a um (próximo: 🪙${core.fmt(core.plotCost())}).</li>
@@ -676,17 +676,17 @@ const TOPICS = [
   },
   {
     id: 'animais', icon: '🐔', title: 'Animais',
-    html: () => `<p>Ovelhas, vacas e porcos vivem no <b>Curral</b>, a oeste (obra de madeira: ${costTxt('curral')}). As 🐔 galinhas moram no <b>Galinheiro</b>, ao lado do lago (${costTxt('galinheiro')}, ${COOP.slots} vagas): lá, chegando perto da casinha com ${ACT()}, você coleta todos os 🥚 ovos de uma vez ou alimenta as galinhas. Cada um come <b>1 🌾 trigo</b> por ciclo: alimente chegando perto (${ACT()}) ou use o <b>cocho</b> para todos.
-      Quando o produto aparece em cima dele, colete e venda. O <b>⚙️ alimentador automático</b> (melhoria) alimenta sozinho com o trigo do celeiro.</p>` + table(
+    html: () => `<p>Ovelhas, vacas e porcos vivem no <b>Curral</b> (obra de madeira: ${costTxt('curral')}). As 🐔 galinhas moram no <b>Galinheiro</b> (${costTxt('galinheiro')}, ${COOP.slots} vagas). Você escolhe onde cada um fica na 🪚 Oficina: lá, chegando perto da casinha com ${ACT()}, você coleta todos os 🥚 ovos de uma vez ou alimenta as galinhas. Cada um come <b>1 🌾 trigo</b> por ciclo: alimente chegando perto (${ACT()}) ou use o <b>cocho</b> para todos.
+      Quando o produto aparece em cima dele, colete e venda. O <b>⚙️ alimentador automático</b> (melhoria) alimenta sozinho com o trigo do armazém.</p>` + table(
       ['', 'Animal', 'Custa', 'Produz', 'A cada', 'Nível'],
       Object.values(ANIMALS).map((a) => [a.icon, `${a.f} / ${a.m}`, `🪙${core.fmt(a.cost)}`, `${PRODUCTS[a.product].icon} ${PRODUCTS[a.product].name} (🪙${PRODUCTS[a.product].sell})`, dur(a.time), `${a.level}${lock(a.level)}`]),
     ) + `<p>💡 O curral começa com ${PEN_SIZE[0]} vagas; a melhoria <b>Curral maior</b> aumenta.</p>
       <p>♀♂ <b>Macho e fêmea:</b> na loja você escolhe o sexo; a cor é sorteada (${Object.values(ANIMALS).map((a) => `${a.icon} ${a.colors.map((c) => c[0].toLowerCase()).join(', ')}`).join(' · ')}).
         Só as fêmeas produzem e comem. Com um macho adulto da mesma espécie, cada produção tem ${Math.round(BREED.chance * 100)}% de chance de nascer um filhote (${Object.values(ANIMALS).map((a) => `${a.babyIcon} ${a.baby.toLowerCase()}`).join(', ')}),
         se houver vaga no curral. O filhote herda a cor de um dos pais e vira adulto em ~${Math.round(BREED.grow / 180)} dias.</p>
-      <p>${PASTURE.icon} <b>Pasto</b> (🪙${core.fmt(PASTURE.cost)}, nível ${PASTURE.level}${lock(PASTURE.level)}): campo enorme a leste do Campo de Trigo com ${PASTURE.slots} vagas só para o gado.
+      <p>${PASTURE.icon} <b>Pasto</b> (🪙${core.fmt(PASTURE.cost)}, nível ${PASTURE.level}${lock(PASTURE.level)}): campo enorme, no lugar que você escolher, com ${PASTURE.slots} vagas só para o gado.
         Lá vacas, touros e bezerros comem capim e não precisam de trigo, e o curral fica livre para os outros animais.</p>
-      <p>${CHEESERY.icon} <b>Queijaria</b> (obra de madeira, nível ${CHEESERY.level}${lock(CHEESERY.level)}): construa no canteiro entre a loja e o galpão. Use ${ACT()} nela para colocar o 🥛 leite do celeiro e coletar os queijos.
+      <p>${CHEESERY.icon} <b>Queijaria</b> (obra de madeira, nível ${CHEESERY.level}${lock(CHEESERY.level)}): construa no canteiro entre a loja e o galpão. Use ${ACT()} nela para colocar o 🥛 leite do armazém e coletar os queijos.
         Cada ${CHEESERY.milk} leites viram 1 ${CHEESE.icon} queijo (🪙${CHEESE.sell}) em ${core.fmtDuration(CHEESERY.time)}, até com o jogo fechado. Cabem ${CHEESERY.capacity} queijos curando.</p>
       <p>${MANURE.icon} <b>Esterco:</b> cada vaca faz um montinho a cada ~${Math.round(MANURE.every)}s (até ${MANURE.max} no curral). Recolha com ${ACT()} e leve à ${COMPOST.icon} <b>composteira</b>, ao lado do curral:
         cada esterco vira um ${FERTILIZER.icon} fertilizante em ${COMPOST.time}s, até com o jogo fechado. Volte para coletar.</p>`,
@@ -706,11 +706,11 @@ const TOPICS = [
     id: 'lenha', icon: '🪓', title: 'Lenha',
     html: () => `<ol class="g-list">
       <li>Você já começa com um <b>machado</b> (o de aço, na loja, corta mais rápido). Escolha a 🪓 <b>Machado</b> na barra.</li>
-      <li>Vá até o <b>bosque</b>, a oeste, entre o curral e o Campo do Sul.</li>
+      <li>Vá até o <b>bosque</b>, no oeste da fazenda (fim da rua principal).</li>
       <li>Chegue perto de uma árvore e use ${ACT()} (segure para continuar), ou ${TAP()} na árvore: o fazendeiro corta até ela cair.</li>
       <li>A árvore cai e deixa um <b>toco</b>; você ganha ${WOOD.logs[0]}–${WOOD.logs[1]} ${LOG.icon} <b>troncos</b> (🪙${LOG.sell} cada). Ela cresce de novo em ~${Math.round(WOOD.regrow / 60)} min.</li></ol>
       <p>Os troncos viram tábuas e vigas na ${CARPENTRY.icon} mesa de carpintaria (veja <b>🏗️ Construções</b>) e também aparecem nos <b>pedidos</b> da vila.</p>
-      <p>${SAWMILL.icon} <b>Serraria</b> (🪙${core.fmt(SAWMILL.cost)}, nível ${SAWMILL.level}${lock(SAWMILL.level)}): fica na entrada do bosque. Use ${ACT()} nela para colocar os troncos do celeiro na fila e coletar as tábuas prontas.
+      <p>${SAWMILL.icon} <b>Serraria</b> (🪙${core.fmt(SAWMILL.cost)}, nível ${SAWMILL.level}${lock(SAWMILL.level)}): você escolhe onde ela fica. Use ${ACT()} nela para colocar os troncos do armazém na fila e coletar as tábuas prontas.
         Cada tronco vira ${SAWMILL.perLog} ${PLANK.icon} tábuas (🪙${PLANK.sell} cada), uma a cada ${SAWMILL.time}s, até com o jogo fechado. Cabem ${SAWMILL.capacity} troncos na fila.</p>` +
       table(['Machado', 'Custa', 'Nível', 'Golpes', 'Vantagem'], AXES.filter(Boolean).map((a) => [`${a.icon} ${a.name}`, `🪙${core.fmt(a.cost)}`, `${a.level}${lock(a.level)}`, a.hits, a.bonus ? `+${a.bonus} tronco por árvore` : '—'])),
   },
@@ -719,14 +719,12 @@ const TOPICS = [
     html: () => `<p>Você começa só com a 🏠 casa. As outras construções são feitas de madeira:</p>
       <ol class="g-list">
         <li>🪓 Corte árvores no bosque para ganhar <b>🪵 troncos</b>.</li>
-        <li>Na ${CARPENTRY.icon} <b>${CARPENTRY.name}</b> (entre a casa e o celeiro), escolha a receita na <b>🪚 Oficina</b> (botão no topo) e use ${ACT()} na mesa. Segure para continuar, ou ${TAP()} na mesa: o fazendeiro trabalha até acabar o material.</li>
+        <li>Na ${CARPENTRY.icon} <b>${CARPENTRY.name}</b> (entre a casa e o armazém), escolha a receita na <b>🪚 Oficina</b> (botão no topo) e use ${ACT()} na mesa. Segure para continuar, ou ${TAP()} na mesa: o fazendeiro trabalha até acabar o material.</li>
         <li>Leve a madeira até o <b>canteiro 🏗️</b> da obra e use ${ACT()} para entregar. Dá para entregar aos poucos: a obra vai subindo.</li></ol>` +
       table(['Receita', 'Precisa', 'Faz', 'Golpes'], RECIPES.map((rc) => [`${rc.icon} ${rc.name}`, Object.entries(rc.input).map(([id, q]) => `${q} ${core.ITEMS[id].icon}`).join(' + '), Object.entries(rc.output).map(([id, q]) => `${q} ${core.ITEMS[id].icon}`).join(' + '), rc.work])) +
       table(['Construção', 'Custa', 'Libera', 'Onde'], Object.entries(BUILDINGS).map(([id, b]) => [`${b.icon} ${b.name}${core.built(id) ? ' ✔' : ''}`, costTxt(id), b.desc,
-        id === 'celeiro' ? 'Ao lado da loja' : id === 'curral' ? 'Portão do curral, a oeste' : id === 'galinheiro' ? `Ao lado do lago (nível ${b.level}${lock(b.level)})` : id === 'queijaria' ? `Entre a loja e o galpão (nível ${b.level}${lock(b.level)})`
-          : id === 'defumadouro' ? `Perto do lago (nível ${b.level}${lock(b.level)})`
-          : ['moinho', 'padaria', 'tear'].includes(id) ? `Rua das fábricas, entre o Campo do Leste e o de Trigo (nível ${b.level}${lock(b.level)})`
-          : 'Perto do Campo de Trigo, a leste'])) +
+        id === 'celeiro' ? 'Na sede, ao lado da casa' : `Você escolhe (Oficina → Obras${b.level ? `, nível ${b.level}${lock(b.level)}` : ''})`])) +
+      `<p>📍 Cada obra nova começa escolhendo o lugar: o retângulo fica verde onde ela cabe (fora das ruas, da sede, dos campos e do bosque). Um caminho de terra liga a porta dela à rua mais próxima.</p>` +
       `<p>💡 Tábuas (🪙${PLANK.sell}) e vigas (🪙${BEAM.sell}) também podem ser vendidas ou entregues em pedidos. A ${SAWMILL.icon} Serraria (nível ${SAWMILL.level}) serra tábuas sozinha.</p>`,
   },
   {
@@ -747,10 +745,10 @@ const TOPICS = [
   },
   {
     id: 'producao', icon: '🏭', title: 'Fábricas e pomar',
-    html: () => `<p>As <b>fábricas</b> são obras de madeira (veja <b>🏗️ Construções</b>). Depois de prontas, chegue perto e use ${ACT()}: a fábrica coleta o que está pronto e pega no celeiro o material da receita escolhida.
+    html: () => `<p>As <b>fábricas</b> são obras de madeira (veja <b>🏗️ Construções</b>). Depois de prontas, chegue perto e use ${ACT()}: a fábrica coleta o que está pronto e pega no armazém o material da receita escolhida.
       Ela continua trabalhando sozinha, até com o jogo fechado. Escolha a receita na <b>🪚 Oficina</b> (se a escolhida não der, ela usa a primeira que der).</p>` +
       table(['Fábrica', 'Receita', 'Faz', 'Tempo'], Object.values(FACTORIES).flatMap((f) => f.recipes.map((r, k) => [k ? '' : `${f.icon} ${f.name} <small>(nv ${f.level}${lock(f.level)})</small>`, sys.ioText(r.in), `${GOODS[r.out].icon} ${GOODS[r.out].name} (🪙${GOODS[r.out].sell})`, dur(r.time)]))) +
-      `<p>🌳 <b>Pomar</b> (ao norte do Campo de Trigo): compre mudas na Loja. Elas crescem em ~${Math.round(ORCHARD.grow / 180)} dias e depois dão frutas para sempre, até ${ORCHARD.stock} no pé.
+      `<p>🌳 <b>Pomar</b> (atrás da sede): compre mudas na Loja. Elas crescem em ~${Math.round(ORCHARD.grow / 180)} dias e depois dão frutas para sempre, até ${ORCHARD.stock} no pé.
         No inverno o pomar descansa; no outono rende mais.</p>` +
       table(['Muda', 'Custa', 'Fruta', 'A cada', 'Nível'], Object.values(FRUIT_TREES).map((t) => [t.name, `🪙${core.fmt(t.cost)}`, `${GOODS[t.fruit].icon} 🪙${GOODS[t.fruit].sell}`, dur(t.every), `${t.level}${lock(t.level)}`])) +
       `<p>${HIVES.icon} <b>Colmeias</b> (até ${HIVES.max}, 🪙${core.fmt(HIVES.cost)} cada, nível ${HIVES.level}): fazem 🍯 mel e deixam o pomar ${Math.round(HIVES.boost * 100)}% mais rápido.</p>`,
@@ -764,11 +762,11 @@ const TOPICS = [
     </ul>`,
   },
   {
-    id: 'decoracao', icon: '🌻', title: 'Decoração e celeiro',
+    id: 'decoracao', icon: '🌻', title: 'Decoração e armazém',
     html: () => `<p>Compre decorações na Loja e escolha o lugar: no computador, mova o mouse e clique; no celular, toque no chão (ou ande) e use <b>✔ Colocar</b>. <b>↻ Girar</b> (tecla G) vira o objeto.
       Para mudar de lugar, chegue perto e use ${ACT()} (Mover).</p>` +
       table(['', 'Decoração', 'Custa', 'Efeito'], Object.values(DECOR).map((dd) => [dd.icon, dd.name, `🪙${core.fmt(dd.cost)}`, dd.desc])) +
-      `<p>📦 <b>Espaço no celeiro:</b> cabem ${STORAGE.base} itens (sem contar sementes); cada 🧰 baú colocado na fazenda dá +${STORAGE.chest}. Com o celeiro cheio, não dá para colher nem coletar: venda ou use os itens.</p>
+      `<p>📦 <b>Espaço no armazém:</b> cabem ${STORAGE.base} itens (sem contar sementes); cada 🧰 baú colocado na fazenda dá +${STORAGE.chest}. Com o armazém cheio, não dá para colher nem coletar: venda ou use os itens.</p>
       <p>🐦‍⬛ <b>Corvos:</b> às vezes um corvo pousa numa planta crescendo (aparece ❗). Espante chegando perto ou com o pet; o 👒 espantalho protege tudo num raio de ${CROWS.scarecrow} m.</p>
       <p>🐶 O pet também cava no quintal todo dia e traz alguma coisa.</p>`,
   },
@@ -800,7 +798,7 @@ const TOPICS = [
   },
   {
     id: 'expansao', icon: '🗺️', title: 'Campos e máquinas',
-    html: () => `<p>Além do campo principal, compre <b>campos inteiros</b> na loja. Eles aparecem no mapa com placas 🪧 de "à venda".</p>` + table(
+    html: () => `<p>Além do campo principal, compre <b>campos inteiros</b> na loja (botão 📍): primeiro você escolhe onde o campo fica, e ele é comprado quando você confirma o lugar.</p>` + table(
       ['', 'Campo', 'Lotes', 'Custa', 'Nível'],
       FIELDS.filter((f) => f.cost).map((f) => [f.icon, f.name, f.count, `🪙${core.fmt(f.cost)}`, `${f.level}${lock(f.level)}`])
         .concat([[BIG_FIELD.icon, `${BIG_FIELD.name} (só trigo, sem rega)`, BIG_CELLS, `🪙${core.fmt(BIG_FIELD.cost)}`, `${BIG_FIELD.level}${lock(BIG_FIELD.level)}`],
@@ -818,7 +816,7 @@ const TOPICS = [
       <ul class="g-list">
         <li>Uma planta pode <b>acumular várias mutações</b> até amadurecer (plantas prontas não ganham mais).</li>
         <li>Ao colher, as mutações vão <b>para o item colhido</b> e a planta recomeça sem nenhuma (inclusive as que rebrotam).</li>
-        <li>Itens mutados ficam separados no 🛖 Celeiro e valem mais: <b>cada mutação soma o seu bônus</b>.
+        <li>Itens mutados ficam separados no 🏬 Armazém e valem mais: <b>cada mutação soma o seu bônus</b>.
           Ex.: 💧 Molhada (×1,5) + ⚡ Eletrizada (×5) = 1 + 0,5 + 4 = <b>×5,5</b> o preço normal.</li>
         <li>Plantas mutadas brilham com a cor da sua mutação mais rara; prontas, mostram o ícone dela.</li>
         <li>Vale também para o ${BIG_FIELD.icon} Campo de Trigo e para o que os funcionários colhem.</li>

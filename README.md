@@ -40,12 +40,13 @@ Depois acesse http://localhost:5173. Na primeira vez, precisa de internet para b
 - **Personagem**: na primeira vez, escolha entre fazendeiro e fazendeira (com prévia 3D) e o seu nome. Dá para trocar depois pelo Guia.
 - **Culturas**: 19 culturas, de alface e trigo a café e abacaxi, cada uma com a sua estação; algumas rebrotam depois da colheita.
 - **Lavoura**: are a grama, plante, regue e colha. Sem água, nada cresce.
-- **Construções**: o jogo começa só com a Casa (dormir à noite), a Loja, o quadro de Pedidos e todas as ferramentas. O Celeiro (libera a venda), o Curral (libera os animais) e o Galpão (libera as máquinas) são construídos com madeira, entregue aos poucos no canteiro de cada obra.
+- **Construções**: o jogo começa só com a Casa (dormir à noite), a Loja, o quadro de Pedidos e todas as ferramentas. O Armazém (libera a venda), o Curral (libera os animais) e o Galpão (libera as máquinas) são construídos com madeira, entregue aos poucos no canteiro de cada obra.
 - **Lenha e carpintaria**: corte as árvores do bosque com o machado para ganhar troncos; na mesa de carpintaria, serre troncos em tábuas e pregue tábuas em vigas, na mão. A Serraria (nível 4) serra tábuas sozinha, até com o jogo fechado.
-- **Curral**: os animais andam livres, comem 🌾 trigo e produzem ovos, lã, leite e trufas. O cocho alimenta todos de uma vez, e o Alimentador automático (melhoria da loja) faz isso sozinho usando o trigo do celeiro.
+- **Curral**: os animais andam livres, comem 🌾 trigo e produzem ovos, lã, leite e trufas. O cocho alimenta todos de uma vez, e o Alimentador automático (melhoria da loja) faz isso sozinho usando o trigo do armazém.
 - **Funcionários**: Colhedor, Plantador e Tratador andam pela fazenda e trabalham sozinhos (também enquanto você está fora). Cobram salário no início de cada dia; sem dinheiro, pedem demissão.
 - **Tempo**: dia de 3 minutos com sol que muda as sombras, noite com lampiões, lanterna do fazendeiro e faróis nas máquinas, e dias de chuva.
-- **Expansão**: no campo principal, compre lotes vizinhos um a um; na loja, compre campos inteiros novos (Leste, Sul e Lago, com 24 a 32 lotes cada), marcados no mapa com placas de venda.
+- **Mapa e lugares**: a sede (casa, carpintaria, armazém, quadro de pedidos e loja) fica em fila na rua principal; em volta há espaço para tudo o que você constrói. Cada obra nova, campo, serraria, Campo de Trigo e pasto começa escolhendo o lugar (o retângulo fica verde onde cabe), e um caminho de terra liga a porta até a rua mais próxima.
+- **Expansão**: no campo principal, compre lotes vizinhos um a um; na loja, compre campos inteiros novos (Colina, Comprido e Vale, com 24 a 32 lotes cada) e escolha onde cada um fica.
 - **Pescaria**: com uma vara (bambu ou fibra) você pesca no lago: lance, espere a mordida (❗) e segure a ação no minigame para manter o peixe na faixa verde. Seis tipos de pesca, com bagres à noite, lagostins na chuva e uma rara carpa dourada.
 - **Clima e mutações**: eventos climáticos (chuva, ventania, neve, sol escaldante, tempestade de raios, arco-íris e eclipse) dão mutações às plantas que estão crescendo. As mutações se acumulam até a planta amadurecer, vão para o item colhido e aumentam o preço de venda conforme a raridade (cada uma soma o seu bônus, de ×1,5 a ×20). Vale também para o Campo de Trigo e para os funcionários.
 - **Cavalo**: no nível 6, com o curral construído, compre um cavalo que pasta perto do portão do curral. Com a sela, monte e cavalgue 1,75× mais rápido (galope com Shift ou com o joystick na borda); use a ação para descer.
@@ -55,11 +56,11 @@ Depois acesse http://localhost:5173. Na primeira vez, precisa de internet para b
 - **Estações do ano**: quatro estações de 7 dias, com culturas da estação mais rápidas, clima e cores próprios.
 - **Vila**: encomendas especiais com prazo, amizade com os moradores (presentes e bônus) e feira com medalhas no fim de cada estação.
 - **Conquistas**: 25 objetivos com prêmios em moedas.
-- **Decoração e celeiro**: decorações colocadas livremente; o celeiro tem limite de espaço e os baús aumentam.
+- **Decoração e armazém**: decorações colocadas livremente; o armazém tem limite de espaço e os baús aumentam.
 - **Corvos e pet**: corvos bicam as plantas se ninguém espantar; espantalhos protegem e o pet corre atrás deles e cava achados todo dia.
 - **Mapa e foto**: mapa com viagem rápida (M) e modo foto (P).
-- **Galinheiro**: obra de madeira (nível 2) ao lado do lago, onde moram as galinhas (até 12 aves). Na casinha, uma ação coleta todos os ovos ou alimenta todas as galinhas.
-- **Pasto**: campo grande a leste do Campo de Trigo, com 30 vagas só para o gado (vacas, touros e bezerros), que come capim e não precisa de trigo.
+- **Galinheiro**: obra de madeira (nível 2) onde moram as galinhas (até 12 aves). Na casinha, uma ação coleta todos os ovos ou alimenta todas as galinhas.
+- **Pasto**: campo grande, no lugar que você escolher, com 30 vagas só para o gado (vacas, touros e bezerros), que come capim e não precisa de trigo.
 - **Esterco e fertilizante**: as vacas fazem cocô no curral; recolha o esterco e leve à composteira, que o transforma em fertilizante. Com a ferramenta Adubar, uma planta crescendo tem 60% de chance de ficar gigante (maior e vale o dobro).
 - **Pet**: uma border collie (nível 3) que segue o jogador, senta quando ele para, corre atrás dos passarinhos e ganha carinho (+10 XP por dia). Dá para trocar o nome.
 - **Fauna de cenário**: sapos na beira do lago (pulam na água se você chega perto), passarinhos que bicam o chão e voam quando alguém se aproxima, bandos no céu, joaninhas, borboletas de dia, coelhos, patos no lago e vaga-lumes à noite.
@@ -85,7 +86,7 @@ Depois acesse http://localhost:5173. Na primeira vez, precisa de internet para b
 - `css/style.css`: interface sobre a cena 3D
 - `js/data.js`: balanceamento (culturas, animais, melhorias)
 - `js/core.js`: regras do jogo e salvamento (sem dependência de renderização)
-- `js/ui.js`: HUD, hotbar, painel da loja/celeiro/pedidos e avisos
+- `js/ui.js`: HUD, hotbar, painel da loja/armazém/pedidos e avisos
 - `js/audio.js`: efeitos sonoros sintetizados
 - `js/world/models.js`: modelos 3D (plantas, fazendeiro, animais, construções, natureza)
 - `js/world/nav.js`: grade de colisão e rotas (A*)

@@ -14,7 +14,7 @@ export const factoryOf = (id) => FACTORIES[id];
 export const recipeOf = (fid, rid) => FACTORIES[fid].recipes.find((r) => r.id === rid) || FACTORIES[fid].recipes[0];
 export const ioText = (o) => Object.entries(o).map(([id, q]) => `${q} ${icon(id)}`).join(' + ');
 
-/** Peixes (sem a bota velha) no celeiro, do mais barato para o mais caro. */
+/** Peixes (sem a bota velha) no armazém, do mais barato para o mais caro. */
 function fishStock() {
   const inv = S().inv;
   return Object.keys(inv)
@@ -23,7 +23,7 @@ function fishStock() {
 }
 const have = (id) => (id === 'peixe' ? fishStock().reduce((s, k) => s + S().inv[k], 0) : S().inv[id] || 0);
 
-/** Quantas vezes dá para fazer a receita com o que há no celeiro. */
+/** Quantas vezes dá para fazer a receita com o que há no armazém. */
 export function canMake(fid, rid) {
   const r = recipeOf(fid, rid);
   return Math.min(...Object.entries(r.in).map(([id, q]) => Math.floor(have(id) / q)));
@@ -150,7 +150,7 @@ export function buyTree(type) {
   if (k < 0) { H.toast('🌳 O pomar está cheio: são 6 covas.', 'bad'); H.sfx('error'); return; }
   if (!H.spend(t.cost)) return;
   Object.assign(S().orchard[k], { type, g: 0, t: 0, fruit: 0 });
-  H.toast(`🌱 Muda de ${t.name.toLowerCase()} plantada no pomar (ao norte do Campo de Trigo). Ela cresce em ~${Math.round(ORCHARD.grow / 180)} dias.`, 'good');
+  H.toast(`🌱 Muda de ${t.name.toLowerCase()} plantada no pomar (atrás da sede, no norte da fazenda). Ela cresce em ~${Math.round(ORCHARD.grow / 180)} dias.`, 'good');
   H.sfx('plant');
   H.emit('tree', type);
   H.dirty('panel');
@@ -394,7 +394,7 @@ function ensureFair() {
   return f;
 }
 
-/** O melhor item do celeiro para a categoria (o mais valioso). */
+/** O melhor item do armazém para a categoria (o mais valioso). */
 export function fairBest(cat) {
   const inv = S().inv;
   return Object.keys(inv).filter((k) => (inv[k] || 0) > 0 && FAIR_CAT(k) === cat).sort((a, b) => core.price(b) - core.price(a))[0] || null;
@@ -436,7 +436,7 @@ const st = (k) => S().stats[k] || 0;
 /** goal: meta; cur(): progresso atual; reward: moedas. */
 export const ACHIEVEMENTS = [
   { id: 'colheita100',  icon: '🧺', name: 'Mão na terra',         desc: 'Colha 100 vezes',                         goal: 100,    cur: () => st('harvest'), reward: 300 },
-  { id: 'colheita1000', icon: '🌾', name: 'Celeiro cheio',        desc: 'Colha 1.000 vezes',                       goal: 1000,   cur: () => st('harvest'), reward: 3000 },
+  { id: 'colheita1000', icon: '🌾', name: 'Armazém cheio',        desc: 'Colha 1.000 vezes',                       goal: 1000,   cur: () => st('harvest'), reward: 3000 },
   { id: 'pedidos50',    icon: '📦', name: 'Amigo da vila',        desc: 'Entregue 50 pedidos',                     goal: 50,     cur: () => st('orders'), reward: 2000 },
   { id: 'encomendas',   icon: '📜', name: 'Encomendas em dia',    desc: 'Entregue 5 encomendas especiais',         goal: 5,      cur: () => st('quests'), reward: 2500 },
   { id: 'moedas',       icon: '💰', name: 'Fazendeiro de sucesso', desc: 'Ganhe 250.000 moedas',                   goal: 250000, cur: () => st('earned'), reward: 5000 },
@@ -509,7 +509,7 @@ export function pickupDecor(k) {
   const it = S().decor[k];
   if (!it) return null;
   if (it.id === 'bau' && core.stored() > core.capacity() - 100) {
-    H.toast('🧰 Esvazie um pouco o celeiro antes de mover este baú.', 'bad');
+    H.toast('🧰 Esvazie um pouco o armazém antes de mover este baú.', 'bad');
     H.sfx('error');
     return null;
   }

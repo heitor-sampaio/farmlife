@@ -12,69 +12,89 @@ import { initCritters, updateCritters, syncPet, updatePet, pet, petInteract, pet
 
 // ================= Layout do mundo =================
 const TILE = 1.08;
-const BOUNDS = { minX: -15, maxX: 79.5, minZ: -10.3, maxZ: 14.5 };
+const BOUNDS = { minX: -36, maxX: 62, minZ: -29, maxZ: 39 };
 const PLAYER_R = 0.28;
 const WALK = 3.4;
 const RUN = 5.6;
 const REACH = 1.0;
-const SPAWN = new THREE.Vector3(0, 0, 4.6);
+const SPAWN = new THREE.Vector3(2.5, 0, -4.2);
 
-const PEN = { x1: -14.2, x2: -7.8, z1: -4.5, z2: 3.5, gate: [-1.0, 0.6] };
-const POND = { x: 8.3, z: 4.6, r: 1.8 };
-// Galinheiro: cercado entre o lago, o Campo do Leste e o do Lago; portão para a rua das fábricas
-const COOP_YARD = { x1: 11.0, x2: 16.5, z1: 2.0, z2: 6.9, gate: [4.0, 5.2], house: [12.35, 2.95] };
+// Sede (fixa): casa, carpintaria, armazém, quadro de pedidos e loja, de frente para a rua principal
+const CORE = { casa: [-15, -12.5], mesa: [-9, -10.5], celeiro: [-3, -12.5], pedidos: [3, -10.2], loja: [8.5, -12] };
+const POND = { x: 21, z: 8, r: 2.4 };
+// Ruas fixas (x1, z1, x2, z2): a principal, a dos campos, a estrada do sul e as calçadas da sede
+const ROADS = [
+  [-34, -7.2, 60, -5.8],
+  [-0.7, -5.8, 0.7, -2.4],
+  [-0.7, 5.4, 0.7, 19.8],
+  [-14, 18.6, 58, 19.8],
+  [-15, -10.6, -13.8, -7.2],
+  [-8.9, -9.7, -7.7, -7.2],
+  [-3.6, -10.6, -2.4, -7.2],
+  [2.4, -9.7, 3.6, -7.2],
+  [7.9, -10.9, 9.1, -7.2],
+];
+const paths = []; // caminhos até as obras, criados quando o jogador escolhe o lugar
+// Áreas fixas onde não dá para construir: sede, campo principal, lago, bosque e pomar
+const RESERVED = [
+  [-17.4, -14.6, -12.6, -10.0], [-10.6, -11.8, -7.4, -9.2], [-5.3, -14.6, 0.2, -10.0], [1.8, -11.0, 4.2, -9.0], [6.9, -13.0, 10.9, -10.2],
+  [-21.8, -13.8, -20.2, -12.2], [11.7, -16.8, 13.3, -15.2],
+  [-4.9, -2.3, 4.9, 5.3],
+  [POND.x - POND.r - 0.8, POND.z - POND.r - 0.8, POND.x + POND.r + 0.8, POND.z + POND.r + 0.8],
+  [-36, -3, -25.5, 22],
+  [14.5, -22.6, 35.2, -18.5],
+];
 
-// Centro de cada campo no mapa
-const FIELD_POS = { principal: [0, 0], leste: [13.6, -1.0], sul: [0, 10.8], lago: [13.6, 10.2] };
+// Lotes: obras, campos, a serraria, o Campo de Trigo e o pasto. O jogador escolhe onde ficam (core.S.layout).
+// ext = retângulo ocupado em volta do ponto do lote (oeste, norte, leste, sul); door = de onde sai o caminho; def = lugar padrão (saves antigos)
+const fieldExt = (f) => { const hw = (f.cols * TILE) / 2 + 0.55, hd = (f.rows * TILE) / 2 + 0.55; return [-hw, -hd, hw, hd]; };
+const LOTS = {
+  curral:     { kind: 'build', ext: [-3.6, -5.0, 5.6, 4.4], def: [-19.3, 0.5], door: [4.2, 0.3] },
+  galinheiro: { kind: 'build', ext: [-3.15, -2.85, 3.75, 2.85], def: [-21.25, 10.45], door: [3.5, 0.15] },
+  queijaria:  { kind: 'build', ext: [-2.2, -1.5, 2.2, 2.4], def: [15.5, -12.5], door: [0, 2.0] },
+  galpao:     { kind: 'build', ext: [-4.2, -2.2, 9.4, 7.4], def: [46, -15], door: [0, 7.2] },
+  serraria:   { kind: 'buy', ext: [-2.6, -2.6, 2.8, 2.8], def: [-20.5, 17], door: [1.3, 1.3] },
+  trigo:      { kind: 'buy', ext: [-14.2, -9, 12.8, 8.8], def: [42, 6] },
+  pasto:      { kind: 'buy', ext: [-15, -8.8, 12.8, 8.8], def: [42, 29] },
+};
+const FAC_DEF = { moinho: [21.5, -12.5], padaria: [27.5, -12.5], tear: [33.5, -12.5], defumadouro: [21, 14.5] };
+for (const [id, f] of Object.entries(FACTORIES)) {
+  LOTS[id] = { kind: 'build', ext: [-f.size[0] / 2 - 0.4, -f.size[1] / 2 - 0.4, f.size[0] / 2 + 0.4, f.size[1] / 2 + 1.3], def: FAC_DEF[id], door: [0, f.size[1] / 2 + 1.0] };
+}
+const FIELD_DEF = { leste: [11, 1.5], sul: [-8, 12], lago: [11, 13] };
+for (const f of FIELDS) if (f.cost) LOTS[f.id] = { kind: 'field', ext: fieldExt(f), def: FIELD_DEF[f.id] };
+
+// Centro de cada campo no mapa (os comprados vêm do lugar escolhido)
+const FIELD_POS = { principal: [0, 1.5], ...FIELD_DEF };
+// Geometria dos lotes, preenchida quando o lote ganha lugar (applyLot)
+let PEN = null, COOP_YARD = null, SHED = null, PAST = null;
+const BIG = { cx: LOTS.trigo.def[0], cz: LOTS.trigo.def[1] };
+let BIG_X0 = BIG.cx - BIG_FIELD.cols / 2;
+let BIG_Z0 = BIG.cz - BIG_FIELD.rows / 2;
 
 const SPOTS = {
-  celeiro: { label: '🛖 Celeiro', at: [-1.5, -8.3], labelY: 4.3, point: [-1.5, -6.0], r: 1.3, text: 'Abrir o Celeiro', info: '🛖 Celeiro: venda sua colheita e veja o mercado do dia.' },
-  loja:    { label: '🏪 Loja', at: [6.5, -7.9], labelY: 2.9, point: [6.5, -6.4], r: 1.3, text: 'Abrir a Loja', info: '🏪 Loja: sementes, animais e melhorias.' },
-  pedidos: { label: '📦 Pedidos', at: [2.6, -6.9], labelY: 2.4, point: [2.6, -6.0], r: 1.1, text: 'Ver os Pedidos', info: '📦 Quadro de pedidos da vila: entregas pagam mais que o mercado.' },
-  casa:    { label: '🏠 Casa', at: [-9.5, -8.4], labelY: 3.9, point: [-8.9, -6.1], r: 1.2, text: 'Dormir até amanhã', info: '🏠 Sua casa. Depois das 18h, durma para pular para a manhã seguinte.' },
-  queijaria: { label: null, site: 'queijaria', at: [12.6, -7.2], labelY: 3.0, point: [12.6, -5.6], r: 1.3, text: '', info: '' },
-  serraria: { label: null, at: [-5.4, 7.0], labelY: 3.1, point: [-4.34, 8.06], r: 1.3, text: '', info: '' },
-  mesa:    { label: '🪚 Carpintaria', at: [-5.6, -8.0], labelY: 2.0, point: [-4.93, -7.33], r: 1.15, text: '', info: '' },
-  'obra:curral': { label: null, at: [-7.25, 1.55], labelY: 1.6, point: [-6.6, 1.2], r: 1.3, build: 'curral', text: '', info: '' },
-  galinheiro: { label: null, site: 'galinheiro', at: COOP_YARD.house, labelY: 2.5, point: [12.6, 4.7], r: 1.4, text: '', info: '' },
-  compost: { label: null, needs: 'curral', at: [-6.6, -5.0], labelY: 1.5, point: [-6.0, -4.4], r: 1.1, text: '', info: '' },
-  cocho:   { label: null, needs: 'curral', at: [-13.5, -0.5], point: [-12.8, -0.5], r: 1.1, text: 'Alimentar todos no cocho', info: '🪵 Cocho: alimenta de uma vez todos os animais com fome (1 🌾 cada).' },
-};
-for (const f of FIELDS) {
-  if (!f.cost) continue;
-  const [cx, cz] = FIELD_POS[f.id];
-  SPOTS['campo:' + f.id] = {
-    label: null, at: [cx, cz], point: [cx, cz + 0.9], r: 1.4, field: f.id,
-    text: `Ver o ${f.name}`,
-    info: `${f.icon} ${f.name} à venda: ${f.count} lotes por 🪙${f.cost.toLocaleString('pt-BR')} (nível ${f.level}). Compre na loja.`,
-  };
-}
-// Campo de Trigo (lavoura mecanizada): células de 1×1 a leste do mapa
-const BIG = { cx: 36, cz: 4.5 };
-const BIG_X0 = BIG.cx - BIG_FIELD.cols / 2;
-const BIG_Z0 = BIG.cz - BIG_FIELD.rows / 2;
-const SHED = [21, -8.3];
-const PAST = { x0: 52, z0: -3.5, x1: 52 + PASTURE.cols, z1: -3.5 + PASTURE.rows, gate: [-2.4, -0.4] };
-SPOTS.pasto = {
-  label: null, at: [50.0, -1.6], point: [50.4, -0.9], r: 1.3, pasture: true,
-  text: `Ver o ${PASTURE.name}`,
-  info: `${PASTURE.icon} ${PASTURE.name} à venda: ${PASTURE.slots} vagas para o gado (que come capim) por 🪙${PASTURE.cost.toLocaleString('pt-BR')} (nível ${PASTURE.level}). Compre na loja.`,
-};
-SPOTS['obra:galpao'] = { label: null, at: SHED, labelY: 2.6, point: [SHED[0], SHED[1] + 2.4], r: 1.6, build: 'galpao', text: '', info: '' };
-SPOTS['campo:trigo'] = {
-  label: null, at: [BIG_X0 + 1.6, BIG.cz], point: [BIG_X0 + 1.6, BIG.cz + 0.9], r: 1.4, big: true,
-  text: `Ver o ${BIG_FIELD.name}`,
-  info: `${BIG_FIELD.icon} ${BIG_FIELD.name} à venda: ${BIG_CELLS} lotes por 🪙${BIG_FIELD.cost.toLocaleString('pt-BR')} (nível ${BIG_FIELD.level}). Compre na loja.`,
+  celeiro: { label: '🏬 Armazém', at: CORE.celeiro, labelY: 4.3, point: [CORE.celeiro[0], CORE.celeiro[1] + 2.3], r: 1.3, text: 'Abrir o Armazém', info: '🏬 Armazém: venda sua colheita e veja o mercado do dia.' },
+  loja:    { label: '🏪 Loja', at: CORE.loja, labelY: 2.9, point: [CORE.loja[0], CORE.loja[1] + 1.5], r: 1.3, text: 'Abrir a Loja', info: '🏪 Loja: sementes, animais e melhorias.' },
+  pedidos: { label: '📦 Pedidos', at: CORE.pedidos, labelY: 2.4, point: [CORE.pedidos[0], CORE.pedidos[1] + 0.9], r: 1.1, text: 'Ver os Pedidos', info: '📦 Quadro de pedidos da vila: entregas pagam mais que o mercado.' },
+  casa:    { label: '🏠 Casa', at: CORE.casa, labelY: 3.9, point: [CORE.casa[0] + 0.6, CORE.casa[1] + 2.3], r: 1.2, text: 'Dormir até amanhã', info: '🏠 Sua casa. Depois das 18h, durma para pular para a manhã seguinte.' },
+  mesa:    { label: '🪚 Carpintaria', at: CORE.mesa, labelY: 2.0, point: [CORE.mesa[0] + 0.67, CORE.mesa[1] + 0.67], r: 1.15, text: '', info: '' },
+  queijaria: { label: null, lot: 'queijaria', site: 'queijaria', at: [0, 0], labelY: 3.0, point: [0, 0], r: 1.3, text: '', info: '' },
+  serraria: { label: null, lot: 'serraria', at: [0, 0], labelY: 3.1, point: [0, 0], r: 1.3, text: '', info: '' },
+  'obra:curral': { label: null, lot: 'curral', at: [0, 0], labelY: 1.6, point: [0, 0], r: 1.3, build: 'curral', text: '', info: '' },
+  galinheiro: { label: null, lot: 'galinheiro', site: 'galinheiro', at: [0, 0], labelY: 2.5, point: [0, 0], r: 1.4, text: '', info: '' },
+  compost: { label: null, lot: 'curral', needs: 'curral', at: [0, 0], labelY: 1.5, point: [0, 0], r: 1.1, text: '', info: '' },
+  cocho:   { label: null, lot: 'curral', needs: 'curral', at: [0, 0], point: [0, 0], r: 1.1, text: 'Alimentar todos no cocho', info: '🪵 Cocho: alimenta de uma vez todos os animais com fome (1 🌾 cada).' },
+  'obra:galpao': { label: null, lot: 'galpao', at: [0, 0], labelY: 2.6, point: [0, 0], r: 1.6, build: 'galpao', text: '', info: '' },
 };
 // Fábricas (obras de madeira), covas do pomar e colmeias
-for (const [id, f] of Object.entries(FACTORIES)) {
-  const [x, z] = f.at;
-  SPOTS[id] = { label: null, site: id, at: [x, z], labelY: id === 'moinho' ? 4.9 : 3.2, point: [x, z + f.size[1] / 2 + 0.75], r: 1.3, text: '', info: '' };
+for (const id of Object.keys(FACTORIES)) {
+  SPOTS[id] = { label: null, lot: id, site: id, at: [0, 0], labelY: id === 'moinho' ? 4.9 : 3.2, point: [0, 0], r: 1.3, text: '', info: '' };
 }
-const ORCHARD_POS = Array.from({ length: ORCHARD.slots }, (_, k) => [33 + k * 2.6, -8.3]);
+const ORCHARD_POS = Array.from({ length: ORCHARD.slots }, (_, k) => [16 + k * 2.6, -20.5]);
 ORCHARD_POS.forEach(([x, z], k) => { SPOTS['pomar:' + k] = { label: null, at: [x, z], labelY: 3.0, point: [x, z + 1.15], r: 1.15, text: '', info: '' }; });
-const HIVE_POS = [[29.9, -9.3], [31.1, -9.3], [29.9, -8.1], [31.1, -8.1]];
-SPOTS.colmeias = { label: null, at: [30.5, -8.7], labelY: 1.9, point: [30.5, -7.2], r: 1.2, text: '', info: '' };
+const HIVE_C = [33.5, -20.5];
+const HIVE_POS = [[-0.6, -0.6], [0.6, -0.6], [-0.6, 0.6], [0.6, 0.6]].map(([dx, dz]) => [HIVE_C[0] + dx, HIVE_C[1] + dz]);
+SPOTS.colmeias = { label: null, at: HIVE_C, labelY: 1.9, point: [HIVE_C[0], HIVE_C[1] + 1.5], r: 1.2, text: '', info: '' };
 
 /** Rótulo, informação e ação de pontos com regras próprias (fábricas, pomar, colmeias). */
 const SPOT_HOOKS = {};
@@ -86,7 +106,7 @@ for (const id of Object.keys(FACTORIES)) {
       const res = sys.factoryUse(id);
       if (res && (res.collected || res.loaded)) {
         startAction('collect');
-        const [x, z] = FACTORIES[id].at;
+        const [x, z] = SPOTS[id].at;
         burst(x, 1, z + 1, res.collected ? 0xf4c27a : 0xffffff, 12, { up: 2.2, spread: 0.8, size: 0.06 });
       } else if (!res) ui.openPanel('oficina');
     },
@@ -128,23 +148,23 @@ SPOT_HOOKS.colmeias = {
     const n = sys.collectHoney();
     if (n) {
       startAction('collect');
-      burst(30.5, 1, -8.7, 0xf2c14e, 12, { up: 2, spread: 0.8, size: 0.05 });
-      const p = screenPosOf({ pos: { x: 30.5, z: -8.7 } });
+      burst(HIVE_C[0], 1, HIVE_C[1], 0xf2c14e, 12, { up: 2, spread: 0.8, size: 0.05 });
+      const p = screenPosOf({ pos: { x: HIVE_C[0], z: HIVE_C[1] } });
       if (p) ui.fxAt(p.x, p.y - 30, `+${n} 🍯`, 'gold');
     } else ui.toast(sys.hiveInfo());
   },
 };
 
-const spotActive = (s) => (s.pasture ? !core.S.pasture
+const spotActive = (s) => (s.lot && !lotPlaced(s.lot) ? false
   : s.build ? !core.built(s.build)
-  : s.needs ? core.built(s.needs)
-  : s.big ? !core.S.big.owned : !s.field || !core.fieldOwned(s.field));
+  : s.needs ? core.built(s.needs) : true);
 /** Construção de madeira associada a um ponto (só enquanto está em obra). */
 const siteOf = (key) => (SPOTS[key].build || SPOTS[key].site || (key === 'celeiro' ? 'celeiro' : null));
 const inWork = (key) => { const b = siteOf(key); return b && !core.built(b) ? b : null; };
 
-// Máquinas: onde ficam estacionadas e como se comportam
-const PARK = { arado: [18.4, -4.6, 0], plantadeira: [22.4, -4.6, 0], colheitadeira: [27.6, -7.0, 0] };
+// Máquinas: estacionam na frente do galpão (posição relativa a ele) e se comportam assim
+const PARK_REL = { arado: [-2.4, 4.4, 0], plantadeira: [1.6, 4.4, 0], colheitadeira: [6.4, 3.6, 0] };
+const parkOf = (id) => (SHED ? [SHED[0] + PARK_REL[id][0], SHED[1] + PARK_REL[id][1], PARK_REL[id][2]] : [SPAWN.x, SPAWN.z, 0]);
 const MDEF = {
   arado:         { make: () => M.makePlowTractor(),   speed: 4.6, turn: 1.9, width: 3, workZ: -1.6,  front: 1.0, reach: 1.9, exhaust: [0.17, 1.55, 0.75], verb: 'Arando' },
   plantadeira:   { make: () => M.makeSeederTractor(), speed: 4.2, turn: 1.8, width: 4, workZ: -1.75, front: 1.0, reach: 1.9, exhaust: [0.17, 1.55, 0.75], verb: 'Plantando' },
@@ -326,19 +346,17 @@ export async function initWorld(cv) {
   buildGround();
   buildFarm();
   buildBuildings();
-  buildPen();
-  buildBigField();
-  buildPasture();
+  migrateLayout();
   buildNature();
   buildGrove();
-  buildSawmill();
-  buildCheesery();
-  buildCoop();
-  buildFactories();
   buildOrchard();
   buildSites();
-  buildCompost();
   buildBench();
+  // Lotes que já têm lugar (obras, campos, serraria, Campo de Trigo e pasto)
+  for (const id of Object.keys(LOTS)) {
+    const p = core.S.layout[id];
+    if (p) { applyLot(id, p.x, p.z); buildLot(id); }
+  }
   buildLights();
   buildRain();
   buildWeatherFx();
@@ -368,10 +386,31 @@ export async function initWorld(cv) {
   resize();
 }
 
+let pathMat = null, borderMat = null;
+/** Faixa de terra batida no chão (ruas e caminhos). */
+function addStrip(x1, z1, x2, z2) {
+  if (!pathMat) pathMat = new THREE.MeshStandardMaterial({ color: 0xcfae74, roughness: 1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(Math.abs(x2 - x1), Math.abs(z2 - z1)), pathMat);
+  m.rotation.x = -Math.PI / 2;
+  m.position.set((x1 + x2) / 2, 0.01, (z1 + z2) / 2);
+  m.receiveShadow = true;
+  scene.add(m);
+}
+/** Borda de terra em volta de um campo. */
+function fieldBorder(f) {
+  if (!borderMat) borderMat = new THREE.MeshStandardMaterial({ color: 0x8a6a45, roughness: 1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+  const [cx, cz] = FIELD_POS[f.id];
+  const border = new THREE.Mesh(new THREE.PlaneGeometry(f.cols * TILE + 0.5, f.rows * TILE + 0.5), borderMat);
+  border.rotation.x = -Math.PI / 2;
+  border.position.set(cx, 0.012, cz);
+  border.receiveShadow = true;
+  scene.add(border);
+}
+
 function buildGround() {
-  const geo = new THREE.PlaneGeometry(200, 140, 100, 70).toNonIndexed();
+  const geo = new THREE.PlaneGeometry(200, 160, 100, 80).toNonIndexed();
   geo.rotateX(-Math.PI / 2);
-  geo.translate(20, 0, 0); // o mapa cresceu para o leste (pasto)
+  geo.translate((BOUNDS.minX + BOUNDS.maxX) / 2, 0, (BOUNDS.minZ + BOUNDS.maxZ) / 2);
   const colors = [];
   const base = new THREE.Color(0x7cc35a);
   const tmp = new THREE.Color();
@@ -385,43 +424,9 @@ function buildGround() {
   scene.add(ground);
   seasonMats.push(ground.material);
 
-  // Caminhos de terra
-  const pathMat = new THREE.MeshStandardMaterial({ color: 0xcfae74, roughness: 1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
-  const strip = (x1, z1, x2, z2) => {
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(Math.abs(x2 - x1), Math.abs(z2 - z1)), pathMat);
-    m.rotation.x = -Math.PI / 2;
-    m.position.set((x1 + x2) / 2, 0.01, (z1 + z2) / 2);
-    m.receiveShadow = true;
-    scene.add(m);
-  };
-  strip(-10.5, -5.65, 8.5, -4.35);
-  strip(-2.1, -6.7, -0.9, -5.6);
-  strip(5.9, -7.3, 7.1, -5.6);
-  strip(-9.5, -7.0, -8.3, -5.6);
-  strip(-0.7, -4.4, 0.7, -3.3);
-  strip(-7.8, -0.85, -4.3, 0.45);
-  strip(4.3, -1.6, 10.4, -0.4);   // até o Campo do Leste
-  strip(-0.6, 3.2, 0.6, 8.7);     // até o Campo do Sul
-  strip(4.3, 10.2, 10.4, 11.4);   // do Sul até o Campo do Lago
-  strip(16.8, -1.6, 24, -0.4);    // do Leste até o Campo de Trigo
-  strip(16.8, -6.6, 30, -3.4);    // pátio do galpão das máquinas
-  strip(8.5, -5.65, 16.8, -4.35);  // da loja até a queijaria e o galpão
-  strip(17.2, -0.4, 18.4, 13.4);   // rua das fábricas (moinho, padaria e tear)
-  strip(0.6, 6.4, 3.0, 7.2);       // até o defumadouro
-  strip(16.5, 4.0, 17.2, 5.2);     // portão do galinheiro
-  strip(30, -5.9, 50.2, -4.7);    // do galpão até o pasto
-  strip(48.9, -4.7, 51.1, -0.6);  // corredor até o portão do pasto
-
-  // Borda de terra em volta de cada campo
-  const borderMat = new THREE.MeshStandardMaterial({ color: 0x8a6a45, roughness: 1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
-  for (const f of FIELDS) {
-    const [cx, cz] = FIELD_POS[f.id];
-    const border = new THREE.Mesh(new THREE.PlaneGeometry(f.cols * TILE + 0.5, f.rows * TILE + 0.5), borderMat);
-    border.rotation.x = -Math.PI / 2;
-    border.position.set(cx, 0.012, cz);
-    border.receiveShadow = true;
-    scene.add(border);
-  }
+  // Ruas de terra e a borda do campo principal (os outros campos ganham borda quando são colocados)
+  for (const [x1, z1, x2, z2] of ROADS) addStrip(x1, z1, x2, z2);
+  fieldBorder(FIELDS[0]);
 
   // Lago
   const pond = new THREE.Mesh(new THREE.CircleGeometry(POND.r, 18), new THREE.MeshStandardMaterial({ color: 0x5fb4e6, roughness: 0.25, metalness: 0.1, flatShading: true }));
@@ -441,36 +446,9 @@ function buildGround() {
   nav.blockCircle(POND.x, POND.z, POND.r + 0.3 + PLAYER_R);
 }
 
-const fieldVis = {};
+const fieldShown = {};
 
 function buildFarm() {
-  for (const f of FIELDS) {
-    if (!f.cost) continue;
-    const [cx, cz] = FIELD_POS[f.id];
-    const g = new THREE.Group();
-    const sign = M.makeSaleSign();
-    sign.position.set(cx, 0, cz);
-    sign.rotation.y = Math.PI / 4; // de frente para a câmera
-    g.add(sign);
-    const { x1, x2, z1, z2 } = fieldRect(f, -0.1);
-    for (const [x, z] of [[x1, z1], [x2, z1], [x1, z2], [x2, z2]]) {
-      const st = M.makeStake();
-      st.position.set(x, 0, z);
-      st.rotation.y = Math.PI / 4;
-      g.add(st);
-    }
-    const label = M.textSprite(`🪧 ${f.name} · 🪙${f.cost.toLocaleString('pt-BR')}`, 0.42);
-    label.position.set(cx, 1.7, cz);
-    g.add(label);
-    scene.add(g);
-    const proxy = new THREE.Mesh(M.GEO.box, new THREE.MeshBasicMaterial({ visible: false }));
-    proxy.scale.set(1.3, 1.6, 0.6);
-    proxy.position.set(cx, 0.8, cz);
-    proxy.userData.pick = { kind: 'spot', key: 'campo:' + f.id };
-    scene.add(proxy);
-    fieldVis[f.id] = { group: g, proxy, owned: null };
-  }
-
   for (let i = 0; i < TOTAL_PLOTS; i++) {
     const group = new THREE.Group();
     group.position.copy(tilePos(i));
@@ -530,34 +508,38 @@ function addSpot(key, model, footprint) {
 }
 
 function buildBuildings() {
+  const [bx, bz] = CORE.celeiro;
   const barn = M.makeBarn();
   const barnSpot = addSpot('celeiro', barn, { size: [4, 3.7, 3.4] });
   sites.celeiro = { model: barn.group, labels: [barnSpot.label] };
-  nav.blockRect(-3.5, -10, 0.5, -6.6, PLAYER_R);
-  nav.blockRect(0.7, -7.95, 1.5, -6.85, PLAYER_R);
+  nav.blockRect(bx - 2, bz - 1.7, bx + 2, bz + 1.7, PLAYER_R);
+  nav.blockRect(bx + 2.2, bz + 0.35, bx + 3.0, bz + 1.45, PLAYER_R);
 
+  const [lx, lz] = CORE.loja;
   addSpot('loja', M.makeShop(), { size: [2.8, 2.4, 1.4] });
-  nav.blockRect(5.2, -8.6, 7.8, -7.2, PLAYER_R);
-  nav.blockRect(7.7, -7.4, 8.6, -6.9, PLAYER_R);
+  nav.blockRect(lx - 1.3, lz - 0.7, lx + 1.3, lz + 0.7, PLAYER_R);
+  nav.blockRect(lx + 1.2, lz + 0.5, lx + 2.1, lz + 1.0, PLAYER_R);
 
+  const [px, pz] = CORE.pedidos;
   addSpot('pedidos', M.makeBoard(), { size: [1.8, 2.0, 0.5] });
-  nav.blockLine(1.85, -6.9, 3.35, -6.9, 0.12 + PLAYER_R);
+  nav.blockLine(px - 0.75, pz, px + 0.75, pz, 0.12 + PLAYER_R);
 
   // Cartinha que pula sobre o quadro quando há pedido novo ou pronto para entregar
   mailLetter = M.emojiSprite('✉️', 0.42);
   mailLetter.visible = false;
   scene.add(mailLetter);
 
+  const [hx, hz] = CORE.casa;
   addSpot('casa', M.makeHouse(), { size: [3.6, 3.4, 3.0] });
-  nav.blockRect(-11.3, -9.9, -7.7, -6.9, PLAYER_R);
-  nav.blockRect(-11.6, -9.4, -10.4, -8.6, PLAYER_R);
+  nav.blockRect(hx - 1.8, hz - 1.5, hx + 1.8, hz + 1.5, PLAYER_R);
+  nav.blockRect(hx - 2.1, hz - 1.0, hx - 0.9, hz - 0.2, PLAYER_R);
 
   const lampBarn = new THREE.PointLight(0xffb84d, 0, 7, 1.5);
-  lampBarn.position.set(-0.45, 1.9, -6.3);
+  lampBarn.position.set(bx + 1.05, 1.9, bz + 2.0);
   const lampHouse = new THREE.PointLight(0xffc861, 0, 7, 1.5);
-  lampHouse.position.set(-10.3, 1.3, -6.5);
+  lampHouse.position.set(hx - 0.8, 1.3, hz + 1.9);
   const lampShop = new THREE.PointLight(0xffd27a, 0, 6, 1.5);
-  lampShop.position.set(6.5, 2.0, -7.0);
+  lampShop.position.set(lx, 2.0, lz + 0.9);
   lampBarn.userData.needs = 'celeiro';
   scene.add(lampBarn, lampHouse, lampShop);
   lamps.push(lampBarn, lampHouse, lampShop);
@@ -575,6 +557,7 @@ function buildPasture() {
     new THREE.MeshStandardMaterial({ color: 0x93d36b, roughness: 1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }),
   );
   seasonMats.push(grass.material);
+  if (seasonShown) { const sz = sys.season(); grass.material.userData.baseColor = grass.material.color.clone(); grass.material.color.multiply(new THREE.Color(sz.tint[0], sz.tint[1], sz.tint[2])); }
   grass.rotation.x = -Math.PI / 2;
   grass.position.set(cx, 0.011, cz);
   grass.receiveShadow = true;
@@ -588,34 +571,20 @@ function buildPasture() {
     o.scale.setScalar(Math.random() < 0.7 ? 1.6 : 1);
     scene.add(o);
   }
-  // Cerca (com portão no lado oeste) ou, enquanto não é comprado, cordinha e estacas
+  // Cerca com portão no lado oeste
   const m = 0.4;
   const lines = [[x0 - m, z0 - m, x1 + m, z0 - m], [x1 + m, z0 - m, x1 + m, z1 + m], [x0 - m, z1 + m, x1 + m, z1 + m],
     [x0 - m, z0 - m, x0 - m, gate[0]], [x0 - m, gate[1], x0 - m, z1 + m]];
-  const fence = new THREE.Group();
-  const rope = new THREE.Group();
   for (const [a, b, c, d] of lines) {
-    fence.add(M.makeFence(a, b, c, d));
+    scene.add(M.makeFence(a, b, c, d));
     nav.blockLine(a, b, c, d, 0.08 + PLAYER_R);
-    const len = Math.hypot(c - a, d - b);
-    const n = Math.max(1, Math.round(len / 3));
-    for (let k = 0; k <= n; k++) {
-      const st = M.makeStake();
-      st.position.set(a + ((c - a) * k) / n, 0, b + ((d - b) * k) / n);
-      rope.add(st);
-    }
-    const line = M.box(Math.abs(c - a) || 0.02, 0.02, Math.abs(d - b) || 0.02, 0xf2f2f2, (a + c) / 2, 0.4, (b + d) / 2);
-    line.castShadow = false;
-    rope.add(line);
   }
-  scene.add(fence, rope);
   // Bebedouro, fardos de feno e árvores de sombra
-  const extras = new THREE.Group();
   const water = new THREE.Group();
   water.add(M.box(0.6, 0.4, 2.2, 0x8a8f96, 0, 0.2, 0));
   water.add(M.box(0.46, 0.04, 2.06, 0x5fb4e6, 0, 0.39, 0));
   water.position.set(x0 + 2.2, 0, gate[1] + 2.4);
-  extras.add(water);
+  scene.add(water);
   nav.blockRect(x0 + 1.9, gate[1] + 1.3, x0 + 2.5, gate[1] + 3.5, PLAYER_R);
   for (const [hx, hz, ry] of [[x0 + 3.2, z0 + 1.6, 0.3], [x0 + 4.4, z0 + 1.4, 1.2], [x0 + 3.8, z0 + 2.6, 2.0]]) {
     const hay = new THREE.Group();
@@ -624,47 +593,20 @@ function buildPasture() {
     hay.add(M.rot(M.cyl(0.41, 0.06, 0xb5893a, -0.12, 0.4, 0), 0, 0, Math.PI / 2));
     hay.position.set(hx, 0, hz);
     hay.rotation.y = ry;
-    extras.add(hay);
+    scene.add(hay);
     nav.blockCircle(hx, hz, 0.4 + PLAYER_R * 0.5);
   }
   for (const [tx, tz] of [[x0 + 9, z0 + 4], [x1 - 5, z1 - 4], [x1 - 9, z0 + 3]]) {
     const t = M.makeTree('round', 1.25);
     t.position.set(tx, 0, tz);
-    extras.add(t);
-    leafTrees.push({ x: tx, z: tz, h: 2.4, pasture: true });
+    scene.add(t);
+    leafTrees.push({ x: tx, z: tz, h: 2.4 });
     nav.blockCircle(tx, tz, 0.4 + PLAYER_R);
   }
-  scene.add(extras);
   const label = M.textSprite(`${PASTURE.icon} ${PASTURE.name}`, 0.5);
   label.position.set(x0 - m, 1.5, (gate[0] + gate[1]) / 2);
   scene.add(label);
-  // Placa de venda no portão
-  const [sx, sz] = SPOTS.pasto.at;
-  const sign = new THREE.Group();
-  const board = M.makeSaleSign();
-  board.position.set(sx, 0, sz);
-  board.rotation.y = Math.PI / 4;
-  sign.add(board);
-  const saleLabel = M.textSprite(`🪧 ${PASTURE.name} · 🪙${PASTURE.cost.toLocaleString('pt-BR')}`, 0.45);
-  saleLabel.position.set(sx, 1.7, sz);
-  sign.add(saleLabel);
-  scene.add(sign);
-  const proxy = new THREE.Mesh(M.GEO.box, new THREE.MeshBasicMaterial({ visible: false }));
-  proxy.scale.set(1.3, 1.6, 0.6);
-  proxy.position.set(sx, 0.8, sz);
-  proxy.userData.pick = { kind: 'spot', key: 'pasto' };
-  scene.add(proxy);
-  pickables.push(proxy);
-  pasture = { fence, rope, extras, label, sign, proxy, shown: null };
-}
-
-function updatePasture() {
-  if (!pasture) return;
-  const on = core.S.pasture;
-  if (pasture.shown === on) return;
-  pasture.shown = on;
-  pasture.fence.visible = pasture.extras.visible = pasture.label.visible = on;
-  pasture.rope.visible = pasture.sign.visible = pasture.proxy.visible = !on;
+  pasture = { label };
 }
 
 function randomPasturePoint() {
@@ -678,7 +620,7 @@ function randomPasturePoint() {
 const pointFor = (a) => { const h = core.homeOf(a); return h === 'pasto' ? randomPasturePoint() : h === 'galinheiro' ? randomCoopPoint() : randomPenPoint(); };
 
 // ================= Campo de Trigo e galpão =================
-let bigTex, bigTexData, bigWheat, bigSign, bigProxy, bigOwnedShown = null;
+let bigTex = null, bigTexData, bigWheat;
 const bigTexKeys = new Uint8Array(BIG_CELLS).fill(255);
 const bigStage = new Int8Array(BIG_CELLS).fill(-2);
 const bigMaskShown = new Int16Array(BIG_CELLS).fill(-1);
@@ -726,43 +668,43 @@ function buildBigField() {
     bigWheat.setColorAt(k, C_WHEAT_GREEN);
   }
   scene.add(bigWheat);
+  bigTexKeys.fill(255);
+  bigStage.fill(-2);
+  bigMaskShown.fill(-1);
 
-  // Cerca nos lados norte, leste e sul. O oeste e o começo do norte (em frente ao galpão) ficam abertos para as máquinas
+  // Cerca nos lados norte, leste e sul. O oeste e o começo do norte ficam abertos para as máquinas
   const fences = [[BIG_X0 + 7, BIG_Z0 - 0.4, x1 + 0.4, BIG_Z0 - 0.4], [x1 + 0.4, BIG_Z0 - 0.4, x1 + 0.4, z1 + 0.4], [BIG_X0 - 0.4, z1 + 0.4, x1 + 0.4, z1 + 0.4]];
   for (const [a, b, c, d] of fences) {
     scene.add(M.makeFence(a, b, c, d));
     nav.blockLine(a, b, c, d, 0.08 + PLAYER_R);
   }
+  const label = M.textSprite(`${BIG_FIELD.icon} ${BIG_FIELD.name}`, 0.5);
+  label.position.set(BIG_X0 - 1, 1.6, BIG.cz);
+  scene.add(label);
+}
 
-  // Placa de venda
-  const [sx, sz] = SPOTS['campo:trigo'].at;
-  bigSign = new THREE.Group();
-  const sign = M.makeSaleSign();
-  sign.position.set(sx, 0, sz);
-  sign.rotation.y = Math.PI / 4;
-  bigSign.add(sign);
-  const label = M.textSprite(`🪧 ${BIG_FIELD.name} · 🪙${BIG_FIELD.cost.toLocaleString('pt-BR')}`, 0.45);
-  label.position.set(sx, 1.7, sz);
-  bigSign.add(label);
-  scene.add(bigSign);
-  bigProxy = new THREE.Mesh(M.GEO.box, new THREE.MeshBasicMaterial({ visible: false }));
-  bigProxy.scale.set(1.3, 1.6, 0.6);
-  bigProxy.position.set(sx, 0.8, sz);
-  bigProxy.userData.pick = { kind: 'spot', key: 'campo:trigo' };
-  scene.add(bigProxy);
-
-  // Galpão das máquinas
+// ================= Galpão das máquinas (obra) =================
+function buildShed() {
+  const [x, z] = SHED;
   const shed = M.makeShed();
-  shed.position.set(SHED[0], 0, SHED[1]);
+  shed.position.set(x, 0, z);
   scene.add(shed);
   const shedLabel = M.textSprite('🚜 Galpão', 0.45);
-  shedLabel.position.set(SHED[0], 3.9, SHED[1]);
+  shedLabel.position.set(x, 3.9, z);
   scene.add(shedLabel);
-  sites.galpao = { model: shed, labels: [shedLabel] };
-  nav.blockLine(SHED[0] - 3.6, SHED[1] - 1.6, SHED[0] + 3.6, SHED[1] - 1.6, 0.1 + PLAYER_R);
-  nav.blockLine(SHED[0] - 3.6, SHED[1] - 1.6, SHED[0] - 3.6, SHED[1] + 1.6, 0.1 + PLAYER_R);
-  nav.blockLine(SHED[0] + 3.6, SHED[1] - 1.6, SHED[0] + 3.6, SHED[1] + 1.6, 0.1 + PLAYER_R);
-  for (const x of [-1.2, 1.2]) nav.blockCircle(SHED[0] + x, SHED[1] + 1.55, 0.1 + PLAYER_R);
+  // Clique no canteiro enquanto é obra
+  const proxy = new THREE.Mesh(M.GEO.box, new THREE.MeshBasicMaterial({ visible: false }));
+  proxy.scale.set(7.2, 2.4, 3.2);
+  proxy.position.set(x, 1.2, z);
+  proxy.userData.pick = { kind: 'spot', key: 'obra:galpao' };
+  scene.add(proxy);
+  pickables.push(proxy);
+  sites.galpao = { model: shed, labels: [shedLabel], proxy };
+  makeSite('galpao', x, z, 7.2, 3.2, 3.0);
+  nav.blockLine(x - 3.6, z - 1.6, x + 3.6, z - 1.6, 0.1 + PLAYER_R);
+  nav.blockLine(x - 3.6, z - 1.6, x - 3.6, z + 1.6, 0.1 + PLAYER_R);
+  nav.blockLine(x + 3.6, z - 1.6, x + 3.6, z + 1.6, 0.1 + PLAYER_R);
+  for (const dx of [-1.2, 1.2]) nav.blockCircle(x + dx, z + 1.55, 0.1 + PLAYER_R);
 }
 
 const C_WHEAT_GREEN = new THREE.Color(0x6fbf3a);
@@ -781,14 +723,8 @@ const UP = new THREE.Vector3(0, 1, 0);
 
 /** Atualiza só o que mudou no Campo de Trigo: cor do chão e altura/cor do trigo. */
 function syncBig() {
+  if (!bigTex) return;
   const b = core.S.big;
-  if (bigOwnedShown !== b.owned) {
-    bigOwnedShown = b.owned;
-    bigSign.visible = !b.owned;
-    const k = pickables.indexOf(bigProxy);
-    if (b.owned && k >= 0) pickables.splice(k, 1);
-    if (!b.owned && k < 0) pickables.push(bigProxy);
-  }
   let texDirty = false, instDirty = false;
   const T = BIG_FIELD.time;
   for (let k = 0; k < BIG_CELLS; k++) {
@@ -851,8 +787,9 @@ function syncMachines() {
       const def = MDEF[id];
       const m = def.make();
       const parked = st.x == null;
-      const pos = new THREE.Vector3(parked ? PARK[id][0] : st.x, 0, parked ? PARK[id][1] : st.z);
-      const heading = parked ? PARK[id][2] : st.h;
+      const park = parkOf(id);
+      const pos = new THREE.Vector3(parked ? park[0] : st.x, 0, parked ? park[1] : st.z);
+      const heading = parked ? park[2] : st.h;
       if (parked) Object.assign(st, { x: pos.x, z: pos.z, h: heading });
       m.root.position.copy(pos);
       m.root.rotation.y = heading;
@@ -1076,13 +1013,14 @@ function buildCoop() {
   scene.add(proxy);
   pickables.push(proxy);
   const feeder = M.makeChickenFeeder();
-  feeder.position.set(15.2, 0, 2.65);
+  feeder.position.set(x1 + 4.2, 0, z1 + 0.65);
   feeder.userData.pick = { kind: 'spot', key: 'galinheiro' };
   scene.add(feeder);
   pickables.push(feeder);
-  nav.blockRect(14.6, 2.4, 16.2, 2.9, PLAYER_R * 0.6);
+  nav.blockRect(x1 + 3.6, z1 + 0.4, x1 + 5.2, z1 + 0.9, PLAYER_R * 0.6);
   coopModel = m;
   sites.galinheiro = { parts, rope, sign: new THREE.Group(), labels: [label], model: m.group, extras: [feeder] };
+  makeSite('galinheiro', hx, hz, 2.9, 1.8, 2.6);
 }
 
 /** Ovos prontos aparecem na cesta da porta do galinheiro. */
@@ -1094,12 +1032,13 @@ function updateCoop() {
 
 function buildPen() {
   const { x1, x2, z1, z2, gate } = PEN;
+  const zc = (z1 + z2) / 2;
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(x2 - x1, z2 - z1),
     new THREE.MeshStandardMaterial({ color: 0xd8c27e, roughness: 1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }),
   );
   ground.rotation.x = -Math.PI / 2;
-  ground.position.set((x1 + x2) / 2, 0.011, (z1 + z2) / 2);
+  ground.position.set((x1 + x2) / 2, 0.011, zc);
   ground.receiveShadow = true;
   scene.add(ground);
 
@@ -1113,16 +1052,37 @@ function buildPen() {
   trough.userData.pick = { kind: 'spot', key: 'cocho' };
   scene.add(trough);
   pickables.push(trough);
-  nav.blockRect(-13.8, -1.25, -13.2, 0.25, PLAYER_R);
+  nav.blockRect(x1 + 0.4, zc - 0.75, x1 + 1.0, zc + 0.75, PLAYER_R);
   sites.curral = { parts, rope, labels: [label], extras: [trough] };
 
   // Silo do alimentador automático (aparece quando a melhoria é comprada)
   feeder = M.makeFeeder();
-  feeder.position.set(-13.55, 0, -2.0);
+  feeder.position.set(x1 + 0.65, 0, zc - 1.5);
   feeder.visible = false;
   scene.add(feeder);
-  nav.blockCircle(-13.55, -2.0, 0.4 + PLAYER_R);
+  nav.blockCircle(x1 + 0.65, zc - 1.5, 0.4 + PLAYER_R);
+
+  // Placa da obra no portão (some quando o curral fica pronto)
+  const st = sites.curral;
+  const [sx, sz] = SPOTS['obra:curral'].at;
+  st.sign = M.makeSaleSign();
+  st.sign.position.set(sx, 0, sz);
+  st.sign.rotation.y = Math.PI / 2;
+  scene.add(st.sign);
+  st.siteLabel = M.textSprite(`🏗️ ${BUILDINGS.curral.name}`, 0.42);
+  st.siteLabel.position.set(sx, 1.7, sz);
+  scene.add(st.siteLabel);
+  const signProxy = new THREE.Mesh(M.GEO.box, new THREE.MeshBasicMaterial({ visible: false }));
+  signProxy.scale.set(0.6, 1.4, 1.3);
+  signProxy.position.set(sx, 0.7, sz);
+  signProxy.userData.pick = { kind: 'spot', key: 'obra:curral' };
+  scene.add(signProxy);
+  pickables.push(signProxy);
+  st.proxy = signProxy;
+  buildCompost();
 }
+
+const scatter = []; // flores, tufos e pedras soltos (saem do caminho quando algo é construído em cima)
 
 function buildNature() {
   const put = (obj, x, z, ry = Math.random() * Math.PI * 2) => {
@@ -1131,53 +1091,33 @@ function buildNature() {
     scene.add(obj);
     return obj;
   };
+  const B = BOUNDS;
   // Árvores altas só no fundo e à esquerda (não escondem o personagem)
   const tree = (kind, s, x, z) => {
     put(M.makeTree(kind, s), x, z);
     if (kind !== 'pine') leafTrees.push({ x, z, h: 1.9 * s });
   };
-  for (let x = -24; x <= 86; x += rand(1.6, 2.6)) tree(Math.random() < 0.55 ? 'pine' : 'round', rand(0.9, 1.35), x, rand(-13.2, -11.4));
-  for (let x = -22; x <= 86; x += rand(2.2, 3.4)) tree(Math.random() < 0.5 ? 'pine' : 'round', rand(1.0, 1.5), x, rand(-16.5, -14.5));
-  for (let z = -10; z <= 4; z += rand(1.6, 2.4)) tree(Math.random() < 0.6 ? 'pine' : 'round', rand(0.9, 1.3), rand(-17.8, -16.2), z);
-  tree('apple', 1.1, -13.3, -8.6);
-  tree('apple', 1.0, 9.8, -9.2);
-  nav.blockCircle(-13.3, -8.6, 0.35 + PLAYER_R);
-  nav.blockCircle(9.8, -9.2, 0.35 + PLAYER_R);
+  for (let x = B.minX - 8; x <= B.maxX + 6; x += rand(1.6, 2.6)) tree(Math.random() < 0.55 ? 'pine' : 'round', rand(0.9, 1.35), x, rand(B.minZ - 2.9, B.minZ - 1.1));
+  for (let x = B.minX - 6; x <= B.maxX + 6; x += rand(2.2, 3.4)) tree(Math.random() < 0.5 ? 'pine' : 'round', rand(1.0, 1.5), x, rand(B.minZ - 6.2, B.minZ - 4.2));
+  for (let z = B.minZ; z <= B.maxZ - 6; z += rand(1.6, 2.4)) tree(Math.random() < 0.6 ? 'pine' : 'round', rand(0.9, 1.3), rand(B.minX - 2.8, B.minX - 1.2), z);
+  for (const [x, z, s] of [[-21, -13, 1.1], [12.5, -16, 1.0]]) {
+    tree('apple', s, x, z);
+    nav.blockCircle(x, z, 0.35 + PLAYER_R);
+  }
 
-  // Arbustos, pedras e flores nas bordas da frente e da direita
-  for (let x = -16; x <= 80; x += rand(1.2, 2.2)) put(M.makeBush(rand(0.8, 1.2)), x, rand(15.3, 16.1));
-  for (let z = -9; z <= 15; z += rand(1.2, 2.2)) put(M.makeBush(rand(0.8, 1.2)), rand(80.3, 81.1), z);
-  for (let z = 5; z <= 15; z += rand(1.4, 2)) put(M.makeBush(rand(0.8, 1.1)), rand(-16.2, -15.6), z);
+  // Arbustos nas bordas da frente e da direita
+  for (let x = B.minX - 1; x <= B.maxX + 1; x += rand(1.2, 2.2)) put(M.makeBush(rand(0.8, 1.2)), x, rand(B.maxZ + 0.8, B.maxZ + 1.6));
+  for (let z = B.minZ + 1; z <= B.maxZ + 1; z += rand(1.2, 2.2)) put(M.makeBush(rand(0.8, 1.2)), rand(B.maxX + 0.8, B.maxX + 1.6), z);
+  for (let z = B.maxZ - 8; z <= B.maxZ + 1; z += rand(1.4, 2)) put(M.makeBush(rand(0.8, 1.1)), rand(B.minX - 1.2, B.minX - 0.6), z);
+  // Flores, tufos e pedras pela grama livre
   const flowerColors = [0xff6f91, 0xffffff, 0xffd54f, 0xba68c8, 0xff8a65, 0x64b5f6];
-  const inField = (x, z) => FIELDS.some((f) => { const q = fieldRect(f, 0.5); return x > q.x1 && x < q.x2 && z > q.z1 && z < q.z2; });
-  const blocked = (x, z) =>
-    inField(x, z) ||
-    Math.hypot(x - SPOTS.serraria.at[0], z - SPOTS.serraria.at[1]) < 2.8 ||
-    CHOP_TREES.some(([tx, tz]) => Math.hypot(x - tx, z - tz) < 0.6) ||
-    (x > BIG_X0 - 1.5 && x < BIG_X0 + BIG_FIELD.cols + 1.5 && z > BIG_Z0 - 1.5 && z < BIG_Z0 + BIG_FIELD.rows + 1.5) ||
-    (x > PAST.x0 - 1 && x < PAST.x1 + 1 && z > PAST.z0 - 1 && z < PAST.z1 + 1) ||
-    (x > 29 && x < 51.5 && z > -6.2 && z < -0.3) ||
-    (x > 16 && x < 30 && z < -3) ||
-    (x > 16.5 && x < 24.5 && z > -2.1 && z < 0.1) ||
-    (x > 3.8 && x < 10.9 && z > -2.1 && z < 0.1) ||
-    (x > -1.1 && x < 1.1 && z > 2.7 && z < 9.2) ||
-    (x > 3.8 && x < 10.9 && z > 9.7 && z < 11.9) ||
-    (x > PEN.x1 - 0.5 && x < PEN.x2 + 0.5 && z > PEN.z1 - 0.5 && z < PEN.z2 + 0.5) ||
-    (x > COOP_YARD.x1 - 0.6 && x < COOP_YARD.x2 + 0.8 && z > COOP_YARD.z1 - 0.6 && z < COOP_YARD.z2 + 0.6) ||
-    (z < -3.8 && z > -10.5 && x > -12 && x < 9) ||
-    (z < -4 && z > -9 && x > 9 && x < 17) ||
-    (x > 17 && x < 24 && z > 0.5 && z < 14) ||
-    (x > 2.6 && x < 6 && z > 5.2 && z < 8.3) ||
-    (x > 29 && x < 48.5 && z > -10.3 && z < -6.6) ||
-    Math.hypot(x - POND.x, z - POND.z) < POND.r + 0.6 ||
-    (z > -1.2 && z < 0.8 && x > -8 && x < -4);
-  for (let k = 0; k < 150; k++) {
-    const x = rand(BOUNDS.minX, BOUNDS.maxX), z = rand(BOUNDS.minZ, BOUNDS.maxZ + 0.5);
-    if (blocked(x, z)) continue;
+  for (let k = 0; k < 340; k++) {
+    const x = rand(B.minX, B.maxX), z = rand(B.minZ, B.maxZ + 0.5);
+    if (occupied(x, z, 0.5, true) || CHOP_TREES.some(([tx, tz]) => Math.hypot(x - tx, z - tz) < 0.6)) continue;
     const r = Math.random();
-    if (r < 0.6) put(M.makeFlower(flowerColors[k % flowerColors.length]), x, z);
-    else if (r < 0.85) put(M.makeGrassTuft(), x, z);
-    else put(M.makeRock(rand(0.5, 1)), x, z);
+    const o = r < 0.6 ? M.makeFlower(flowerColors[k % flowerColors.length]) : r < 0.85 ? M.makeGrassTuft() : M.makeRock(rand(0.5, 1));
+    put(o, x, z);
+    scatter.push({ o, x, z });
   }
 }
 
@@ -1471,14 +1411,15 @@ function guidePos(d) {
   }
   if (d.spot) {
     const sp = SPOTS[d.spot];
+    if (!sp || (sp.lot && !lotPlaced(sp.lot))) return null;
     return { x: sp.at[0], z: sp.at[1], h: (sp.labelY || 1.4) + 0.55, gx: sp.point[0], gz: sp.point[1], gy: 0.04 };
   }
   if (d.pond) return { x: POND.x, z: POND.z, h: 1.3 };
   if (d.horse) return horse ? { x: horse.pos.x, z: horse.pos.z, h: 2.6, gx: horse.pos.x, gz: horse.pos.z, gy: 0.04 } : null;
   if (d.tree != null) { const v = grove[d.tree]; return v ? { x: v.x, z: v.z, h: 3.3 } : null; }
-  if (d.field) { const [x, z] = FIELD_POS[d.field]; return { x, z, h: 1.6 }; }
-  if (d.big) return { x: BIG_X0 + 2, z: BIG.cz, h: 1.8 };
-  if (d.pasture) return { x: PAST.x0 + 3, z: (PAST.gate[0] + PAST.gate[1]) / 2, h: 2 };
+  if (d.field) { if (!lotPlaced(d.field)) return null; const [x, z] = FIELD_POS[d.field]; return { x, z, h: 1.6 }; }
+  if (d.big) return lotPlaced('trigo') ? { x: BIG_X0 + 2, z: BIG.cz, h: 1.8 } : null;
+  if (d.pasture) return PAST ? { x: PAST.x0 + 3, z: (PAST.gate[0] + PAST.gate[1]) / 2, h: 2 } : null;
   if (d.machine) {
     const v = machines.get(d.machine);
     return v ? { x: v.pos.x, z: v.pos.z, h: v.id === 'colheitadeira' ? 3.7 : 2.5, gx: v.pos.x, gz: v.pos.z, gy: 0.04 } : null;
@@ -1520,21 +1461,28 @@ function updateGuide(dt) {
 }
 
 // ================= Fauna: lugares livres =================
-/** Ponto de grama livre (fora de campos, curral e lago), para os bichos de cenário. */
-function inFieldOrPond(x, z) {
-  if (FIELDS.some((f) => { const q = fieldRect(f, 0.6); return x > q.x1 && x < q.x2 && z > q.z1 && z < q.z2; })) return true;
-  if (x > PEN.x1 - 0.5 && x < PEN.x2 + 0.5 && z > PEN.z1 - 0.5 && z < PEN.z2 + 0.5) return true;
-  if (x > COOP_YARD.x1 - 0.5 && x < COOP_YARD.x2 + 0.5 && z > COOP_YARD.z1 - 0.5 && z < COOP_YARD.z2 + 0.5) return true;
-  if (x > BIG_X0 - 1 && z > BIG_Z0 - 1 && z < BIG_Z0 + BIG_FIELD.rows + 1) return true; // (inclui o pasto, mais a leste)
-  return Math.hypot(x - POND.x, z - POND.z) < POND.r + 0.8;
+/** Ponto ocupado por algo (campos, cercados, obras, lago; com roads = true também ruas e sede)? */
+function occupied(x, z, m = 0.5, roads = false) {
+  const inR = (q) => x > q[0] - m && x < q[2] + m && z > q[1] - m && z < q[3] + m;
+  for (const [id, p] of Object.entries(core.S.layout || {})) {
+    if (!LOTS[id]) continue;
+    const e = LOTS[id].ext;
+    if (inR([p.x + e[0], p.z + e[1], p.x + e[2], p.z + e[3]])) return true;
+  }
+  if (Math.hypot(x - POND.x, z - POND.z) < POND.r + m) return true;
+  if (inR(RESERVED[7])) return true; // campo principal
+  if (!roads) return false;
+  return RESERVED.some(inR) || ROADS.some(inR) || paths.some(inR);
 }
+/** Ponto de grama livre (fora de campos, cercados e lago), para os bichos de cenário. */
+const inFieldOrPond = (x, z) => occupied(x, z, 0.6);
 
 function randomSpot() {
   for (let k = 0; k < 80; k++) {
-    const x = rand(-13.5, 18), z = rand(-9.5, 14);
+    const x = rand(-24, 36), z = rand(-17, 26);
     if (nav.free(x, z) && !inFieldOrPond(x, z)) return { x, z };
   }
-  return { x: 3, z: 6 };
+  return { x: 6, z: -3 };
 }
 
 // ================= Câmera =================
@@ -1560,7 +1508,7 @@ export function zoomBy(f) {
 }
 
 function updateCamera(dt) {
-  const want = focus ? 0.3 : driving ? 1.4 : riding ? 1.15 : 1;
+  const want = focus ? 0.3 : lotPlacing ? (LOTS[lotPlacing.id].ext[2] - LOTS[lotPlacing.id].ext[0] > 15 ? 2.4 : 1.5) : driving ? 1.4 : riding ? 1.15 : 1;
   if (Math.abs(zoomMult - want) > 0.002) {
     zoomMult += (want - zoomMult) * Math.min(1, dt * 2);
     resize();
@@ -1732,16 +1680,11 @@ function actionEffect(kind, pos, extra) {
 // ================= Lavoura (sincroniza com o estado) =================
 function syncFields() {
   for (const f of FIELDS) {
-    const v = fieldVis[f.id];
-    if (!v) continue;
-    const owned = core.fieldOwned(f.id);
-    if (v.owned === owned) continue;
-    const justBought = owned && v.owned === false;
-    v.owned = owned;
-    v.group.visible = !owned;
-    const k = pickables.indexOf(v.proxy);
-    if (owned && k >= 0) pickables.splice(k, 1);
-    if (!owned && k < 0) pickables.push(v.proxy);
+    if (!f.cost) continue;
+    const owned = core.fieldOwned(f.id) && lotPlaced(f.id);
+    if (fieldShown[f.id] === owned) continue;
+    const justBought = owned && fieldShown[f.id] === false;
+    fieldShown[f.id] = owned;
     for (let i = f.start; i < f.start + f.count; i++) plotVis[i].group.visible = owned;
     if (justBought) actionEffect('buy', { x: FIELD_POS[f.id][0], z: FIELD_POS[f.id][1] });
   }
@@ -1842,10 +1785,12 @@ function animatePlots() {
 
 // ================= Animais =================
 function randomPenPoint() {
+  if (!PEN) return new THREE.Vector3(SPOTS.celeiro.point[0] + 2, 0, SPOTS.celeiro.point[1] + 1);
+  const zc = (PEN.z1 + PEN.z2) / 2;
   for (let k = 0; k < 20; k++) {
     const x = rand(PEN.x1 + 0.6, PEN.x2 - 0.6);
     const z = rand(PEN.z1 + 0.6, PEN.z2 - 0.6);
-    if (x < -12.6 && z > -2.7 && z < 0.8) continue; // longe do cocho e do silo
+    if (x < PEN.x1 + 1.6 && z > zc - 2.2 && z < zc + 1.3) continue; // longe do cocho e do silo
     return new THREE.Vector3(x, 0, z);
   }
   return new THREE.Vector3((PEN.x1 + PEN.x2) / 2, 0, (PEN.z1 + PEN.z2) / 2);
@@ -1855,11 +1800,11 @@ function randomCoopPoint() {
   const { x1, x2, z1, z2 } = COOP_YARD;
   for (let k = 0; k < 20; k++) {
     const x = rand(x1 + 0.5, x2 - 0.5), z = rand(z1 + 0.5, z2 - 0.5);
-    if (x < 14.3 && z < 4.4) continue; // casinha e rampa
-    if (x > 14.4 && z < 3.3) continue; // comedouro
+    if (x < x1 + 3.3 && z < z1 + 2.4) continue; // casinha e rampa
+    if (x > x1 + 3.4 && z < z1 + 1.3) continue; // comedouro
     return new THREE.Vector3(x, 0, z);
   }
-  return new THREE.Vector3(14.6, 0, 5.6);
+  return new THREE.Vector3(x1 + 3.6, 0, z1 + 3.6);
 }
 
 const ANIMAL_H = { galinha: 0.7, ovelha: 1.05, vaca: 1.3, porco: 0.85 };
@@ -1867,7 +1812,7 @@ const ANIMAL_SPEED = { galinha: 1.0, ovelha: 0.6, vaca: 0.5, porco: 0.65 };
 
 function syncAnimals() {
   const S = core.S;
-  feeder.visible = S.up.alimentador > 0;
+  if (feeder) feeder.visible = S.up.alimentador > 0;
   const ids = new Set();
   for (const a of S.animals) {
     ids.add(a.id);
@@ -2068,49 +2013,22 @@ function performJob(job) {
 const sites = {};
 const easeOutBack = (t) => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); };
 
-function buildSites() {
-  const make = (id, key, w, d, labelY) => {
-    const st = sites[id];
-    const [x, z] = SPOTS[key].at;
-    const c = M.makeConstruction(w, d);
-    c.group.position.set(x, 0, z);
-    scene.add(c.group);
-    st.site = c;
-    st.siteLabel = M.textSprite(`🏗️ ${BUILDINGS[id].name}`, 0.45);
-    st.siteLabel.position.set(x, labelY, z);
-    scene.add(st.siteLabel);
-  };
-  make('celeiro', 'celeiro', 4.2, 3.6, 3.0);
-  make('galpao', 'obra:galpao', 7.2, 3.2, 3.0);
-  make('queijaria', 'queijaria', 3.4, 2.4, 3.0);
-  make('galinheiro', 'galinheiro', 2.9, 1.8, 2.6);
-  for (const [id, f] of Object.entries(FACTORIES)) make(id, id, f.size[0] + 0.3, f.size[1] + 0.3, 3.0);
-  // Clique no canteiro do galpão (o do celeiro usa o volume do próprio celeiro)
-  const proxy = new THREE.Mesh(M.GEO.box, new THREE.MeshBasicMaterial({ visible: false }));
-  proxy.scale.set(7.2, 2.4, 3.2);
-  proxy.position.set(SHED[0], 1.2, SHED[1]);
-  proxy.userData.pick = { kind: 'spot', key: 'obra:galpao' };
-  scene.add(proxy);
-  pickables.push(proxy);
-  sites.galpao.proxy = proxy;
-  // Curral: placa da obra no portão
-  const st = sites.curral;
-  const [x, z] = SPOTS['obra:curral'].at;
-  st.sign = M.makeSaleSign();
-  st.sign.position.set(x, 0, z);
-  st.sign.rotation.y = Math.PI / 2;
-  scene.add(st.sign);
-  st.siteLabel = M.textSprite(`🏗️ ${BUILDINGS.curral.name}`, 0.42);
-  st.siteLabel.position.set(x, 1.7, z);
+/** Canteiro (andaimes e placa) de uma obra, no lugar dela. */
+function makeSite(id, x, z, w, d, labelY) {
+  const st = sites[id];
+  const c = M.makeConstruction(w, d);
+  c.group.position.set(x, 0, z);
+  scene.add(c.group);
+  st.site = c;
+  st.siteLabel = M.textSprite(`🏗️ ${BUILDINGS[id].name}`, 0.45);
+  st.siteLabel.position.set(x, labelY, z);
   scene.add(st.siteLabel);
-  const signProxy = new THREE.Mesh(M.GEO.box, new THREE.MeshBasicMaterial({ visible: false }));
-  signProxy.scale.set(0.6, 1.4, 1.3);
-  signProxy.position.set(x, 0.7, z);
-  signProxy.userData.pick = { kind: 'spot', key: 'obra:curral' };
-  scene.add(signProxy);
-  pickables.push(signProxy);
-  st.proxy = signProxy;
-  // (sem bloquear a navegação: a placa fica ao lado do portão e some quando a obra termina)
+}
+
+/** O armazém é a obra fixa da sede; as outras ganham canteiro quando o jogador escolhe o lugar. */
+function buildSites() {
+  const [x, z] = SPOTS.celeiro.at;
+  makeSite('celeiro', x, z, 4.2, 3.6, 3.0);
 }
 
 function updateSites(dt) {
@@ -2206,7 +2124,7 @@ function randomPoopPos() {
   for (let tries = 0; tries < 30; tries++) {
     const x = rand(PEN.x1 + 0.6, PEN.x2 - 0.6), z = rand(PEN.z1 + 0.6, PEN.z2 - 0.6);
     if (Math.hypot(x - SPOTS.cocho.at[0], z - SPOTS.cocho.at[1]) < 1.4) continue;
-    if (Math.hypot(x + 13.55, z + 2.0) < 1.0) continue;
+    if (Math.hypot(x - (PEN.x1 + 0.65), z - ((PEN.z1 + PEN.z2) / 2 - 1.5)) < 1.0) continue;
     if (poopPos.some((p) => p && Math.hypot(p.x - x, p.z - z) < 0.6)) continue;
     return { x, z };
   }
@@ -2411,7 +2329,8 @@ function updateLights(dt) {
 }
 
 // ================= Cavalo =================
-const HORSE_HOME = [-6.3, 1.9]; // perto do portão do curral
+/** Onde o cavalo pasta: perto do portão do curral (ou da sede, sem curral). */
+const horseHome = () => (PEN ? [PEN.x2 + 1.5, (PEN.z1 + PEN.z2) / 2 + 2.4] : [SPAWN.x + 3, SPAWN.z]);
 const SADDLE_Y = 0.98;          // altura do fazendeiro montado
 let horse = null;
 let riding = false;
@@ -2420,7 +2339,8 @@ function syncHorse() {
   const H = core.S.horse;
   if (H.owned && !horse) {
     const m = M.makeHorse();
-    const x = H.x ?? HORSE_HOME[0], z = H.z ?? HORSE_HOME[1];
+    const home = horseHome();
+    const x = H.x ?? home[0], z = H.z ?? home[1];
     const pos = new THREE.Vector3(x, 0, z);
     m.root.position.copy(pos);
     m.root.userData.pick = { kind: 'horse' };
@@ -2573,6 +2493,7 @@ function buildCheesery() {
   nav.blockRect(x - 1.85, z - 1.05, x + 1.85, z + 1.05, PLAYER_R * 0.6);
   cheesery = { model };
   sites.queijaria = { model: model.group, labels: [label] };
+  makeSite('queijaria', x, z, 3.4, 2.4, 3.0);
 }
 
 function updateCheesery() {
@@ -2587,25 +2508,25 @@ function updateCheesery() {
 const factoryVis = {};
 const FACTORY_MODEL = { moinho: () => M.makeWindmill(), padaria: () => M.makeBakery(), tear: () => M.makeLoomHouse(), defumadouro: () => M.makeSmokehouse() };
 
-function buildFactories() {
-  for (const [id, f] of Object.entries(FACTORIES)) {
-    const [x, z] = f.at;
-    const m = FACTORY_MODEL[id]();
-    m.group.position.set(x, 0, z);
-    scene.add(m.group);
-    const label = M.textSprite(`${f.icon} ${f.name}`, 0.5);
-    label.position.set(x, SPOTS[id].labelY, z);
-    scene.add(label);
-    const proxy = new THREE.Mesh(M.GEO.box, new THREE.MeshBasicMaterial({ visible: false }));
-    proxy.scale.set(f.size[0], 2.6, f.size[1]);
-    proxy.position.set(x, 1.3, z);
-    proxy.userData.pick = { kind: 'spot', key: id };
-    scene.add(proxy);
-    pickables.push(proxy);
-    nav.blockRect(x - f.size[0] / 2, z - f.size[1] / 2, x + f.size[0] / 2, z + f.size[1] / 2, PLAYER_R * 0.6);
-    factoryVis[id] = { m, smokeT: 0 };
-    sites[id] = { model: m.group, labels: [label] };
-  }
+function buildFactory(id) {
+  const f = FACTORIES[id];
+  const [x, z] = SPOTS[id].at;
+  const m = FACTORY_MODEL[id]();
+  m.group.position.set(x, 0, z);
+  scene.add(m.group);
+  const label = M.textSprite(`${f.icon} ${f.name}`, 0.5);
+  label.position.set(x, SPOTS[id].labelY, z);
+  scene.add(label);
+  const proxy = new THREE.Mesh(M.GEO.box, new THREE.MeshBasicMaterial({ visible: false }));
+  proxy.scale.set(f.size[0], 2.6, f.size[1]);
+  proxy.position.set(x, 1.3, z);
+  proxy.userData.pick = { kind: 'spot', key: id };
+  scene.add(proxy);
+  pickables.push(proxy);
+  nav.blockRect(x - f.size[0] / 2, z - f.size[1] / 2, x + f.size[0] / 2, z + f.size[1] / 2, PLAYER_R * 0.6);
+  factoryVis[id] = { m, smokeT: 0 };
+  sites[id] = { model: m.group, labels: [label] };
+  makeSite(id, x, z, f.size[0] + 0.3, f.size[1] + 0.3, 3.0);
 }
 
 function updateFactoryVis(dt) {
@@ -2617,7 +2538,7 @@ function updateFactoryVis(dt) {
       v.smokeT -= dt;
       if (v.smokeT <= 0) {
         v.smokeT = 0.35;
-        const [x, z] = FACTORIES[id].at;
+        const [x, z] = SPOTS[id].at;
         burst(x + v.m.smoke.x, v.m.smoke.y, z + v.m.smoke.z, 0xd0d0d0, 2, { up: 1.2, spread: 0.15, size: 0.12, life: 1.6, gravity: -0.6 });
       }
     }
@@ -2731,22 +2652,24 @@ function updateLeaves(dt) {
 // ================= Mapa e viagem rápida =================
 /** Lugares para onde dá para viajar pelo mapa. */
 export function mapPlaces() {
-  const S = core.S;
+  const sp = (k) => SPOTS[k].point;
   const list = [
-    { id: 'casa', icon: '🏠', name: 'Casa', x: -8.9, z: -6.1 },
-    { id: 'loja', icon: '🏪', name: 'Loja', x: 6.5, z: -6.2 },
-    { id: 'celeiro', icon: '🛖', name: 'Celeiro', x: -1.5, z: -5.9 },
-    { id: 'curral', icon: '🐾', name: 'Curral', x: -6.6, z: -0.2 },
-    { id: 'galinheiro', icon: '🐔', name: 'Galinheiro', x: 17.0, z: 4.6 },
-    { id: 'bosque', icon: '🌲', name: 'Bosque', x: -9.6, z: 7.4 },
-    { id: 'lago', icon: '🎣', name: 'Lago', x: POND.x - 2.5, z: POND.z - 1.6 },
-    { id: 'fabricas', icon: '🏭', name: 'Fábricas', x: 17.8, z: 6.0 },
-    { id: 'queijaria', icon: '🧀', name: 'Queijaria', x: 12.6, z: -5.4 },
-    { id: 'galpao', icon: '🚜', name: 'Galpão', x: 21, z: -5.6 },
-    { id: 'pomar', icon: '🌳', name: 'Pomar', x: 38, z: -6.4 },
+    { id: 'casa', icon: '🏠', name: 'Casa', x: sp('casa')[0], z: sp('casa')[1] },
+    { id: 'celeiro', icon: '🏬', name: 'Armazém', x: sp('celeiro')[0], z: sp('celeiro')[1] },
+    { id: 'loja', icon: '🏪', name: 'Loja', x: sp('loja')[0], z: sp('loja')[1] },
+    { id: 'lago', icon: '🎣', name: 'Lago', x: POND.x - POND.r - 1, z: POND.z },
+    { id: 'bosque', icon: '🌲', name: 'Bosque', x: -24.5, z: 9 },
+    { id: 'pomar', icon: '🌳', name: 'Pomar', x: ORCHARD_POS[2][0] + 1.3, z: ORCHARD_POS[0][1] + 2 },
   ];
-  if (S.big.owned) list.push({ id: 'trigo', icon: '🌾', name: 'Campo de Trigo', x: BIG_X0 - 0.6, z: BIG.cz });
-  if (S.pasture) list.push({ id: 'pasto', icon: '🌿', name: 'Pasto', x: PAST.x0 + 1.5, z: (PAST.gate[0] + PAST.gate[1]) / 2 });
+  const add = (id, icon, name, key) => { if (lotPlaced(id)) list.push({ id, icon, name, x: sp(key)[0], z: sp(key)[1] }); };
+  add('curral', '🐾', 'Curral', 'obra:curral');
+  add('galinheiro', '🐔', 'Galinheiro', 'galinheiro');
+  add('queijaria', '🧀', 'Queijaria', 'queijaria');
+  for (const [id, f] of Object.entries(FACTORIES)) add(id, f.icon, f.name, id);
+  add('galpao', '🚜', 'Galpão', 'obra:galpao');
+  add('serraria', '🪚', 'Serraria', 'serraria');
+  if (lotPlaced('trigo')) list.push({ id: 'trigo', icon: '🌾', name: 'Campo de Trigo', x: BIG_X0 - 0.6, z: BIG.cz });
+  if (PAST) list.push({ id: 'pasto', icon: '🌿', name: 'Pasto', x: PAST.x0 - 1.5, z: (PAST.gate[0] + PAST.gate[1]) / 2 });
   return list;
 }
 export const mapBounds = () => ({ minX: BOUNDS.minX, maxX: BOUNDS.maxX, minZ: BOUNDS.minZ, maxZ: BOUNDS.maxZ });
@@ -2769,20 +2692,19 @@ export function drawMap(ctx, W, H) {
   };
   ctx.fillStyle = '#86c95f';
   ctx.fillRect(0, 0, W, H);
-  // Caminhos
+  // Ruas e caminhos
   ctx.fillStyle = '#d8bb85';
-  for (const [x1, z1, x2, z2] of [[-10.5, -5.65, 16.8, -4.35], [16.8, -6.6, 30, -3.4], [30, -5.9, 50.2, -4.7], [48.9, -4.7, 51.1, -0.6], [4.3, -1.6, 10.4, -0.4], [16.8, -1.6, 24, -0.4], [-0.6, 3.2, 0.6, 8.7], [17.2, -0.4, 18.4, 13.4], [-7.8, -0.85, -4.3, 0.45]]) {
-    ctx.fillRect(X(x1), Z(z1), X(x2) - X(x1), Z(z2) - Z(z1));
-  }
-  // Campos
+  for (const [x1, z1, x2, z2] of [...ROADS, ...paths]) ctx.fillRect(X(x1), Z(z1), X(x2) - X(x1), Z(z2) - Z(z1));
+  // Campos e cercados (só os que já têm lugar)
   for (const f of FIELDS) {
+    if (f.cost && !lotPlaced(f.id)) continue;
     const q = fieldRect(f);
-    rect(q.x1, q.z1, q.x2, q.z2, core.fieldOwned(f.id) ? '#8a6a45' : 'rgba(138,106,69,.35)', core.fieldOwned(f.id) ? null : '#8a6a45');
+    rect(q.x1, q.z1, q.x2, q.z2, '#8a6a45');
   }
-  rect(BIG_X0, BIG_Z0, BIG_X0 + BIG_FIELD.cols, BIG_Z0 + BIG_FIELD.rows, core.S.big.owned ? '#e3c770' : 'rgba(227,199,112,.35)', '#b89a4a');
-  rect(PAST.x0, PAST.z0, PAST.x1, PAST.z1, core.S.pasture ? '#a8de7f' : 'rgba(168,222,127,.4)', '#6f9a4a');
-  rect(PEN.x1, PEN.z1, PEN.x2, PEN.z2, core.built('curral') ? '#d8c27e' : 'rgba(216,194,126,.45)', '#8d6334');
-  rect(COOP_YARD.x1, COOP_YARD.z1, COOP_YARD.x2, COOP_YARD.z2, core.built('galinheiro') ? '#cfb57a' : 'rgba(207,181,122,.45)', '#8d6334');
+  if (lotPlaced('trigo')) rect(BIG_X0, BIG_Z0, BIG_X0 + BIG_FIELD.cols, BIG_Z0 + BIG_FIELD.rows, '#e3c770', '#b89a4a');
+  if (PAST) rect(PAST.x0, PAST.z0, PAST.x1, PAST.z1, '#a8de7f', '#6f9a4a');
+  if (PEN) rect(PEN.x1, PEN.z1, PEN.x2, PEN.z2, core.built('curral') ? '#d8c27e' : 'rgba(216,194,126,.45)', '#8d6334');
+  if (COOP_YARD) rect(COOP_YARD.x1, COOP_YARD.z1, COOP_YARD.x2, COOP_YARD.z2, core.built('galinheiro') ? '#cfb57a' : 'rgba(207,181,122,.45)', '#8d6334');
   // Lago e bosque
   ctx.fillStyle = '#5fb4e6';
   ctx.beginPath();
@@ -2793,11 +2715,12 @@ export function drawMap(ctx, W, H) {
   for (const [x, z] of ORCHARD_POS) { ctx.beginPath(); ctx.arc(X(x), Z(z), 4, 0, Math.PI * 2); ctx.fill(); }
   // Construções
   ctx.fillStyle = '#4a3220';
-  for (const [key, icon] of [['casa', '🏠'], ['celeiro', '🛖'], ['loja', '🏪'], ['pedidos', '📦'], ['mesa', '🪚'], ['queijaria', '🧀'], ['galinheiro', '🐔'], ['serraria', '🪚'], ['compost', '♻️'], ['moinho', '🌬️'], ['padaria', '🥖'], ['tear', '🧶'], ['defumadouro', '🔥'], ['colmeias', '🐝']]) {
+  for (const [key, icon] of [['casa', '🏠'], ['celeiro', '🏬'], ['loja', '🏪'], ['pedidos', '📦'], ['mesa', '🪚'], ['queijaria', '🧀'], ['galinheiro', '🐔'], ['serraria', '🪚'], ['compost', '♻️'], ['moinho', '🌬️'], ['padaria', '🥖'], ['tear', '🧶'], ['defumadouro', '🔥'], ['colmeias', '🐝'], ['obra:galpao', '🚜']]) {
     const sp = SPOTS[key];
-    if (sp) label(icon, sp.at[0], sp.at[1], 14);
+    if (sp && (!sp.lot || lotPlaced(sp.lot)) && (key !== 'compost' || core.built('curral'))) label(icon, sp.at[0], sp.at[1], 14);
   }
-  label('🚜', SHED[0], SHED[1], 14);
+  // Lote sendo escolhido agora
+  if (lotPlacing) { const q = lotRect(lotPlacing.id, lotPlacing.x, lotPlacing.z); rect(q.x1, q.z1, q.x2, q.z2, 'rgba(92,184,92,.35)', '#3c8d3c'); }
   // Pet, cavalo e você
   if (pet.model) label('🐶', pet.pos.x, pet.pos.z, 12);
   if (horse && !riding) label('🐴', horse.pos.x, horse.pos.z, 12);
@@ -3025,7 +2948,7 @@ export function startPlacing(id) {
 
 function placeValid(x, z, id) {
   const r = DECOR[id].r;
-  if (inFieldOrPond(x, z) && !(x > PAST.x0 && x < PAST.x1 && z > PAST.z0 && z < PAST.z1)) return false;
+  if (inFieldOrPond(x, z) && !(PAST && x > PAST.x0 && x < PAST.x1 && z > PAST.z0 && z < PAST.z1)) return false;
   if (r === 0) return true;
   if (dist2(player.pos, x, z) < r + 0.45) return false;
   for (let k = 0; k < 8; k++) {
@@ -3072,6 +2995,280 @@ function cancelPlacing(silent) {
   if (!silent) ui.toast('Decoração guardada: coloque depois pela Loja (seção Decoração).');
 }
 
+// ================= Lotes: o jogador escolhe onde fica cada obra e cada campo =================
+const lotPlaced = (id) => !!(core.S.layout && core.S.layout[id]);
+/** Retângulo ocupado pelo lote com o ponto em (x, z) (ou no lugar dele). */
+function lotRect(id, x, z) {
+  if (x == null) { const p = core.S.layout[id]; x = p.x; z = p.z; }
+  const e = LOTS[id].ext;
+  return { x1: x + e[0], z1: z + e[1], x2: x + e[2], z2: z + e[3] };
+}
+const rectHit = (a, b) => a.x1 < b.x2 && a.x2 > b.x1 && a.z1 < b.z2 && a.z2 > b.z1;
+const asRect = (r) => ({ x1: r[0], z1: r[1], x2: r[2], z2: r[3] });
+
+/** O lote já existe no jogo (obra começada/pronta, campo/serraria/pasto comprado)? */
+function lotExists(id) {
+  const S = core.S;
+  if (BUILDINGS[id]) return core.built(id) || core.buildProgress(id) > 0;
+  if (id === 'serraria') return S.saw.owned;
+  if (id === 'trigo') return S.big.owned;
+  if (id === 'pasto') return S.pasture;
+  return core.fieldOwned(id);
+}
+
+/** Saves do mapa antigo: o que já existe vai para o lugar padrão; decorações voltam ao inventário. */
+function migrateLayout() {
+  const S = core.S;
+  if (!S.layout) S.layout = {};
+  if ((S.layoutV || 1) >= 2) return;
+  let moved = 0;
+  for (const id of Object.keys(LOTS)) {
+    if (!S.layout[id] && lotExists(id)) { S.layout[id] = { x: LOTS[id].def[0], z: LOTS[id].def[1] }; moved++; }
+  }
+  for (const st of Object.values(S.machines)) if (st && typeof st === 'object') { st.x = null; st.z = null; }
+  S.horse.x = null;
+  S.horse.z = null;
+  let decor = 0;
+  while (sys.decorList().length) { sys.pickupDecor(0); decor++; }
+  S.layoutV = 2;
+  if (moved || decor || S.time > 0) {
+    ui.toast(`🗺️ A fazenda ficou maior e mais organizada! As construções da sede ficam ao longo da rua principal${moved ? ' e o que você já tinha foi para um lugar novo' : ''}.${decor ? ' Suas decorações voltaram para a Loja (seção Decoração) para você colocar de novo.' : ''}`, 'level');
+  }
+}
+
+/** Calcula a geometria do lote no lugar (x, z): cercados, pontos de ação e posições de campo. */
+function applyLot(id, x, z) {
+  if (id === 'curral') {
+    PEN = { x1: x - 3.2, x2: x + 3.2, z1: z - 4, z2: z + 4, gate: [z - 0.5, z + 1.1] };
+    SPOTS['obra:curral'].at = [PEN.x2 + 0.55, z + 2.05];
+    SPOTS['obra:curral'].point = [PEN.x2 + 1.2, z + 1.7];
+    SPOTS.cocho.at = [PEN.x1 + 0.7, z];
+    SPOTS.cocho.point = [PEN.x1 + 1.4, z];
+    SPOTS.compost.at = [PEN.x2 + 1.6, PEN.z1 - 0.2];
+    SPOTS.compost.point = [PEN.x2 + 2.2, PEN.z1 + 0.4];
+  } else if (id === 'galinheiro') {
+    const x1 = x - 2.75, z1 = z - 2.45;
+    COOP_YARD = { x1, x2: x + 2.75, z1, z2: z + 2.45, gate: [z - 0.45, z + 0.75], house: [x1 + 1.35, z1 + 0.95] };
+    SPOTS.galinheiro.at = COOP_YARD.house;
+    SPOTS.galinheiro.point = [x1 + 1.6, z1 + 2.7];
+  } else if (id === 'queijaria') {
+    SPOTS.queijaria.at = [x, z];
+    SPOTS.queijaria.point = [x, z + 1.6];
+  } else if (FACTORIES[id]) {
+    SPOTS[id].at = [x, z];
+    SPOTS[id].point = [x, z + FACTORIES[id].size[1] / 2 + 0.75];
+  } else if (id === 'galpao') {
+    SHED = [x, z];
+    SPOTS['obra:galpao'].at = SHED;
+    SPOTS['obra:galpao'].point = [x, z + 2.4];
+  } else if (id === 'serraria') {
+    SPOTS.serraria.at = [x, z];
+    SPOTS.serraria.point = [x + 1.06, z + 1.06];
+  } else if (id === 'trigo') {
+    BIG.cx = x;
+    BIG.cz = z;
+    BIG_X0 = x - BIG_FIELD.cols / 2;
+    BIG_Z0 = z - BIG_FIELD.rows / 2;
+  } else if (id === 'pasto') {
+    PAST = { x0: x - PASTURE.cols / 2, z0: z - PASTURE.rows / 2, x1: x + PASTURE.cols / 2, z1: z + PASTURE.rows / 2, gate: [z - 6.9, z - 4.9] };
+  } else {
+    FIELD_POS[id] = [x, z];
+  }
+}
+
+/** Monta o lote no mundo (no lugar já calculado por applyLot) e liga a porta à rua mais próxima. */
+function buildLot(id) {
+  if (id === 'curral') buildPen();
+  else if (id === 'galinheiro') buildCoop();
+  else if (id === 'queijaria') buildCheesery();
+  else if (FACTORIES[id]) buildFactory(id);
+  else if (id === 'galpao') buildShed();
+  else if (id === 'serraria') buildSawmill();
+  else if (id === 'trigo') buildBigField();
+  else if (id === 'pasto') buildPasture();
+  else {
+    const f = FIELDS.find((ff) => ff.id === id);
+    for (let i = f.start; i < f.start + f.count; i++) plotVis[i].group.position.copy(tilePos(i));
+    fieldBorder(f);
+  }
+  connectLot(id);
+}
+
+/** Caminho de terra da porta do lote até a rua mais próxima (em L), se não atravessar outra coisa. */
+function connectLot(id) {
+  const L = LOTS[id];
+  if (!L.door) return;
+  const p = core.S.layout[id];
+  const dx = p.x + L.door[0], dz = p.z + L.door[1];
+  let best = null, bd = Infinity;
+  for (const r of [...ROADS, ...paths]) {
+    const cx = Math.max(r[0], Math.min(r[2], dx)), cz = Math.max(r[1], Math.min(r[3], dz));
+    const d = Math.hypot(cx - dx, cz - dz);
+    if (d < bd) { bd = d; best = [cx, cz]; }
+  }
+  if (!best || bd < 0.3 || bd > 40) return;
+  const w = 0.6;
+  const segs = [];
+  if (Math.abs(best[1] - dz) > 0.05) segs.push([dx - w, Math.min(dz, best[1]), dx + w, Math.max(dz, best[1])]);
+  if (Math.abs(best[0] - dx) > 0.05) segs.push([Math.min(dx, best[0]), best[1] - w, Math.max(dx, best[0]), best[1] + w]);
+  const own = lotRect(id);
+  const blocked = (sg) => {
+    const r = asRect(sg);
+    for (const oid of Object.keys(core.S.layout)) if (oid !== id && LOTS[oid] && rectHit(r, lotRect(oid))) return true;
+    return RESERVED.some((q) => rectHit(r, asRect(q))) || (Math.hypot(Math.max(r.x1, Math.min(r.x2, POND.x)) - POND.x, Math.max(r.z1, Math.min(r.z2, POND.z)) - POND.z) < POND.r + 0.3);
+  };
+  if (segs.some(blocked)) return;
+  for (const sg of segs) {
+    // Dentro do próprio lote o caminho não precisa aparecer (a obra já tem o seu chão)
+    addStrip(...sg);
+    paths.push(sg);
+  }
+  void own;
+}
+
+/** O lote cabe aqui? (dentro do terreno, fora das ruas, da sede e de outros lotes) */
+function lotValid(id, x, z) {
+  const r = lotRect(id, x, z);
+  const B = BOUNDS;
+  if (r.x1 < B.minX + 0.5 || r.x2 > B.maxX - 0.5 || r.z1 < B.minZ + 0.5 || r.z2 > B.maxZ - 0.5) return false;
+  for (const q of [...RESERVED, ...ROADS, ...paths]) if (rectHit(r, asRect(q))) return false;
+  for (const oid of Object.keys(core.S.layout)) if (oid !== id && LOTS[oid] && rectHit(r, lotRect(oid))) return false;
+  for (const [tx, tz] of CHOP_TREES) if (tx > r.x1 - 0.5 && tx < r.x2 + 0.5 && tz > r.z1 - 0.5 && tz < r.z2 + 0.5) return false;
+  for (const [tx, tz] of ORCHARD_POS) if (tx > r.x1 - 0.8 && tx < r.x2 + 0.8 && tz > r.z1 - 0.8 && tz < r.z2 + 0.8) return false;
+  return true;
+}
+
+/** Nome e ícone do lote (para a barra de colocar e os avisos). */
+function lotDef(id) {
+  if (BUILDINGS[id]) return { icon: BUILDINGS[id].icon, name: BUILDINGS[id].name };
+  if (id === 'serraria') return { icon: SAWMILL.icon, name: SAWMILL.name };
+  if (id === 'trigo') return { icon: BIG_FIELD.icon, name: BIG_FIELD.name };
+  if (id === 'pasto') return { icon: PASTURE.icon, name: PASTURE.name };
+  const f = FIELDS.find((ff) => ff.id === id);
+  return { icon: f.icon, name: f.name };
+}
+
+/** Coloca o lote no lugar: salva, monta, atualiza a navegação e tira do caminho o que estiver em cima. */
+function placeLotNow(id, x, z) {
+  core.placeLot(id, x, z);
+  applyLot(id, x, z);
+  const r = lotRect(id, x, z);
+  // Enfeites soltos e decorações que estavam ali saem do caminho
+  for (let k = scatter.length - 1; k >= 0; k--) {
+    const it = scatter[k];
+    if (it.x > r.x1 - 0.3 && it.x < r.x2 + 0.3 && it.z > r.z1 - 0.3 && it.z < r.z2 + 0.3) { scene.remove(it.o); scatter.splice(k, 1); }
+  }
+  let back = 0;
+  for (let k = sys.decorList().length - 1; k >= 0; k--) {
+    const it = sys.decorList()[k];
+    if (it.x > r.x1 - 0.3 && it.x < r.x2 + 0.3 && it.z > r.z1 - 0.3 && it.z < r.z2 + 0.3) { sys.pickupDecor(k); back++; }
+  }
+  nav.restore();
+  buildLot(id);
+  nav.snapshot();
+  decorKey = null;
+  // Ninguém fica preso dentro da construção nova
+  for (const e of [player.pos, pet.model ? pet.pos : null, horse ? horse.pos : null]) {
+    if (!e || nav.free(e.x, e.z)) continue;
+    const [cx, cz] = nav.toCell(e.x, e.z);
+    const n = nav.nearestFree(cx, cz);
+    if (n) { const c = nav.center(n[0], n[1]); e.x = c.x; e.z = c.z; }
+  }
+  burst((r.x1 + r.x2) / 2, 0.4, (r.z1 + r.z2) / 2, 0xffd54f, 24, { up: 3.2, spread: 2.4, size: 0.08 });
+  sfx('level');
+  if (back) ui.toast(`🌻 ${back > 1 ? `${back} decorações estavam` : 'Uma decoração estava'} no lugar e ${back > 1 ? 'voltaram' : 'voltou'} para a Loja (seção Decoração).`);
+}
+
+// ----- Escolher o lugar (como as decorações: segue o mouse, ou fica à frente do personagem) -----
+let lotPlacing = null; // { id, group, fill, edges, x, z, valid, follow }
+
+/** Começa a escolher o lugar de uma obra, campo, serraria, Campo de Trigo ou pasto. */
+export function startPlacingLot(id) {
+  if (!LOTS[id] || lotPlaced(id)) return;
+  if (placing) cancelPlacing(true);
+  if (lotPlacing) cancelLot(true);
+  if (driving || riding) { ui.toast('Desça antes de escolher o lugar.'); return; }
+  const e = LOTS[id].ext;
+  const w = e[2] - e[0], d = e[3] - e[1];
+  const group = new THREE.Group();
+  const fill = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshBasicMaterial({ color: 0x5cb85c, transparent: true, opacity: 0.28, depthWrite: false }));
+  fill.rotation.x = -Math.PI / 2;
+  fill.position.set((e[0] + e[2]) / 2, 0.05, (e[1] + e[3]) / 2);
+  fill.renderOrder = 5;
+  group.add(fill);
+  const edgeMat = new THREE.MeshBasicMaterial({ color: 0x5cb85c });
+  for (const [x1, z1, x2, z2] of [[e[0], e[1], e[2], e[1]], [e[0], e[3], e[2], e[3]], [e[0], e[1], e[0], e[3]], [e[2], e[1], e[2], e[3]]]) {
+    const m = new THREE.Mesh(M.GEO.box, edgeMat);
+    m.scale.set(Math.abs(x2 - x1) + 0.12, 0.08, Math.abs(z2 - z1) + 0.12);
+    m.position.set((x1 + x2) / 2, 0.06, (z1 + z2) / 2);
+    group.add(m);
+  }
+  const def = lotDef(id);
+  const label = M.textSprite(`${def.icon} ${def.name}`, 0.5);
+  label.position.set((e[0] + e[2]) / 2, 1.6, (e[1] + e[3]) / 2);
+  group.add(label);
+  scene.add(group);
+  lotPlacing = { id, group, fill, edgeMat, x: player.pos.x, z: player.pos.z, valid: false, follow: 'player' };
+  ui.showPlaceBar(def, 1, { ok: confirmLot, cancel: () => cancelLot() }, 'lot');
+}
+
+function updateLotPlacing() {
+  const p = lotPlacing;
+  if (!p) return;
+  const e = LOTS[p.id].ext;
+  if (p.follow === 'player') {
+    // À frente do personagem, longe o bastante para ele não ficar dentro
+    const reach = Math.max(-e[1], e[3], -e[0], e[2]) + 1.2;
+    p.x = player.pos.x + Math.sin(player.heading) * reach;
+    p.z = player.pos.z + Math.cos(player.heading) * reach;
+  }
+  p.x = Math.round(p.x * 2) / 2;
+  p.z = Math.round(p.z * 2) / 2;
+  p.valid = lotValid(p.id, p.x, p.z);
+  p.group.position.set(p.x, 0, p.z);
+  const c = p.valid ? 0x5cb85c : 0xd9534f;
+  p.fill.material.color.setHex(c);
+  p.edgeMat.color.setHex(c);
+}
+
+/** Ponto do lote para que o centro do retângulo fique sob (x, z). */
+function lotAnchorAt(id, x, z) {
+  const e = LOTS[id].ext;
+  return [x - (e[0] + e[2]) / 2, z - (e[1] + e[3]) / 2];
+}
+
+function confirmLot() {
+  const p = lotPlacing;
+  if (!p) return;
+  updateLotPlacing();
+  if (!p.valid) { ui.toast('🚫 Não cabe aqui: escolha um lugar livre, fora das ruas, da sede, dos campos e do bosque.', 'bad'); sfx('error'); return; }
+  const { id, x, z } = p;
+  const kind = LOTS[id].kind;
+  // Campos, serraria, Campo de Trigo e pasto: compra agora (se der) e coloca
+  if (kind !== 'build') {
+    const S = core.S;
+    if (id === 'serraria') core.buySawmill();
+    else if (id === 'trigo') core.buyBigField();
+    else if (id === 'pasto') core.buyPasture();
+    else core.buyField(id);
+    const owned = id === 'serraria' ? S.saw.owned : id === 'trigo' ? S.big.owned : id === 'pasto' ? S.pasture : core.fieldOwned(id);
+    if (!owned) { cancelLot(true); return; }
+  }
+  cancelLot(true);
+  placeLotNow(id, x, z);
+  if (kind === 'build') ui.toast(`🏗️ Canteiro ${BUILDINGS[id].fem ? 'da' : 'do'} ${BUILDINGS[id].name} marcado! Leve a madeira até lá e use a ação para entregar.`, 'good');
+  ui.markDirty('panel');
+}
+
+function cancelLot(silent) {
+  if (!lotPlacing) return;
+  scene.remove(lotPlacing.group);
+  lotPlacing.fill.geometry.dispose();
+  lotPlacing = null;
+  ui.hidePlaceBar();
+  if (!silent) ui.toast('Tudo bem, escolha o lugar depois.');
+}
+
 // ================= Pomar e colmeias =================
 const orchardVis = [];
 let hiveVis = null;
@@ -3109,19 +3306,20 @@ function buildOrchard() {
     scene.add(h);
     return h;
   });
+  const [cx, cz] = HIVE_C;
   const spotSign = M.makeStake();
-  spotSign.position.set(30.5, 0, -8.7);
+  spotSign.position.set(cx, 0, cz);
   scene.add(spotSign);
   const hiveLabel = M.textSprite(`${HIVES.icon} Colmeias`, 0.42);
-  hiveLabel.position.set(30.5, SPOTS.colmeias.labelY, -8.7);
+  hiveLabel.position.set(cx, SPOTS.colmeias.labelY, cz);
   scene.add(hiveLabel);
   const proxy = new THREE.Mesh(M.GEO.box, new THREE.MeshBasicMaterial({ visible: false }));
   proxy.scale.set(2.2, 1.4, 2.2);
-  proxy.position.set(30.5, 0.7, -8.7);
+  proxy.position.set(cx, 0.7, cz);
   proxy.userData.pick = { kind: 'spot', key: 'colmeias' };
   scene.add(proxy);
   pickables.push(proxy);
-  nav.blockRect(29.5, -9.7, 31.5, -7.7, PLAYER_R * 0.6);
+  nav.blockRect(cx - 1, cz - 1, cx + 1, cz + 1, PLAYER_R * 0.6);
   hiveVis = { hives, spotSign, beeT: 0 };
 }
 
@@ -3184,20 +3382,6 @@ function buildSawmill() {
 
   const model = M.makeSawmill();
   root.add(model.group);
-
-  // Enquanto não é comprada: placa de venda e estacas
-  const sign = new THREE.Group();
-  const board = M.makeSaleSign();
-  sign.add(board);
-  for (const [sx, sz] of [[-2.2, -1.2], [2.2, -1.2], [-2.2, 1.2], [2.2, 1.2]]) {
-    const st = M.makeStake();
-    st.position.set(sx, 0, sz);
-    sign.add(st);
-  }
-  root.add(sign);
-  const saleLabel = M.textSprite(`🪧 ${SAWMILL.name} · 🪙${SAWMILL.cost.toLocaleString('pt-BR')}`, 0.42);
-  saleLabel.position.set(x, 1.7, z);
-  scene.add(saleLabel);
   const label = M.textSprite(`${SAWMILL.icon} ${SAWMILL.name}`, 0.5);
   label.position.set(x, SPOTS.serraria.labelY, z);
   scene.add(label);
@@ -3213,19 +3397,12 @@ function buildSawmill() {
   for (const lx of [-1.5, 0, 1.5]) {
     nav.blockCircle(x + lx * Math.cos(Math.PI / 4), z - lx * Math.sin(Math.PI / 4), 0.95 + PLAYER_R * 0.5);
   }
-  sawmill = { root, model, sign, saleLabel, label, owned: null, dustT: 0 };
+  sawmill = { root, model, label, dustT: 0 };
 }
 
 function updateSawmill(dt) {
   if (!sawmill) return;
   const saw = core.S.saw;
-  if (sawmill.owned !== saw.owned) {
-    sawmill.owned = saw.owned;
-    sawmill.model.group.visible = saw.owned;
-    sawmill.label.visible = saw.owned;
-    sawmill.sign.visible = !saw.owned;
-    sawmill.saleLabel.visible = !saw.owned;
-  }
   if (!saw.owned) return;
   const m = sawmill.model;
   m.logs.forEach((lg, k) => { lg.visible = k < saw.queue; });
@@ -3415,25 +3592,12 @@ function openSpot(key) {
     return;
   }
   if (key === 'serraria') {
-    if (!core.S.saw.owned) { ui.openPanel('loja', 'lenha'); return; }
     const res = core.sawmillUse();
     if (res && (res.collected || res.loaded)) {
       startAction('collect');
       const [x, z] = SPOTS.serraria.at;
       burst(x, 0.8, z, 0xd7b98a, 12, { up: 2.4, spread: 0.8, size: 0.06 });
     }
-    return;
-  }
-  if (key === 'pasto') {
-    ui.openPanel('loja', 'campos');
-    return;
-  }
-  if (key === 'campo:trigo') {
-    ui.openPanel('loja', 'maquinas');
-    return;
-  }
-  if (key.startsWith('campo:')) {
-    ui.openPanel('loja', 'campos');
     return;
   }
   if (key === 'cocho') {
@@ -3668,10 +3832,16 @@ function animateFarmer(e, dt, toolKey) {
 
 // ================= Funcionários (NPCs) =================
 const NPC_STYLE = {
-  colhedor: { colors: { shirt: 0x43a047, denim: 0x6d4c41, hat: 0xd4a84f, band: 0x2e7d32, skin: 0xc68642 }, tool: 'mao', home: [1.7, -5.8] },
-  plantador: { colors: { shirt: 0xf9a825, denim: 0x455a64, hat: 0xf3e5c0, band: 0x8e24aa, skin: 0xf1c27d, hair: 0x2b1d14 }, tool: 'seed', home: [3.7, -5.8] },
-  tratador: { colors: { shirt: 0x1e88e5, denim: 0x795548, hat: 0x8d6e63, band: 0x4e342e, skin: 0x8d5524, hair: 0x1b1b1b }, tool: 'mao', home: [-6.9, -2.0] },
+  colhedor: { colors: { shirt: 0x43a047, denim: 0x6d4c41, hat: 0xd4a84f, band: 0x2e7d32, skin: 0xc68642 }, tool: 'mao', home: [-3.4, 3.2] },
+  plantador: { colors: { shirt: 0xf9a825, denim: 0x455a64, hat: 0xf3e5c0, band: 0x8e24aa, skin: 0xf1c27d, hair: 0x2b1d14 }, tool: 'seed', home: [-2.2, 3.4] },
+  tratador: { colors: { shirt: 0x1e88e5, denim: 0x795548, hat: 0x8d6e63, band: 0x4e342e, skin: 0x8d5524, hair: 0x1b1b1b }, tool: 'mao', home: [1.2, 3.6] },
 };
+/** Posto de cada funcionário: ao lado do armazém (o tratador fica no portão do curral). */
+function npcHome(id) {
+  if (id === 'tratador' && PEN) return [PEN.x2 + 0.9, (PEN.z1 + PEN.z2) / 2 - 1.5];
+  const [dx, dz] = NPC_STYLE[id].home;
+  return [CORE.celeiro[0] + dx, CORE.celeiro[1] + dz];
+}
 const NPC_SPEED = 2.6;
 const npcs = new Map();
 let seedWarned = false;
@@ -3682,7 +3852,7 @@ function syncWorkers() {
     const hired = S.workers[id];
     if (hired && !npcs.has(id)) {
       const m = M.makeFarmer(NPC_STYLE[id].colors);
-      const pos = new THREE.Vector3(SPOTS.celeiro.point[0], 0, SPOTS.celeiro.point[1]); // sai do celeiro
+      const pos = new THREE.Vector3(SPOTS.celeiro.point[0], 0, SPOTS.celeiro.point[1]); // sai do armazém
       m.root.position.copy(pos);
       scene.add(m.root);
       const label = M.textSprite(`${WORKERS[id].icon} ${WORKERS[id].name}`, 0.3);
@@ -3756,7 +3926,7 @@ function npcWork(n, dt) {
 
 /** Sem tarefas: volta para o seu posto e espera. */
 function npcIdle(n, dt) {
-  const [hx, hz] = NPC_STYLE[n.id].home;
+  const [hx, hz] = npcHome(n.id);
   if (dist2(n.pos, hx, hz) > 0.5) {
     if (!n.path.length) n.path = nav.findPath(n.pos.x, n.pos.z, hx, hz) || [];
     followPath(n, dt, NPC_SPEED * 0.8);
@@ -4052,6 +4222,17 @@ function clickAt(e) {
   if (fishing.state === 'bite') { fishAction(); fishMouse = true; return hit; }
   if (fishing.state === 'reeling' || fishing.state === 'caught' || fishing.state === 'casting') { fishMouse = true; return hit; }
   if (fishing.state === 'waiting' && hit.kind !== 'water') endFishing();
+  if (lotPlacing) {
+    // Escolhendo o lugar de uma obra ou campo: o clique escolhe (no mouse, já confirma)
+    const pt = new THREE.Vector3();
+    if (raycaster.ray.intersectPlane(pickPlane, pt)) {
+      [lotPlacing.x, lotPlacing.z] = lotAnchorAt(lotPlacing.id, pt.x, pt.z);
+      lotPlacing.follow = 'fixed';
+      updateLotPlacing();
+      if (e.pointerType === 'mouse') confirmLot();
+    }
+    return hit;
+  }
   if (placing) {
     // Colocando decoração: o clique escolhe o lugar (no mouse, já coloca)
     const pt = new THREE.Vector3();
@@ -4198,6 +4379,10 @@ function bindInput() {
       raycaster.setFromCamera(ndc, camera);
       if (raycaster.ray.intersectPlane(pickPlane, tmpPlace)) { placing.x = tmpPlace.x; placing.z = tmpPlace.z; placing.follow = 'mouse'; }
     }
+    if (lotPlacing) {
+      raycaster.setFromCamera(ndc, camera);
+      if (raycaster.ray.intersectPlane(pickPlane, tmpPlace)) { [lotPlacing.x, lotPlacing.z] = lotAnchorAt(lotPlacing.id, tmpPlace.x, tmpPlace.z); lotPlacing.follow = 'mouse'; }
+    }
     if (!dragging) return;
     const hit = pick();
     if (hit && hit.kind === 'tile' && hit.i !== lastDragTile) {
@@ -4233,8 +4418,8 @@ function bindInput() {
       if (typed.endsWith('godmode')) { typed = ''; core.godMode(); ui.closeMap(); return; }
     }
     if (ui.uiBlocking() || e.ctrlKey || e.metaKey || e.altKey) return;
-    if (k === 'm' && !placing) { ui.openMap(); return; }
-    if (k === 'p' && !placing) { ui.togglePhoto(); return; }
+    if (k === 'm' && !placing && !lotPlacing) { ui.openMap(); return; }
+    if (k === 'p' && !placing && !lotPlacing) { ui.togglePhoto(); return; }
     if (k === ' ' || k.startsWith('arrow')) e.preventDefault();
     if (document.activeElement && document.activeElement.tagName === 'BUTTON') document.activeElement.blur();
     if (k === ' ' || k === 'e') {
@@ -4246,6 +4431,8 @@ function bindInput() {
     else if (k === 'q') rotateCamera(Math.PI / 4);
     else if (k === 'r') rotateCamera(-Math.PI / 4);
     else if (k === 'c') resetCamera();
+    else if (k === 'escape' && lotPlacing) cancelLot();
+    else if (k === 'enter' && lotPlacing) confirmLot();
     else if (k === 'escape' && placing) cancelPlacing();
     else if (k === 'enter' && placing) confirmPlacing();
     else if (k === 'g' && placing) rotatePlacing();
@@ -4344,7 +4531,6 @@ export function worldFrame(dt) {
   syncBig();
   syncMachines();
   syncHorse();
-  updatePasture();
   syncAnimals();
   syncWorkers();
   updatePlayer(dt);
@@ -4358,6 +4544,7 @@ export function worldFrame(dt) {
   updateFactoryVis(dt);
   updateOrchard(dt);
   updateDecor(dt);
+  updateLotPlacing();
   updateCrows(dt);
   updateSeason(dt);
   updateLeaves(dt);
@@ -4381,4 +4568,4 @@ export function worldFrame(dt) {
 }
 
 // Usado pelos testes no console do navegador
-export const debug = { player, animalVis, npcs, machines, fishing, fishAction, startCast, pet, petInteract, randomSpot, fauna, get driving() { return driving; }, get riding() { return riding; }, get snowCap() { return snowCap; }, poopPos, crows, spawnCrow, get horse() { return horse; }, mountHorse, dismountHorse, enterMachine, exitMachine, bigCellAt, bigCellCenter, get zoom() { return zoom; }, get zoomMult() { return zoomMult; }, get camH() { return camera.top - camera.bottom; }, tileAt, tilePos, get nav() { return nav; } };
+export const debug = { player, animalVis, npcs, machines, fishing, fishAction, startCast, pet, petInteract, randomSpot, fauna, get driving() { return driving; }, get riding() { return riding; }, get snowCap() { return snowCap; }, LOTS, lotValid, lotRect, placeLotNow, get lotPlacing() { return lotPlacing; }, paths, get PEN() { return PEN; }, get PAST() { return PAST; }, poopPos, crows, spawnCrow, get horse() { return horse; }, mountHorse, dismountHorse, enterMachine, exitMachine, bigCellAt, bigCellCenter, get zoom() { return zoom; }, get zoomMult() { return zoomMult; }, get camH() { return camera.top - camera.bottom; }, tileAt, tilePos, get nav() { return nav; } };

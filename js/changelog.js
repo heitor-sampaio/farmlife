@@ -3,6 +3,17 @@
 
 export const CHANGELOG = [
   {
+    version: '4.4.0', date: '2026-10-17', title: 'Fazenda maior e do seu jeito',
+    items: [
+      '🗺️ O mapa ficou bem maior e mais organizado: a sede (casa, carpintaria, armazém, pedidos e loja) fica em fila na rua principal, e em volta há muito mais espaço, com uma rua entre os campos e uma estrada ao sul.',
+      '📍 Você escolhe onde fica cada obra nova (curral, galinheiro, queijaria, fábricas e galpão) e cada compra grande (campos, serraria, Campo de Trigo e pasto): o retângulo fica verde onde cabe. Um caminho de terra liga a porta até a rua mais próxima.',
+      '🏬 O Celeiro agora se chama Armazém, que é o que ele é: onde a colheita fica guardada e é vendida.',
+      '🌾 Os campos comprados ganharam nomes novos (Campo da Colina, Campo Comprido e Campo do Vale), já que agora eles ficam onde você quiser.',
+      '🌲 O bosque foi para o oeste da fazenda e o pomar para trás da sede.',
+      '🏡 Quem já jogava: o que você tinha construído ou comprado foi para um lugar padrão no mapa novo, as decorações voltaram para a Loja (seção Decoração) e as máquinas e o cavalo voltaram para casa.',
+    ],
+  },
+  {
     version: '4.3.0', date: '2026-10-17', title: 'Galinheiro e estações mais bonitas',
     items: [
       '🐔 Galinheiro novo, ao lado do lago: uma obra de madeira (12 🟫 tábuas e 3 📏 vigas, nível 2) com casinha, rampa, ninhos, comedouro e um cercado próprio.',

@@ -149,12 +149,12 @@ function shopHtml() {
     h += `<div class="card${locked ? ' locked' : ''}${owned ? ' hired' : ''}">
       <div class="ico">${f.icon}</div>
       <div class="info"><b>${f.name}${owned ? ' <small>✔ seu</small>' : ''}</b>
-        <small>${f.count} lotes novos (${f.cols}×${f.rows}), já limpos para arar.</small></div>
+        <small>${f.count} lotes novos (${f.cols}×${f.rows}), já limpos para arar. Você escolhe onde ele fica.</small></div>
       <div class="btns">${owned
         ? '<span class="req">✔ Comprado</span>'
         : locked
           ? `<span class="req">🔒 Nível ${f.level}</span>`
-          : `<button class="btn alt" data-act="field" data-id="${f.id}" ${S.coins < f.cost ? 'disabled' : ''}>🪙${fmt(f.cost)}</button>`}
+          : `<button class="btn alt" data-act="placelot" data-id="${f.id}" title="Escolher o lugar e comprar" ${S.coins < f.cost ? 'disabled' : ''}>📍 🪙${fmt(f.cost)}</button>`}
       </div></div>`;
   }
   {
@@ -163,14 +163,14 @@ function shopHtml() {
     h += `<div class="card${locked ? ' locked' : ''}${owned ? ' hired' : ''}">
       <div class="ico">${PASTURE.icon}</div>
       <div class="info"><b>${PASTURE.name}${owned ? ` <small>✔ seu · ${core.pastureCount()}/${PASTURE.slots} cabeças</small>` : ''}</b>
-        <small>Campo enorme a leste do Campo de Trigo, só para o gado: ${PASTURE.slots} vagas para vacas, touros e bezerros, que comem capim e não precisam de 🌾 trigo. Libera o curral para os outros animais.</small></div>
+        <small>Campo enorme só para o gado (você escolhe onde fica): ${PASTURE.slots} vagas para vacas, touros e bezerros, que comem capim e não precisam de 🌾 trigo. Libera o curral para os outros animais.</small></div>
       <div class="btns">${owned
         ? '<span class="req">✔ Comprado</span>'
         : locked
           ? `<span class="req">🔒 Nível ${PASTURE.level}</span>`
           : !core.built('curral')
             ? '<span class="req">🏗️ Construa o curral</span>'
-            : `<button class="btn alt" data-act="pasture" ${S.coins < PASTURE.cost ? 'disabled' : ''}>🪙${fmt(PASTURE.cost)}</button>`}
+            : `<button class="btn alt" data-act="placelot" data-id="pasto" title="Escolher o lugar e comprar" ${S.coins < PASTURE.cost ? 'disabled' : ''}>📍 🪙${fmt(PASTURE.cost)}</button>`}
       </div></div>`;
   }
   h += '</div>';
@@ -219,15 +219,15 @@ function shopHtml() {
     h += `<div class="card${locked ? ' locked' : ''}${owned ? ' hired' : ''}">
       <div class="ico">${SAWMILL.icon}</div>
       <div class="info"><b>${SAWMILL.name}${owned ? ' <small>✔ sua</small>' : ''}</b>
-        <small>Transforma cada 🪵 tronco em ${SAWMILL.perLog} ${PLANK.icon} tábuas (🪙${PLANK.sell} cada), um a cada ${SAWMILL.time}s, até com o jogo fechado. Fica na entrada do bosque.</small></div>
+        <small>Transforma cada 🪵 tronco em ${SAWMILL.perLog} ${PLANK.icon} tábuas (🪙${PLANK.sell} cada), um a cada ${SAWMILL.time}s, até com o jogo fechado. Você escolhe onde ela fica.</small></div>
       <div class="btns">${owned
         ? '<span class="req">✔ Construída</span>'
         : locked
           ? `<span class="req">🔒 Nível ${SAWMILL.level}</span>`
-          : `<button class="btn alt" data-act="sawmill" ${S.coins < SAWMILL.cost ? 'disabled' : ''}>🪙${fmt(SAWMILL.cost)}</button>`}
+          : `<button class="btn alt" data-act="placelot" data-id="serraria" title="Escolher o lugar e comprar" ${S.coins < SAWMILL.cost ? 'disabled' : ''}>📍 🪙${fmt(SAWMILL.cost)}</button>`}
       </div></div>`;
   }
-  h += `</div><p class="hint">🌲 O bosque fica a oeste, entre o curral e o Campo do Sul. Cada árvore rende ${WOOD.logs[0]}–${WOOD.logs[1]} ${LOG.icon} troncos (🪙${LOG.sell} cada) e cresce de novo em ~${Math.round(WOOD.regrow / 60)} min.</p>`;
+  h += `</div><p class="hint">🌲 O bosque fica no oeste da fazenda, no fim da rua principal. Cada árvore rende ${WOOD.logs[0]}–${WOOD.logs[1]} ${LOG.icon} troncos (🪙${LOG.sell} cada) e cresce de novo em ~${Math.round(WOOD.regrow / 60)} min.</p>`;
 
   const pet = S.pet;
   const petLocked = !pet.owned && PET.level > S.level;
@@ -279,12 +279,12 @@ function shopHtml() {
     <div class="card${bigLocked ? ' locked' : ''}${big ? ' hired' : ''}">
       <div class="ico">${BIG_FIELD.icon}</div>
       <div class="info"><b>${BIG_FIELD.name}${big ? ' <small>✔ seu</small>' : ''}</b>
-        <small>${BIG_FIELD.cols}×${BIG_FIELD.rows} = ${BIG_CELLS} lotes só de trigo, a leste do mapa. Cresce sem rega; trabalhe com as máquinas.</small></div>
+        <small>${BIG_FIELD.cols}×${BIG_FIELD.rows} = ${BIG_CELLS} lotes só de trigo (você escolhe onde fica). Cresce sem rega; trabalhe com as máquinas.</small></div>
       <div class="btns">${big
         ? '<span class="req">✔ Comprado</span>'
         : bigLocked
           ? `<span class="req">🔒 Nível ${BIG_FIELD.level}</span>`
-          : `<button class="btn alt" data-act="bigfield" ${S.coins < BIG_FIELD.cost ? 'disabled' : ''}>🪙${fmt(BIG_FIELD.cost)}</button>`}
+          : `<button class="btn alt" data-act="placelot" data-id="trigo" title="Escolher o lugar e comprar" ${S.coins < BIG_FIELD.cost ? 'disabled' : ''}>📍 🪙${fmt(BIG_FIELD.cost)}</button>`}
       </div></div>`;
   for (const [id, m] of Object.entries(MACHINES)) {
     const owned = !!S.machines[id];
@@ -314,13 +314,15 @@ function shopHtml() {
       <div class="card${locked ? ' locked' : ''}${owned ? ' hired' : ''}">
         <div class="ico">${CHEESERY.icon}</div>
         <div class="info"><b>${CHEESERY.name}${owned ? ' <small>✔ sua</small>' : ''}</b>
-          <small>Transforma ${CHEESERY.milk} 🥛 leite em 1 ${CHEESE.icon} queijo (🪙${CHEESE.sell}) a cada ${core.fmtDuration(CHEESERY.time)}, até com o jogo fechado. Construída com madeira no canteiro ao lado da loja: ${costText(BUILDINGS.queijaria.cost)}.</small>
+          <small>Transforma ${CHEESERY.milk} 🥛 leite em 1 ${CHEESE.icon} queijo (🪙${CHEESE.sell}) a cada ${core.fmtDuration(CHEESERY.time)}, até com o jogo fechado. Obra de madeira (${costText(BUILDINGS.queijaria.cost)}): você escolhe onde fica.</small>
           ${owned || locked ? '' : `<div class="progress"><i style="width:${prog}%"></i></div>`}</div>
         <div class="btns">${owned
           ? '<span class="req">✔ Construída</span>'
           : locked
             ? `<span class="req">🔒 Nível ${CHEESERY.level}</span>`
-            : `<button class="btn alt" data-act="tab" data-id="oficina">🏗️ Obra ${prog}%</button>`}
+            : !core.lotPlaced('queijaria')
+              ? '<button class="btn alt" data-act="placelot" data-id="queijaria">📍 Escolher lugar</button>'
+              : `<button class="btn alt" data-act="tab" data-id="oficina">🏗️ Obra ${prog}%</button>`}
         </div></div></div>`;
   }
 
@@ -355,7 +357,7 @@ function shopHtml() {
           : `<button class="btn alt" data-act="hive" ${S.coins < HIVES.cost ? 'disabled' : ''}>🪙${fmt(HIVES.cost)}</button>`}
       </div></div></div>`;
   }
-  h += '<p class="hint">🌳 O pomar fica ao norte do Campo de Trigo, no caminho para o pasto.</p>';
+  h += '<p class="hint">🌳 O pomar fica atrás das construções da sede, no norte da fazenda.</p>';
 
   h += '<h3 id="sec-decor">🌻 Decoração</h3><div class="cards">';
   for (const [id, dd] of Object.entries(DECOR)) {
@@ -469,13 +471,13 @@ function barnHtml() {
     ? `<div class="barn-head">
     <div>Valor de venda: <b>🪙${fmt(total)}</b>${reserve ? `<small>Guarda ${reserve} 🌾 para os animais</small>` : ''}</div>
     <button class="btn" data-act="sellall" ${total ? '' : 'disabled'}>Vender tudo</button></div>`
-    : `<div class="notice">🏗️ <b>O celeiro ainda está em obra.</b> Sua colheita fica guardada aqui, mas só dá para vender depois de construí-lo
+    : `<div class="notice">🏗️ <b>O armazém ainda está em obra.</b> Sua colheita fica guardada aqui, mas só dá para vender depois de construí-lo
       (${costText(BUILDINGS.celeiro.cost)}). Enquanto isso, entregue os 📦 pedidos da vila para ganhar moedas.
       <br><button class="btn alt" data-act="tab" data-id="oficina">🪚 Ver a Oficina</button></div>`;
 
   h = storage + h;
   if (!ids.length) {
-    h += '<p class="empty-msg">Seu celeiro está vazio. Vá colher algo! 🧺</p>';
+    h += '<p class="empty-msg">Seu armazém está vazio. Vá colher algo! 🧺</p>';
   } else {
     h += '<div class="cards">';
     for (const id of ids) {
@@ -525,7 +527,7 @@ function workshopHtml() {
   const S = core.S;
   const io = (o) => Object.entries(o).map(([id, q]) => `${q} ${core.ITEMS[id].icon}`).join(' + ');
   let h = `<h3>${CARPENTRY.icon} ${CARPENTRY.name}</h3>
-    <p class="hint" style="margin:0 0 8px">A mesa fica entre a casa e o celeiro. Escolha o que fazer, vá até ela e use a ação (segure para continuar) ou toque na mesa.</p>
+    <p class="hint" style="margin:0 0 8px">A mesa fica entre a casa e o armazém. Escolha o que fazer, vá até ela e use a ação (segure para continuar) ou toque na mesa.</p>
     <div class="chips"><span class="chip">🪵 Troncos ×${S.inv.tronco || 0}</span><span class="chip">🟫 Tábuas ×${S.inv.madeira || 0}</span><span class="chip">📏 Vigas ×${S.inv.viga || 0}</span></div>
     <div class="cards">`;
   for (const rc of RECIPES) {
@@ -543,7 +545,7 @@ function workshopHtml() {
   }
   h += '</div>';
   const facs = Object.entries(FACTORIES);
-  h += `<h3>🏭 Fábricas</h3><p class="hint" style="margin:0 0 8px">Escolha o que cada fábrica faz. Ela usa o que está no celeiro quando você chega perto e usa a ação, e continua trabalhando até com o jogo fechado.</p><div class="cards">`;
+  h += `<h3>🏭 Fábricas</h3><p class="hint" style="margin:0 0 8px">Escolha o que cada fábrica faz. Ela usa o que está no armazém quando você chega perto e usa a ação, e continua trabalhando até com o jogo fechado.</p><div class="cards">`;
   for (const [fid, f] of facs) {
     const done = core.built(fid);
     const st = S.fac[fid];
@@ -565,9 +567,9 @@ function workshopHtml() {
         <small>${b.desc}</small>
         <small>${done ? 'Pronto!' : `Custa ${io(b.cost)} · falta ${missing.map((x) => `${x.qty} ${core.ITEMS[x.id].icon}`).join(' + ')}`}</small>
         ${done ? '' : `<div class="progress"><i style="width:${Math.round(prog * 100)}%"></i></div>`}</div>
-      <div class="btns">${done ? '<span class="req">✔</span>' : b.level > S.level ? `<span class="req">🔒 Nível ${b.level}</span>` : '<span class="req">Entregue no canteiro</span>'}</div></div>`;
+      <div class="btns">${done ? '<span class="req">✔</span>' : b.level > S.level ? `<span class="req">🔒 Nível ${b.level}</span>` : !core.lotPlaced(id) ? `<button class="btn alt" data-act="placelot" data-id="${id}">📍 Escolher lugar</button>` : '<span class="req">Entregue no canteiro</span>'}</div></div>`;
   }
-  h += `</div><p class="hint">🪓 Corte árvores no bosque (oeste) para ter troncos. Leve a madeira até o canteiro 🏗️ de cada obra e use a ação para entregar: dá para entregar aos poucos.${S.saw.owned ? '' : ` Mais tarde, a ${SAWMILL.icon} Serraria faz tábuas sozinha.`}</p>`;
+  h += `</div><p class="hint">📍 Primeiro escolha onde cada obra fica; um caminho de terra liga ela à rua. 🪓 Corte árvores no bosque (oeste) para ter troncos. Leve a madeira até o canteiro 🏗️ e use a ação para entregar: dá para entregar aos poucos.${S.saw.owned ? '' : ` Mais tarde, a ${SAWMILL.icon} Serraria faz tábuas sozinha.`}</p>`;
   return h;
 }
 
@@ -592,7 +594,7 @@ function fairHtml() {
     return `<h3>🎪 Feira</h3><p class="hint" style="margin:0 0 6px">A feira acontece no último dia de cada estação: ${n === 1 ? 'amanhã' : `daqui a ${n} dias`}. Guarde seus melhores produtos (gigantes e mutados valem mais pontos).</p>`;
   }
   const f = sys.fairState();
-  let h = '<h3>🎪 Feira de hoje</h3><p class="hint" style="margin:0 0 8px">Inscreva o seu melhor produto em cada categoria (o mais valioso do celeiro vai automaticamente). Os três primeiros ganham medalha e prêmio.</p><div class="cards">';
+  let h = '<h3>🎪 Feira de hoje</h3><p class="hint" style="margin:0 0 8px">Inscreva o seu melhor produto em cada categoria (o mais valioso do armazém vai automaticamente). Os três primeiros ganham medalha e prêmio.</p><div class="cards">';
   for (const [cat, c] of Object.entries(FAIR.cats)) {
     const done = f.done[cat];
     const best = sys.fairBest(cat);
@@ -600,7 +602,7 @@ function fairHtml() {
     h += `<div class="card${done && done.place <= 3 ? ' hired' : ''}">
       <div class="ico">${c.icon}</div>
       <div class="info"><b>${c.name}</b><small>${c.desc}</small>
-        <small>${done ? `${['🥇', '🥈', '🥉'][done.place - 1] || '🎗️'} ${done.place}º lugar com ${done.score} pontos` : best ? `Vai inscrever: ${it.icon} ${it.name}${it.tag ? ' ' + it.tag : ''} (~${core.fmt(core.price(best))} pontos)` : 'Nada no celeiro para esta categoria.'}</small>
+        <small>${done ? `${['🥇', '🥈', '🥉'][done.place - 1] || '🎗️'} ${done.place}º lugar com ${done.score} pontos` : best ? `Vai inscrever: ${it.icon} ${it.name}${it.tag ? ' ' + it.tag : ''} (~${core.fmt(core.price(best))} pontos)` : 'Nada no armazém para esta categoria.'}</small>
         <small>Concorrentes: ${f.rivals[cat].slice().sort((a, b) => b - a).join(' · ')} pontos</small></div>
       <div class="btns">${done ? '<span class="req">✔</span>' : `<button class="btn" data-act="fair" data-id="${cat}" ${best ? '' : 'disabled'}>Inscrever</button>`}</div></div>`;
   }
@@ -780,7 +782,7 @@ function drawMapNow() {
   const cv = $('#map-canvas');
   const b = handlers.mapBounds();
   const W = Math.max(640, Math.min(940, $('.map-wrap').clientWidth || 900));
-  const H = Math.round(W * ((b.maxZ - b.minZ) / (b.maxX - b.minX)) * 1.6); // um pouco esticado na vertical para ler melhor
+  const H = Math.round(W * ((b.maxZ - b.minZ) / (b.maxX - b.minX)) * 1.1); // um pouco esticado na vertical para ler melhor
   const dpr = Math.min(2, window.devicePixelRatio || 1);
   cv.width = W * dpr; cv.height = H * dpr;
   cv.style.width = W + 'px'; cv.style.height = H + 'px';
@@ -803,10 +805,14 @@ export function togglePhoto() {
 
 // ================= Colocar decoração =================
 let placeHandlers = null;
-export function showPlaceBar(def, left, h) {
+export function showPlaceBar(def, left, h, mode) {
   placeHandlers = h;
   const bar = $('#placebar');
-  $('#place-text').textContent = `${def.icon} ${def.name}${left > 1 ? ` (${left})` : ''}: ${window.matchMedia('(pointer: coarse)').matches ? 'toque no chão ou ande' : 'mova o mouse e clique'} para escolher o lugar`;
+  const touch = window.matchMedia('(pointer: coarse)').matches;
+  $('#place-text').textContent = mode === 'lot'
+    ? `${def.icon} ${def.name}: ${touch ? 'toque no chão ou ande' : 'mova o mouse e clique'} para escolher onde fica (verde = cabe)`
+    : `${def.icon} ${def.name}${left > 1 ? ` (${left})` : ''}: ${touch ? 'toque no chão ou ande' : 'mova o mouse e clique'} para escolher o lugar`;
+  $('#place-rot').hidden = !h.rotate;
   bar.hidden = false;
   closePanel();
 }
@@ -957,7 +963,7 @@ export function initUI(h) {
     sfx('coin');
   });
   $('#place-ok').addEventListener('click', () => placeHandlers && placeHandlers.ok());
-  $('#place-rot').addEventListener('click', () => placeHandlers && placeHandlers.rotate());
+  $('#place-rot').addEventListener('click', () => placeHandlers && placeHandlers.rotate && placeHandlers.rotate());
   $('#place-cancel').addEventListener('click', () => placeHandlers && placeHandlers.cancel());
   $('#zoom-in').addEventListener('click', () => handlers.onZoom(1 / 1.2));
   $('#zoom-out').addEventListener('click', () => handlers.onZoom(1.2));
@@ -1004,6 +1010,7 @@ export function initUI(h) {
     else if (act === 'quest') sys.questDeliver();
     else if (act === 'decor') { if (sys.buyDecor(id)) handlers.onPlaceDecor(id); return; }
     else if (act === 'decorplace') { handlers.onPlaceDecor(id); return; }
+    else if (act === 'placelot') { handlers.onPlaceLot(id); return; }
     else if (act === 'fair') sys.fairEnter(id);
     else if (act === 'tree') sys.buyTree(id);
     else if (act === 'hive') sys.buyHive();

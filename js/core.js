@@ -140,6 +140,8 @@ function newState() {
     orchard: Array.from({ length: ORCHARD.slots }, () => ({ type: null, g: 0, t: 0, fruit: 0 })),
     hives: { n: 0, t: 0, honey: 0 },
     ach: {},
+    layout: {},                                       // onde o jogador colocou cada obra e campo: { id: { x, z } }
+    layoutV: 2,                                       // versão do mapa (2 = mapa maior, com lugares escolhidos)
     decor: [],                                        // decorações colocadas: { id, x, z, r }
     decorInv: {},                                     // compradas e ainda não colocadas                                          // conquistas já desbloqueadas
     quest: null, questT: 60,                          // encomenda especial e tempo até a próxima
@@ -210,6 +212,7 @@ export function buyPasture() {
   sfx('level');
   emit('pasture');
   markDirty('panel');
+  return true;
 }
 export const isReady = (p) => p.s === 'planted' && p.g >= CROPS[p.crop].time;
 export const isWet = (p) => autoWater() || p.w > 0;
@@ -471,7 +474,7 @@ export function update(dt, quiet) {
     }
     if (p.w > 0) p.w = Math.max(0, p.w - dt * evaporate);
   }
-  // Alimentador automático: animais com fome comem o trigo guardado no celeiro
+  // Alimentador automático: animais com fome comem o trigo guardado no armazém
   if (S.up.alimentador > 0) {
     let fed = 0;
     for (const a of S.animals) {
@@ -997,6 +1000,7 @@ export function buyBigField() {
   emit('bigfield');
   toast(`${BIG_FIELD.icon} O ${BIG_FIELD.name} é seu! ${BIG_CELLS} lotes. Compre as máquinas para trabalhar nele.`, 'good');
   sfx('level');
+  return true;
 }
 
 export function buyMachine(id) {
@@ -1157,7 +1161,7 @@ export function chopTree(i, quiet = false) {
 // ================= Construções de madeira =================
 export const built = (id) => !!(S.build[id] && S.build[id].done);
 
-/** Artigos conforme o gênero da construção (o celeiro, a queijaria). */
+/** Artigos conforme o gênero da construção (o armazém, a queijaria). */
 const bw = (b, m, f) => (b.fem ? f : m);
 
 function needBuilt(id, what) {
@@ -1248,7 +1252,7 @@ export function setBench(id) {
   markDirty('panel');
 }
 
-/** Quantas vezes dá para fazer a receita com o que há no celeiro. */
+/** Quantas vezes dá para fazer a receita com o que há no armazém. */
 export function craftMax(rid) {
   const rc = RECIPES.find((x) => x.id === rid);
   if (!rc) return 0;
@@ -1315,7 +1319,7 @@ export function cheat(code) {
 }
 
 // ================= Queijaria =================
-/** Usar a queijaria: coleta os queijos prontos e coloca o leite do celeiro para virar queijo. */
+/** Usar a queijaria: coleta os queijos prontos e coloca o leite do armazém para virar queijo. */
 export function cheeseUse() {
   const ch = S.cheese;
   if (!built('queijaria')) return null;
@@ -1381,7 +1385,7 @@ export function collectManure() {
   return true;
 }
 
-/** Usar a composteira: coleta o fertilizante pronto e coloca o esterco do celeiro para curtir. */
+/** Usar a composteira: coleta o fertilizante pronto e coloca o esterco do armazém para curtir. */
 export function compostUse() {
   const cp = S.compost;
   const collected = canStore(cp.ready) ? cp.ready : 0;
@@ -1435,13 +1439,23 @@ export function buySawmill() {
   if (S.saw.owned || SAWMILL.level > S.level) return;
   if (!spend(SAWMILL.cost)) return;
   S.saw.owned = true;
-  toast(`${SAWMILL.icon} Serraria construída na entrada do bosque! Leve troncos 🪵 para virar tábuas ${PLANK.icon}.`, 'good');
+  toast(`${SAWMILL.icon} Serraria construída! Leve troncos 🪵 para virar tábuas ${PLANK.icon}.`, 'good');
   sfx('level');
   emit('sawmill');
   markDirty('panel');
+  return true;
 }
 
-/** Usar a serraria: coleta as tábuas prontas e coloca os troncos do celeiro na fila. */
+// ================= Lugar das obras e campos =================
+/** O jogador já escolheu onde fica este lote? (o armazém é fixo na sede) */
+export const lotPlaced = (id) => id === 'celeiro' || !!S.layout[id];
+export function placeLot(id, x, z) {
+  S.layout[id] = { x: Math.round(x * 100) / 100, z: Math.round(z * 100) / 100 };
+  markDirty('panel');
+  save();
+}
+
+/** Usar a serraria: coleta as tábuas prontas e coloca os troncos do armazém na fila. */
 export function sawmillUse() {
   const saw = S.saw;
   if (!saw.owned) return null;
@@ -1538,7 +1552,7 @@ export function rollFish() {
 
 export function catchFish(id) {
   const f = FISH[id];
-  if (!canStore()) { toast(`📦 Celeiro cheio: você soltou o ${f.icon} ${f.name.toLowerCase()} de volta no lago.`, 'bad'); sfx('splash'); return; }
+  if (!canStore()) { toast(`📦 Armazém cheio: você soltou o ${f.icon} ${f.name.toLowerCase()} de volta no lago.`, 'bad'); sfx('splash'); return; }
   addItem(id, 1);
   gainXp(f.xp);
   S.stats.fish = (S.stats.fish || 0) + 1;
@@ -1774,7 +1788,7 @@ export function crowEat(i) {
   return true;
 }
 
-// ================= Espaço no celeiro =================
+// ================= Espaço no armazém =================
 export const stored = () => Object.values(S.inv).reduce((s, n) => s + (n > 0 ? n : 0), 0);
 export const capacity = () => STORAGE.base + S.decor.filter((x) => x.id === 'bau').length * STORAGE.chest;
 export const canStore = (n = 1) => stored() + n <= capacity();
@@ -1782,7 +1796,7 @@ let fullT = 0;
 export function fullWarn(quiet) {
   if (quiet || performance.now() - fullT < 2500) return;
   fullT = performance.now();
-  toast(`📦 O celeiro está cheio (${fmt(stored())}/${fmt(capacity())})! Venda ou use itens, ou coloque baús 🧰 (decoração).`, 'bad');
+  toast(`📦 O armazém está cheio (${fmt(stored())}/${fmt(capacity())})! Venda ou use itens, ou coloque baús 🧰 (decoração).`, 'bad');
   sfx('error');
 }
 
@@ -1850,6 +1864,8 @@ function load() {
       friends: { ...(d.friends || {}) },
       ach: { ...(d.ach || {}) },
       decor: Array.isArray(d.decor) ? d.decor : [],
+      layout: { ...(d.layout || {}) },
+      layoutV: d.layoutV || 1,
       decorInv: { ...(d.decorInv || {}) },
       fair: { ...base.fair, ...d.fair },
       tutorial: d.tutorial ? { ...base.tutorial, ...d.tutorial, tips: { ...(d.tutorial.tips || {}) } } : { ...base.tutorial, done: true },
