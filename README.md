@@ -50,6 +50,13 @@ Depois acesse http://localhost:5173. Na primeira vez, precisa de internet para b
 - **Cavalo**: no nível 3, com o curral construído, compre um cavalo que pasta perto do portão do curral. Com a sela, monte e cavalgue 1,75× mais rápido (galope com Shift ou com o joystick na borda); use a ação para descer.
 - **Famílias no curral**: cada animal tem uma cor sorteada e você escolhe fêmea ou macho. Só as fêmeas produzem; com um macho adulto da mesma espécie, cada produção tem 3% de chance de nascer um filhote, que vira adulto em 5 dias de jogo.
 - **Queijaria**: obra de madeira (nível 5) que transforma o leite das vacas em queijo (2 leites → 1 queijo, que vale bem mais), sozinha, até com o jogo fechado.
+- **Fábricas e pomar**: moinho, padaria, tear e defumadouro (obras de madeira) transformam os produtos sozinhos; o pomar dá frutas e as colmeias, mel.
+- **Estações do ano**: quatro estações de 7 dias, com culturas da estação mais rápidas, clima e cores próprios.
+- **Vila**: encomendas especiais com prazo, amizade com os moradores (presentes e bônus) e feira com medalhas no fim de cada estação.
+- **Conquistas**: 24 objetivos com prêmios em moedas.
+- **Decoração e celeiro**: decorações colocadas livremente; o celeiro tem limite de espaço e os baús aumentam.
+- **Corvos e pet**: corvos bicam as plantas se ninguém espantar; espantalhos protegem e o pet corre atrás deles e cava achados todo dia.
+- **Mapa e foto**: mapa com viagem rápida (M) e modo foto (P).
 - **Pasto**: campo grande a leste do Campo de Trigo, com 30 vagas só para o gado (vacas, touros e bezerros), que come capim e não precisa de trigo.
 - **Esterco e fertilizante**: as vacas fazem cocô no curral; recolha o esterco e leve à composteira, que o transforma em fertilizante. Com a ferramenta Adubar, uma planta crescendo tem 60% de chance de ficar gigante (maior e vale o dobro).
 - **Pet**: uma border collie (nível 2) que segue o jogador, senta quando ele para, corre atrás dos passarinhos e ganha carinho (+10 XP por dia). Dá para trocar o nome.

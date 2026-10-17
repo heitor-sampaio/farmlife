@@ -3,6 +3,20 @@
 
 export const CHANGELOG = [
   {
+    version: '4.0.0', date: '2026-10-17', title: 'A fazenda cresceu',
+    items: [
+      '🏭 Fábricas de madeira: 🌬️ moinho (farinha), 🥖 padaria (pão, torta, suco, geleia e bolo), 🧶 tear (tecido e roupas) e 🔥 defumadouro (peixe defumado). Escolha as receitas na Oficina.',
+      '🌳 Pomar com mudas de macieira, laranjeira e mangueira, e 🐝 colmeias que fazem mel e aceleram as frutas.',
+      '🍂 Estações do ano: primavera, verão, outono e inverno, com culturas da estação mais rápidas, clima diferente e cores novas no mapa.',
+      '📜 Encomendas especiais da vila, ❤️ amizade com os moradores (presentes e pedidos mais caros) e 🎪 feira com medalhas no fim de cada estação.',
+      '🏆 24 conquistas com prêmios, num tópico novo do Guia.',
+      '🌻 Decoração: espantalho, baús, flores, bancos, lampiões, fonte, estátua e mais, colocados onde você quiser.',
+      '📦 O celeiro agora tem limite de espaço (500 itens); cada baú colocado dá +100.',
+      '🐦‍⬛ Corvos que bicam as plantas: espante chegando perto, com o pet ou com espantalhos. O pet também cava e acha coisas todo dia.',
+      '🗺️ Mapa da fazenda com viagem rápida (tecla M) e 📷 modo foto para salvar imagens (tecla P).',
+    ],
+  },
+  {
     version: '3.8.0', date: '2026-10-17', title: 'Queijaria',
     items: [
       '🧀 Queijaria (nível 5), construída com madeira no canteiro entre a loja e o galpão: transforma 2 🥛 leites em 1 queijo a cada 1 min e meio, até com o jogo fechado.',

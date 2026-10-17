@@ -1,6 +1,7 @@
 /* FarmLife — mundo 3D: cena, câmera isométrica, personagem, animais e interações */
 import * as THREE from 'three';
-import { ANIMALS, PRODUCTS, CROPS, WORKERS, FIELDS, TOTAL_PLOTS, fieldOf, BIG_FIELD, BIG_CELLS, MACHINES, FISH, MUTATIONS, CHOP_TREES, SAWMILL, BUILDINGS, RECIPES, CARPENTRY, HORSE, SADDLE, RIDE_MULT, MANURE, COMPOST, FERTILIZER, BREED, PASTURE, CHEESERY } from '../data.js';
+import { ANIMALS, PRODUCTS, CROPS, WORKERS, FIELDS, TOTAL_PLOTS, fieldOf, BIG_FIELD, BIG_CELLS, MACHINES, FISH, MUTATIONS, CHOP_TREES, SAWMILL, BUILDINGS, RECIPES, CARPENTRY, HORSE, SADDLE, RIDE_MULT, MANURE, COMPOST, FERTILIZER, BREED, PASTURE, CHEESERY, FACTORIES, ORCHARD, FRUIT_TREES, HIVES, DECOR, CROWS } from '../data.js';
+import * as sys from '../systems.js';
 import { sfx } from '../audio.js';
 import * as core from '../core.js';
 import * as ui from '../ui.js';
@@ -62,6 +63,64 @@ SPOTS['campo:trigo'] = {
   text: `Ver o ${BIG_FIELD.name}`,
   info: `${BIG_FIELD.icon} ${BIG_FIELD.name} à venda: ${BIG_CELLS} lotes por 🪙${BIG_FIELD.cost.toLocaleString('pt-BR')} (nível ${BIG_FIELD.level}). Compre na loja.`,
 };
+// Fábricas (obras de madeira), covas do pomar e colmeias
+for (const [id, f] of Object.entries(FACTORIES)) {
+  const [x, z] = f.at;
+  SPOTS[id] = { label: null, site: id, at: [x, z], labelY: id === 'moinho' ? 4.9 : 3.2, point: [x, z + f.size[1] / 2 + 0.75], r: 1.3, text: '', info: '' };
+}
+const ORCHARD_POS = Array.from({ length: ORCHARD.slots }, (_, k) => [33 + k * 2.6, -8.3]);
+ORCHARD_POS.forEach(([x, z], k) => { SPOTS['pomar:' + k] = { label: null, at: [x, z], labelY: 3.0, point: [x, z + 1.15], r: 1.15, text: '', info: '' }; });
+const HIVE_POS = [[29.9, -9.3], [31.1, -9.3], [29.9, -8.1], [31.1, -8.1]];
+SPOTS.colmeias = { label: null, at: [30.5, -8.7], labelY: 1.9, point: [30.5, -7.2], r: 1.2, text: '', info: '' };
+
+/** Rótulo, informação e ação de pontos com regras próprias (fábricas, pomar, colmeias). */
+const SPOT_HOOKS = {};
+for (const id of Object.keys(FACTORIES)) {
+  SPOT_HOOKS[id] = {
+    label: () => sys.factoryLabel(id),
+    info: () => sys.factoryInfo(id),
+    open: () => {
+      const res = sys.factoryUse(id);
+      if (res && (res.collected || res.loaded)) {
+        startAction('collect');
+        const [x, z] = FACTORIES[id].at;
+        burst(x, 1, z + 1, res.collected ? 0xf4c27a : 0xffffff, 12, { up: 2.2, spread: 0.8, size: 0.06 });
+      } else if (!res) ui.openPanel('oficina');
+    },
+  };
+}
+ORCHARD_POS.forEach(([x, z], k) => {
+  SPOT_HOOKS['pomar:' + k] = {
+    label: () => sys.treeLabel(k),
+    info: () => sys.treeInfo(k),
+    open: () => {
+      const o = sys.treeAt(k);
+      if (!o.type) { ui.openPanel('loja', 'pomar'); return; }
+      const n = sys.harvestTree(k);
+      if (n) {
+        startAction('collect');
+        burst(x, 1.6, z, 0x7cb342, 10, { up: 2, spread: 0.9, size: 0.06 });
+        const p = screenPosOf({ pos: { x, z } });
+        if (p) ui.fxAt(p.x, p.y - 60, `+${n} ${FRUIT_TREES[o.type].icon}`, 'gold');
+      } else ui.toast(sys.treeInfo(k));
+    },
+  };
+});
+SPOT_HOOKS.colmeias = {
+  label: () => sys.hiveLabel(),
+  info: () => sys.hiveInfo(),
+  open: () => {
+    if (!core.S.hives.n) { ui.openPanel('loja', 'pomar'); return; }
+    const n = sys.collectHoney();
+    if (n) {
+      startAction('collect');
+      burst(30.5, 1, -8.7, 0xf2c14e, 12, { up: 2, spread: 0.8, size: 0.05 });
+      const p = screenPosOf({ pos: { x: 30.5, z: -8.7 } });
+      if (p) ui.fxAt(p.x, p.y - 30, `+${n} 🍯`, 'gold');
+    } else ui.toast(sys.hiveInfo());
+  },
+};
+
 const spotActive = (s) => (s.pasture ? !core.S.pasture
   : s.build ? !core.built(s.build)
   : s.needs ? core.built(s.needs)
@@ -260,6 +319,8 @@ export async function initWorld(cv) {
   buildGrove();
   buildSawmill();
   buildCheesery();
+  buildFactories();
+  buildOrchard();
   buildSites();
   buildCompost();
   buildBench();
@@ -271,6 +332,7 @@ export async function initWorld(cv) {
   buildGuide();
 
   M.setFarmerStyle(core.S.char.gender);
+  nav.snapshot(); // obstáculos fixos; as decorações são bloqueadas por cima
   player.m = M.makeFarmer();
   scene.add(player.m.root);
   camTarget.copy(player.pos);
@@ -306,6 +368,7 @@ function buildGround() {
   const ground = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 1 }));
   ground.receiveShadow = true;
   scene.add(ground);
+  seasonMats.push(ground.material);
 
   // Caminhos de terra
   const pathMat = new THREE.MeshStandardMaterial({ color: 0xcfae74, roughness: 1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
@@ -328,6 +391,8 @@ function buildGround() {
   strip(16.8, -1.6, 24, -0.4);    // do Leste até o Campo de Trigo
   strip(16.8, -6.6, 30, -3.4);    // pátio do galpão das máquinas
   strip(8.5, -5.65, 16.8, -4.35);  // da loja até a queijaria e o galpão
+  strip(17.2, -0.4, 18.4, 13.4);   // rua das fábricas (moinho, padaria e tear)
+  strip(0.6, 6.4, 3.0, 7.2);       // até o defumadouro
   strip(30, -5.9, 50.2, -4.7);    // do galpão até o pasto
   strip(48.9, -4.7, 51.1, -0.6);  // corredor até o portão do pasto
 
@@ -493,6 +558,7 @@ function buildPasture() {
     new THREE.PlaneGeometry(x1 - x0, z1 - z0),
     new THREE.MeshStandardMaterial({ color: 0x93d36b, roughness: 1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }),
   );
+  seasonMats.push(grass.material);
   grass.rotation.x = -Math.PI / 2;
   grass.position.set(cx, 0.011, cz);
   grass.receiveShadow = true;
@@ -1032,6 +1098,9 @@ function buildNature() {
     (x > PEN.x1 - 0.5 && x < PEN.x2 + 0.5 && z > PEN.z1 - 0.5 && z < PEN.z2 + 0.5) ||
     (z < -3.8 && z > -10.5 && x > -12 && x < 9) ||
     (z < -4 && z > -9 && x > 9 && x < 17) ||
+    (x > 17 && x < 24 && z > 0.5 && z < 14) ||
+    (x > 2.6 && x < 6 && z > 5.2 && z < 8.3) ||
+    (x > 29 && x < 48.5 && z > -10.3 && z < -6.6) ||
     Math.hypot(x - POND.x, z - POND.z) < POND.r + 0.6 ||
     (z > -1.2 && z < 0.8 && x > -8 && x < -4);
   for (let k = 0; k < 150; k++) {
@@ -1149,7 +1218,9 @@ function updateWeatherFx(dt, evId) {
     snow.geometry.attributes.position.needsUpdate = true;
   }
   // O chão vai ficando branco durante a neve e derrete depois
-  snowCover.material.opacity = fadeTo(snowCover.material.opacity, snowOn ? 0.5 : 0, dt, snowOn ? 0.08 : 0.25);
+  // No inverno fica uma camada fina de neve mesmo sem nevar
+  const winter = sys.season().id === 'inverno' ? 0.28 : 0;
+  snowCover.material.opacity = fadeTo(snowCover.material.opacity, snowOn ? 0.5 : winter, dt, snowOn ? 0.08 : 0.25);
   snowCover.visible = snowCover.material.opacity > 0.01;
   if (snowCover.visible) snowCover.position.set(camTarget.x, 0.025, camTarget.z);
 
@@ -1398,7 +1469,7 @@ function resize() {
 }
 
 export function zoomBy(f) {
-  zoom = THREE.MathUtils.clamp(zoom * f, 7, 24);
+  zoom = THREE.MathUtils.clamp(zoom * f, photo ? 3 : 7, photo ? 40 : 24);
   resize();
 }
 
@@ -1824,6 +1895,7 @@ function jobTarget(job) {
   if (job.kind === 'tree') { const v = grove[job.i]; return v && v.state === 'up' ? { x: v.x, z: v.z, reach: 1.25 } : null; }
   if (job.kind === 'pet') return pet.model ? { x: pet.pos.x, z: pet.pos.z, reach: 1.1 } : null;
   if (job.kind === 'horse') return horse ? { x: horse.pos.x, z: horse.pos.z, reach: 1.3 } : null;
+  if (job.kind === 'decor') { const v = decorVis[job.k]; return v ? { x: v.x, z: v.z, reach: 0.9 } : null; }
   if (job.kind === 'poop') { const p = poopPos[job.k]; return p && job.k < poopCount() ? { x: p.x, z: p.z, reach: 0.6 } : null; }
   if (job.kind === 'fish') {
     // Vai até a beira do lago, do lado em que o pescador está
@@ -1887,6 +1959,7 @@ function performJob(job) {
   else if (job.kind === 'pet') petInteract();
   else if (job.kind === 'horse') mountHorse();
   else if (job.kind === 'poop') doPoop(job.k);
+  else if (job.kind === 'decor') moveDecor(job.k);
   else if (job.kind === 'tree') {
     // Clicou na árvore: continua cortando até ela cair
     if (doChop(job.i, job.quiet) === 'hit') player.queue.unshift({ kind: 'tree', i: job.i, quiet: true });
@@ -1912,6 +1985,7 @@ function buildSites() {
   make('celeiro', 'celeiro', 4.2, 3.6, 3.0);
   make('galpao', 'obra:galpao', 7.2, 3.2, 3.0);
   make('queijaria', 'queijaria', 3.4, 2.4, 3.0);
+  for (const [id, f] of Object.entries(FACTORIES)) make(id, id, f.size[0] + 0.3, f.size[1] + 0.3, 3.0);
   // Clique no canteiro do galpão (o do celeiro usa o volume do próprio celeiro)
   const proxy = new THREE.Mesh(M.GEO.box, new THREE.MeshBasicMaterial({ visible: false }));
   proxy.scale.set(7.2, 2.4, 3.2);
@@ -1966,7 +2040,7 @@ function updateSites(dt) {
       }
       if (finished) {
         st.riseT = 0;
-        const [x, z] = id === 'curral' ? SPOTS['obra:curral'].at : SPOTS[id === 'galpao' ? 'obra:galpao' : id === 'queijaria' ? 'queijaria' : 'celeiro'].at;
+        const [x, z] = (SPOTS[id] || SPOTS['obra:' + id]).at;
         burst(x, 0.5, z, 0xd7c4a0, 30, { up: 3, spread: 2.2, size: 0.09, life: 1.1 });
         burst(x, 1.5, z, 0xfff3b0, 16, { up: 4, spread: 1.4, size: 0.07, life: 1 });
       }
@@ -1985,7 +2059,7 @@ function deliverBuild(id) {
   const res = core.buildDeliver(id);
   if (res && res.delivered) {
     startAction('collect');
-    const key = id === 'celeiro' || id === 'queijaria' ? id : 'obra:' + id;
+    const key = SPOTS[id] ? id : 'obra:' + id;
     const [x, z] = SPOTS[key].at;
     burst(x, 0.6, z, 0xd7b98a, 14, { up: 2.4, spread: 1.2, size: 0.07 });
   }
@@ -2410,6 +2484,525 @@ function updateCheesery() {
   cheesery.model.wheels.forEach((w, k) => { w.visible = k < ch.ready; });
 }
 
+// ================= Fábricas =================
+const factoryVis = {};
+const FACTORY_MODEL = { moinho: () => M.makeWindmill(), padaria: () => M.makeBakery(), tear: () => M.makeLoomHouse(), defumadouro: () => M.makeSmokehouse() };
+
+function buildFactories() {
+  for (const [id, f] of Object.entries(FACTORIES)) {
+    const [x, z] = f.at;
+    const m = FACTORY_MODEL[id]();
+    m.group.position.set(x, 0, z);
+    scene.add(m.group);
+    const label = M.textSprite(`${f.icon} ${f.name}`, 0.5);
+    label.position.set(x, SPOTS[id].labelY, z);
+    scene.add(label);
+    const proxy = new THREE.Mesh(M.GEO.box, new THREE.MeshBasicMaterial({ visible: false }));
+    proxy.scale.set(f.size[0], 2.6, f.size[1]);
+    proxy.position.set(x, 1.3, z);
+    proxy.userData.pick = { kind: 'spot', key: id };
+    scene.add(proxy);
+    pickables.push(proxy);
+    nav.blockRect(x - f.size[0] / 2, z - f.size[1] / 2, x + f.size[0] / 2, z + f.size[1] / 2, PLAYER_R * 0.6);
+    factoryVis[id] = { m, smokeT: 0 };
+    sites[id] = { model: m.group, labels: [label] };
+  }
+}
+
+function updateFactoryVis(dt) {
+  for (const [id, v] of Object.entries(factoryVis)) {
+    if (!core.built(id)) continue;
+    const busy = sys.factoryBusy(id);
+    if (v.m.spin) v.m.spin.rotation.z += dt * (busy ? 1.6 : 0.25);
+    if (busy && v.m.smoke) {
+      v.smokeT -= dt;
+      if (v.smokeT <= 0) {
+        v.smokeT = 0.35;
+        const [x, z] = FACTORIES[id].at;
+        burst(x + v.m.smoke.x, v.m.smoke.y, z + v.m.smoke.z, 0xd0d0d0, 2, { up: 1.2, spread: 0.15, size: 0.12, life: 1.6, gravity: -0.6 });
+      }
+    }
+  }
+}
+
+// ================= Estações do ano (cores do chão e das folhas) =================
+const seasonMats = [];                 // chão e capim: recebem o tom da estação
+const LEAF_COLORS = [0x5aa845, 0x67b852, 0x4f9a3d, 0x5fae47, 0x468a35]; // copas redondas, arbustos e mato
+const PINE_COLORS = [0x3f8f46, 0x48a04f, 0x54ad5a];
+const tmpSeason = new THREE.Color();
+let seasonShown = null;
+let seasonBlend = 1;
+let seasonFrom = null;
+
+function seasonTargets(sz) {
+  const out = new Map();
+  for (const c of LEAF_COLORS) {
+    const col = new THREE.Color(c);
+    if (sz.leaf) col.lerp(new THREE.Color(sz.leaf[0]), sz.leaf[1]);
+    out.set(M.mat(c), col);
+  }
+  for (const c of PINE_COLORS) {
+    const col = new THREE.Color(c);
+    if (sz.id === 'inverno') col.lerp(new THREE.Color(0xeef4f8), 0.35);
+    out.set(M.mat(c), col);
+  }
+  // O tom da estação multiplica a cor própria de cada material (chão branco com cores por vértice, capim verde)
+  for (const m of seasonMats) {
+    if (!m.userData.baseColor) m.userData.baseColor = m.color.clone();
+    out.set(m, m.userData.baseColor.clone().multiply(new THREE.Color(sz.tint[0], sz.tint[1], sz.tint[2])));
+  }
+  return out;
+}
+
+function updateSeason(dt) {
+  const sz = sys.season();
+  if (seasonShown !== sz.id) {
+    // Guarda as cores atuais e faz a transição aos poucos
+    seasonFrom = new Map();
+    for (const [m] of seasonTargets(sz)) seasonFrom.set(m, m.color.clone());
+    seasonShown = sz.id;
+    seasonBlend = seasonFrom.size && seasonShown !== null && clock > 1 ? 0 : 1;
+    if (seasonBlend >= 1) for (const [m, col] of seasonTargets(sz)) m.color.copy(col);
+    else updateSeason.targets = seasonTargets(sz);
+  }
+  if (seasonBlend < 1 && updateSeason.targets) {
+    seasonBlend = Math.min(1, seasonBlend + dt / 4);
+    for (const [m, col] of updateSeason.targets) m.color.copy(seasonFrom.get(m)).lerp(col, seasonBlend);
+  }
+}
+
+// ================= Mapa e viagem rápida =================
+/** Lugares para onde dá para viajar pelo mapa. */
+export function mapPlaces() {
+  const S = core.S;
+  const list = [
+    { id: 'casa', icon: '🏠', name: 'Casa', x: -8.9, z: -6.1 },
+    { id: 'loja', icon: '🏪', name: 'Loja', x: 6.5, z: -6.2 },
+    { id: 'celeiro', icon: '🛖', name: 'Celeiro', x: -1.5, z: -5.9 },
+    { id: 'curral', icon: '🐾', name: 'Curral', x: -6.6, z: -0.2 },
+    { id: 'bosque', icon: '🌲', name: 'Bosque', x: -9.6, z: 7.4 },
+    { id: 'lago', icon: '🎣', name: 'Lago', x: POND.x - 2.5, z: POND.z - 1.6 },
+    { id: 'fabricas', icon: '🏭', name: 'Fábricas', x: 17.8, z: 6.0 },
+    { id: 'queijaria', icon: '🧀', name: 'Queijaria', x: 12.6, z: -5.4 },
+    { id: 'galpao', icon: '🚜', name: 'Galpão', x: 21, z: -5.6 },
+    { id: 'pomar', icon: '🌳', name: 'Pomar', x: 38, z: -6.4 },
+  ];
+  if (S.big.owned) list.push({ id: 'trigo', icon: '🌾', name: 'Campo de Trigo', x: BIG_X0 - 0.6, z: BIG.cz });
+  if (S.pasture) list.push({ id: 'pasto', icon: '🌿', name: 'Pasto', x: PAST.x0 + 1.5, z: (PAST.gate[0] + PAST.gate[1]) / 2 });
+  return list;
+}
+export const mapBounds = () => ({ minX: BOUNDS.minX, maxX: BOUNDS.maxX, minZ: BOUNDS.minZ, maxZ: BOUNDS.maxZ });
+
+/** Desenha o mapa da fazenda visto de cima (x para a direita, z para baixo). */
+export function drawMap(ctx, W, H) {
+  const b = mapBounds();
+  const sx = W / (b.maxX - b.minX), sz = H / (b.maxZ - b.minZ);
+  const X = (x) => (x - b.minX) * sx, Z = (z) => (z - b.minZ) * sz;
+  const rect = (x1, z1, x2, z2, color, line) => {
+    ctx.fillStyle = color;
+    ctx.fillRect(X(x1), Z(z1), X(x2) - X(x1), Z(z2) - Z(z1));
+    if (line) { ctx.strokeStyle = line; ctx.lineWidth = 1.5; ctx.strokeRect(X(x1), Z(z1), X(x2) - X(x1), Z(z2) - Z(z1)); }
+  };
+  const label = (t, x, z, size = 12) => {
+    ctx.font = `600 ${size}px Fredoka, system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(t, X(x), Z(z));
+  };
+  ctx.fillStyle = '#86c95f';
+  ctx.fillRect(0, 0, W, H);
+  // Caminhos
+  ctx.fillStyle = '#d8bb85';
+  for (const [x1, z1, x2, z2] of [[-10.5, -5.65, 16.8, -4.35], [16.8, -6.6, 30, -3.4], [30, -5.9, 50.2, -4.7], [48.9, -4.7, 51.1, -0.6], [4.3, -1.6, 10.4, -0.4], [16.8, -1.6, 24, -0.4], [-0.6, 3.2, 0.6, 8.7], [17.2, -0.4, 18.4, 13.4], [-7.8, -0.85, -4.3, 0.45]]) {
+    ctx.fillRect(X(x1), Z(z1), X(x2) - X(x1), Z(z2) - Z(z1));
+  }
+  // Campos
+  for (const f of FIELDS) {
+    const q = fieldRect(f);
+    rect(q.x1, q.z1, q.x2, q.z2, core.fieldOwned(f.id) ? '#8a6a45' : 'rgba(138,106,69,.35)', core.fieldOwned(f.id) ? null : '#8a6a45');
+  }
+  rect(BIG_X0, BIG_Z0, BIG_X0 + BIG_FIELD.cols, BIG_Z0 + BIG_FIELD.rows, core.S.big.owned ? '#e3c770' : 'rgba(227,199,112,.35)', '#b89a4a');
+  rect(PAST.x0, PAST.z0, PAST.x1, PAST.z1, core.S.pasture ? '#a8de7f' : 'rgba(168,222,127,.4)', '#6f9a4a');
+  rect(PEN.x1, PEN.z1, PEN.x2, PEN.z2, core.built('curral') ? '#d8c27e' : 'rgba(216,194,126,.45)', '#8d6334');
+  // Lago e bosque
+  ctx.fillStyle = '#5fb4e6';
+  ctx.beginPath();
+  ctx.ellipse(X(POND.x), Z(POND.z), POND.r * sx, POND.r * sz, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#3f8f46';
+  for (const [x, z] of CHOP_TREES) { ctx.beginPath(); ctx.arc(X(x), Z(z), 4, 0, Math.PI * 2); ctx.fill(); }
+  for (const [x, z] of ORCHARD_POS) { ctx.beginPath(); ctx.arc(X(x), Z(z), 4, 0, Math.PI * 2); ctx.fill(); }
+  // Construções
+  ctx.fillStyle = '#4a3220';
+  for (const [key, icon] of [['casa', '🏠'], ['celeiro', '🛖'], ['loja', '🏪'], ['pedidos', '📦'], ['mesa', '🪚'], ['queijaria', '🧀'], ['serraria', '🪚'], ['compost', '♻️'], ['moinho', '🌬️'], ['padaria', '🥖'], ['tear', '🧶'], ['defumadouro', '🔥'], ['colmeias', '🐝']]) {
+    const sp = SPOTS[key];
+    if (sp) label(icon, sp.at[0], sp.at[1], 14);
+  }
+  label('🚜', SHED[0], SHED[1], 14);
+  // Pet, cavalo e você
+  if (pet.model) label('🐶', pet.pos.x, pet.pos.z, 12);
+  if (horse && !riding) label('🐴', horse.pos.x, horse.pos.z, 12);
+  ctx.fillStyle = '#d9534f';
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(X(player.pos.x), Z(player.pos.z), 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+}
+
+/** Teleporta o personagem (e o cavalo, se estiver montado). */
+export function travelTo(x, z) {
+  if (driving) { ui.toast('Saia da máquina antes de viajar pelo mapa.'); return false; }
+  const [cx, cz] = nav.toCell(x, z);
+  const n = nav.freeCell(cx, cz) ? [cx, cz] : nav.nearestFree(cx, cz);
+  if (!n) return false;
+  const p = nav.center(n[0], n[1]);
+  if (fishing.state !== 'idle') endFishing();
+  cancelJobs();
+  player.pos.set(p.x, 0, p.z);
+  if (riding && horse) horse.pos.set(p.x, 0, p.z);
+  camTarget.set(p.x, 0, p.z);
+  if (pet.model) pet.pos.set(p.x + 1, 0, p.z + 1);
+  ui.sleepFade();
+  sfx('open');
+  return true;
+}
+
+// ================= Modo foto =================
+let photo = false;
+const hiddenSprites = [];
+export function setPhotoMode(on, hideLabels) {
+  photo = on;
+  for (const s of hiddenSprites) s.visible = true;
+  hiddenSprites.length = 0;
+  if (on && hideLabels) scene.traverse((o) => { if (o.isSprite && o.visible) { o.visible = false; hiddenSprites.push(o); } });
+  if (on) cancelJobs();
+}
+export const isPhoto = () => photo;
+/** Foto da cena (sem a interface), como imagem PNG. */
+export function capture() {
+  renderer.render(scene, camera);
+  return renderer.domElement.toDataURL('image/png');
+}
+
+// ================= Corvos =================
+const crows = [];
+let crowRoundT = 20;
+
+/** Algum espantalho perto do lote? */
+function scarecrowNear(x, z) {
+  return sys.decorList().some((dd) => dd.id === 'espantalho' && Math.hypot(dd.x - x, dd.z - z) < CROWS.scarecrow);
+}
+
+function spawnCrow() {
+  const S = core.S;
+  if (S.level < CROWS.level) return;
+  const growing = [];
+  for (let i = 0; i < S.plots.length; i++) if (core.crowTarget(i) && core.plotVisible(i)) growing.push(i);
+  if (!growing.length) return;
+  const i = growing[Math.floor(Math.random() * growing.length)];
+  const t = tilePos(i);
+  const m = M.makeBird(0x1f1f24);
+  m.root.scale.setScalar(2.4);
+  const from = new THREE.Vector3(t.x + rand(-14, 14), 7, t.z - 12);
+  m.root.position.copy(from);
+  scene.add(m.root);
+  const guarded = scarecrowNear(t.x, t.z);
+  const ind = M.emojiSprite('❗', 0.4, true);
+  ind.visible = false;
+  scene.add(ind);
+  // pos e state servem para o pet correr atrás (como os passarinhos)
+  crows.push({ i, m, ind, pos: new THREE.Vector3(t.x, 0, t.z), from, state: 'in', t: 0, eat: CROWS.eat, guarded, flap: 0 });
+}
+
+function scareCrow(c, by) {
+  if (c.state === 'out') return;
+  c.state = 'out';
+  c.t = 0;
+  c.from.copy(c.m.root.position);
+  c.ind.visible = false;
+  sfx('chirp');
+  if (by) {
+    const p = screenPosOf({ pos: c.pos });
+    if (p) ui.fxAt(p.x, p.y - 40, by);
+  }
+}
+
+function updateCrows(dt) {
+  crowRoundT -= dt;
+  if (crowRoundT <= 0) {
+    crowRoundT = CROWS.every;
+    const winter = sys.season().id === 'inverno' ? 0.4 : 1;
+    if (Math.random() < CROWS.chance * winter && crows.length < 2) spawnCrow();
+  }
+  for (let k = crows.length - 1; k >= 0; k--) {
+    const c = crows[k];
+    const r = c.m.root;
+    c.flap += dt * 18;
+    if (c.state === 'in') {
+      c.t = Math.min(1, c.t + dt / 2.6);
+      const e = c.t * (2 - c.t);
+      r.position.lerpVectors(c.from, c.pos, e);
+      r.position.y = c.pos.y + (1 - e) * 7 + 0.18;
+      r.rotation.y = Math.atan2(c.pos.x - c.from.x, c.pos.z - c.from.z);
+      c.m.wingL.rotation.z = Math.sin(c.flap) * 0.9;
+      c.m.wingR.rotation.z = -Math.sin(c.flap) * 0.9;
+      if (c.t >= 1) {
+        // Espantalho por perto: dá meia-volta
+        if (c.guarded) { scareCrow(c, '👒'); continue; }
+        c.state = 'ground';
+      }
+    } else if (c.state === 'ground') {
+      r.position.y = 0.18 + Math.abs(Math.sin(c.flap * 0.3)) * 0.03;
+      c.m.head.rotation.x = Math.max(0, Math.sin(c.flap * 0.35)) * 0.8; // bicando
+      c.m.wingL.rotation.z = c.m.wingR.rotation.z = 0;
+      c.eat -= dt;
+      c.ind.visible = true;
+      c.ind.position.set(c.pos.x, 1.3 + Math.sin(clock * 6) * 0.06, c.pos.z);
+      // Fazendeiro chegou perto: o corvo foge
+      if (dist2(player.pos, c.pos.x, c.pos.z) < CROWS.scare) { scareCrow(c, '👋'); continue; }
+      // O pet corre atrás
+      if (pet.model) {
+        if (!pet.chase && dist2(pet.pos, c.pos.x, c.pos.z) < 9) { pet.chase = c; pet.chaseT = 6; sfx('bark'); }
+        if (dist2(pet.pos, c.pos.x, c.pos.z) < 1.1) { scareCrow(c, '🐶'); continue; }
+      }
+      if (!core.crowTarget(c.i)) { scareCrow(c, null); continue; }
+      if (c.eat <= 0) {
+        core.crowEat(c.i);
+        burst(c.pos.x, 0.4, c.pos.z, 0x6fbf3a, 10, { up: 1.6, spread: 0.6, size: 0.05 });
+        scareCrow(c, null);
+      }
+    } else {
+      c.t += dt / 2.2;
+      r.position.y += dt * 4;
+      r.position.x += Math.sin(r.rotation.y + Math.PI) * dt * 6;
+      r.position.z += Math.cos(r.rotation.y + Math.PI) * dt * 6;
+      r.rotation.y += dt * 0.2;
+      c.m.wingL.rotation.z = Math.sin(c.flap) * 0.9;
+      c.m.wingR.rotation.z = -Math.sin(c.flap) * 0.9;
+      if (c.t >= 1) {
+        scene.remove(r, c.ind);
+        crows.splice(k, 1);
+      }
+    }
+  }
+}
+
+// ================= Decorações =================
+const decorVis = [];
+let decorKey = null;
+let placing = null; // decoração sendo colocada: { id, group, ring, x, z, r, valid, follow }
+const decorGlow = new Set();
+const tmpPlace = new THREE.Vector3();
+
+function syncDecor() {
+  const list = sys.decorList();
+  const key = JSON.stringify(list);
+  if (key === decorKey) return;
+  decorKey = key;
+  for (const v of decorVis) {
+    scene.remove(v.group);
+    pickables.splice(pickables.indexOf(v.group), 1);
+  }
+  decorVis.length = 0;
+  list.forEach((it, k) => {
+    const m = M.makeDecor(it.id);
+    m.group.position.set(it.x, 0, it.z);
+    m.group.rotation.y = it.r;
+    m.group.userData.pick = { kind: 'decor', k };
+    scene.add(m.group);
+    pickables.push(m.group);
+    if (m.glow) decorGlow.add(m.glow);
+    decorVis.push({ group: m.group, id: it.id, x: it.x, z: it.z, fx: 0 });
+  });
+  // Navegação: obstáculos fixos + decorações
+  nav.restore();
+  for (const it of list) {
+    const r = DECOR[it.id].r;
+    if (r > 0) nav.blockCircle(it.x, it.z, r + PLAYER_R * 0.6);
+  }
+}
+
+function updateDecor(dt) {
+  syncDecor();
+  const d = core.darkness();
+  for (const g of decorGlow) g.emissiveIntensity = d * 2.2;
+  for (const v of decorVis) {
+    if (v.id !== 'fonte') continue;
+    v.fx -= dt;
+    if (v.fx <= 0) { v.fx = 0.18; burst(v.x, 1.1, v.z, 0x9fd6f2, 2, { up: 1.6, spread: 0.25, size: 0.04, life: 0.6, gravity: 5 }); }
+  }
+  updatePlacing();
+}
+
+function nearestDecor(maxD) {
+  let best = -1, bd = maxD;
+  decorVis.forEach((v, k) => {
+    const d = dist2(player.pos, v.x, v.z);
+    if (d < bd) { bd = d; best = k; }
+  });
+  return best;
+}
+
+function moveDecor(k) {
+  const id = sys.pickupDecor(k);
+  if (id) { sfx('open'); startPlacing(id); }
+}
+
+/** Começa a colocar uma decoração (ela segue o mouse, ou fica à frente do personagem). */
+export function startPlacing(id) {
+  if (placing) cancelPlacing(true);
+  if (driving || riding) { ui.toast('Desça antes de colocar decorações.'); return; }
+  if (sys.decorInv(id) < 1) return;
+  const m = M.makeDecor(id);
+  const r = Math.max(0.35, DECOR[id].r);
+  const ring = new THREE.Mesh(new THREE.RingGeometry(r + 0.1, r + 0.22, 28), new THREE.MeshBasicMaterial({ color: 0x5cb85c, transparent: true, opacity: 0.85, depthWrite: false }));
+  ring.rotation.x = -Math.PI / 2;
+  scene.add(m.group, ring);
+  placing = { id, group: m.group, ring, x: player.pos.x, z: player.pos.z, r: Math.round(player.heading / (Math.PI / 4)) * (Math.PI / 4) + Math.PI, valid: false, follow: 'player' };
+  ui.showPlaceBar(DECOR[id], sys.decorInv(id), { ok: confirmPlacing, rotate: rotatePlacing, cancel: () => cancelPlacing() });
+}
+
+function placeValid(x, z, id) {
+  const r = DECOR[id].r;
+  if (inFieldOrPond(x, z) && !(x > PAST.x0 && x < PAST.x1 && z > PAST.z0 && z < PAST.z1)) return false;
+  if (r === 0) return true;
+  if (dist2(player.pos, x, z) < r + 0.45) return false;
+  for (let k = 0; k < 8; k++) {
+    const a = (k / 8) * Math.PI * 2;
+    if (!nav.free(x + Math.cos(a) * r, z + Math.sin(a) * r)) return false;
+  }
+  return nav.free(x, z);
+}
+
+function updatePlacing() {
+  if (!placing) return;
+  const p = placing;
+  if (p.follow === 'player') {
+    p.x = player.pos.x + Math.sin(player.heading) * 1.7;
+    p.z = player.pos.z + Math.cos(player.heading) * 1.7;
+  }
+  p.valid = placeValid(p.x, p.z, p.id);
+  p.group.position.set(p.x, 0, p.z);
+  p.group.rotation.y = p.r;
+  p.ring.position.set(p.x, 0.04, p.z);
+  p.ring.material.color.setHex(p.valid ? 0x5cb85c : 0xd9534f);
+}
+
+function confirmPlacing() {
+  const p = placing;
+  if (!p) return;
+  if (!p.valid) { ui.toast('🚫 Não dá para colocar aqui: escolha um lugar livre, fora dos campos e longe das construções.', 'bad'); sfx('error'); return; }
+  const id = p.id;
+  sys.placeDecor(id, p.x, p.z, p.r);
+  burst(p.x, 0.4, p.z, 0xffffff, 10, { up: 2, spread: 0.6, size: 0.05 });
+  cancelPlacing(true);
+  // Pedras do caminho e cercas: continua colocando enquanto houver
+  if (sys.decorInv(id) > 0) startPlacing(id);
+}
+
+function rotatePlacing() { if (placing) placing.r += Math.PI / 4; }
+
+function cancelPlacing(silent) {
+  if (!placing) return;
+  scene.remove(placing.group, placing.ring);
+  placing.ring.geometry.dispose();
+  placing = null;
+  ui.hidePlaceBar();
+  if (!silent) ui.toast('Decoração guardada: coloque depois pela Loja (seção Decoração).');
+}
+
+// ================= Pomar e colmeias =================
+const orchardVis = [];
+let hiveVis = null;
+
+function buildOrchard() {
+  ORCHARD_POS.forEach(([x, z], k) => {
+    const pit = M.makePit();
+    pit.position.set(x, 0, z);
+    scene.add(pit);
+    const trees = {};
+    for (const type of Object.keys(FRUIT_TREES)) {
+      const t = M.makeFruitTree(type);
+      t.group.position.set(x, 0, z);
+      t.group.visible = false;
+      scene.add(t.group);
+      trees[type] = t;
+    }
+    const proxy = new THREE.Mesh(M.GEO.box, new THREE.MeshBasicMaterial({ visible: false }));
+    proxy.scale.set(1.4, 2.4, 1.4);
+    proxy.position.set(x, 1.2, z);
+    proxy.userData.pick = { kind: 'spot', key: 'pomar:' + k };
+    scene.add(proxy);
+    pickables.push(proxy);
+    nav.blockCircle(x, z, 0.3 + PLAYER_R);
+    orchardVis.push({ pit, trees, key: '' });
+  });
+  const label = M.textSprite('🌳 Pomar', 0.5);
+  label.position.set(ORCHARD_POS[2][0] + 1.3, 3.4, ORCHARD_POS[0][1]);
+  scene.add(label);
+  // Colmeias (aparecem conforme compra) e o lugar delas
+  const hives = HIVE_POS.map(([x, z]) => {
+    const h = M.makeHive();
+    h.position.set(x, 0, z);
+    h.visible = false;
+    scene.add(h);
+    return h;
+  });
+  const spotSign = M.makeStake();
+  spotSign.position.set(30.5, 0, -8.7);
+  scene.add(spotSign);
+  const hiveLabel = M.textSprite(`${HIVES.icon} Colmeias`, 0.42);
+  hiveLabel.position.set(30.5, SPOTS.colmeias.labelY, -8.7);
+  scene.add(hiveLabel);
+  const proxy = new THREE.Mesh(M.GEO.box, new THREE.MeshBasicMaterial({ visible: false }));
+  proxy.scale.set(2.2, 1.4, 2.2);
+  proxy.position.set(30.5, 0.7, -8.7);
+  proxy.userData.pick = { kind: 'spot', key: 'colmeias' };
+  scene.add(proxy);
+  pickables.push(proxy);
+  nav.blockRect(29.5, -9.7, 31.5, -7.7, PLAYER_R * 0.6);
+  hiveVis = { hives, spotSign, beeT: 0 };
+}
+
+function updateOrchard(dt) {
+  orchardVis.forEach((v, k) => {
+    const o = sys.treeAt(k);
+    const grown = sys.treeGrown(o);
+    const key = o.type ? o.type + (grown ? 'A' : 'S') : '';
+    if (v.key !== key) {
+      v.key = key;
+      for (const [type, t] of Object.entries(v.trees)) {
+        t.group.visible = o.type === type;
+        t.sapling.visible = !grown;
+        t.adult.visible = grown;
+      }
+      v.pit.visible = !o.type || !grown;
+    }
+    if (o.type) {
+      const t = v.trees[o.type];
+      // Muda cresce aos poucos
+      if (!grown) t.sapling.scale.setScalar(0.6 + 0.8 * (o.g / ORCHARD.grow));
+      t.fruits.forEach((f, i) => { f.visible = grown && i < o.fruit * 2; });
+    }
+  });
+  if (hiveVis) {
+    const n = core.S.hives.n;
+    hiveVis.hives.forEach((h, k) => { h.visible = k < n; });
+    hiveVis.spotSign.visible = n === 0;
+    // Abelhas voando em volta
+    if (n) {
+      hiveVis.beeT -= dt;
+      if (hiveVis.beeT <= 0) {
+        hiveVis.beeT = 0.5;
+        const [x, z] = HIVE_POS[Math.floor(Math.random() * n)];
+        burst(x, 1.1, z, 0x3b2a00, 1, { up: 0.6, spread: 0.8, size: 0.035, life: 1.2, gravity: -0.2 });
+      }
+    }
+  }
+}
+
 // ================= Serraria =================
 let sawmill = null;
 const tmpSaw = new THREE.Vector3();
@@ -2635,6 +3228,7 @@ function openSpot(key) {
   const site = inWork(key);
   if (site) { deliverBuild(site); return; }
   if (key === 'mesa') { doBench(false); return; }
+  if (SPOT_HOOKS[key]) { SPOT_HOOKS[key].open(); return; }
   if (key === 'casa') {
     if (core.sleep()) {
       ui.sleepFade();
@@ -2722,6 +3316,8 @@ function getContext() {
   let i = tileAt(fx, fz);
   if (i < 0) i = tileAt(player.pos.x, player.pos.z);
   if (i >= 0 && dist2(player.pos, tilePos(i).x, tilePos(i).z) < 1.3) return { kind: 'tile', i };
+  const dk = nearestDecor(0.95);
+  if (dk >= 0) return { kind: 'decor', k: dk };
   return null;
 }
 
@@ -2732,6 +3328,7 @@ function actionLabel(ctx) {
   if (ctx.kind === 'exit') return 'Sair da máquina';
   if (ctx.kind === 'dismount') return 'Descer do cavalo';
   if (ctx.kind === 'poop') return 'Recolher o esterco';
+  if (ctx.kind === 'decor') return `Mover: ${DECOR[decorVis[ctx.k].id].name.toLowerCase()}`;
   if (ctx.kind === 'spot' && ctx.key === 'compost') return core.compostLabel();
   if (ctx.kind === 'horse') return core.S.horse.saddle ? 'Montar no cavalo' : 'Ver o cavalo';
   if (ctx.kind === 'fish') return FISH_LABEL[fishing.state] || null;
@@ -2746,6 +3343,7 @@ function actionLabel(ctx) {
   if (ctx.kind === 'spot' && ctx.key === 'queijaria') return core.cheeseLabel();
   if (ctx.kind === 'spot' && inWork(ctx.key)) return core.buildLabel(inWork(ctx.key));
   if (ctx.kind === 'spot' && ctx.key === 'mesa') return benchLabel();
+  if (ctx.kind === 'spot' && SPOT_HOOKS[ctx.key]) return SPOT_HOOKS[ctx.key].label();
   if (ctx.kind === 'spot') {
     if (ctx.key === 'casa') return core.dayHours() >= 18 ? SPOTS.casa.text : null;
     return SPOTS[ctx.key].text;
@@ -2758,6 +3356,7 @@ function infoText(ctx) {
   if (ctx.kind === 'tile') return core.plotInfo(ctx.i);
   if (ctx.kind === 'machine') return `${MACHINES[ctx.id].icon} ${MACHINES[ctx.id].name}: ${MACHINES[ctx.id].desc}`;
   if (ctx.kind === 'exit') return machineInfo();
+  if (ctx.kind === 'decor') return `${DECOR[decorVis[ctx.k].id].icon} ${DECOR[decorVis[ctx.k].id].name}: ${DECOR[decorVis[ctx.k].id].desc}`;
   if (ctx.kind === 'poop') return `${MANURE.icon} Esterco de vaca: recolha e leve para a ${COMPOST.icon} composteira, ao lado do curral, para virar ${FERTILIZER.icon} fertilizante.`;
   if (ctx.kind === 'spot' && ctx.key === 'compost') return core.compostInfo();
   if (ctx.kind === 'dismount') return `${HORSE.icon} Cavalgando! ${'ontouchstart' in window ? 'Leve o joystick até a borda para galopar.' : 'Segure Shift para galopar.'} Clique no chão para ir até lá.`;
@@ -2770,6 +3369,7 @@ function infoText(ctx) {
   if (ctx.kind === 'spot' && ctx.key === 'queijaria') return core.cheeseInfo();
   if (ctx.kind === 'spot' && inWork(ctx.key)) return core.buildInfo(inWork(ctx.key));
   if (ctx.kind === 'spot' && ctx.key === 'mesa') return benchInfo();
+  if (ctx.kind === 'spot' && SPOT_HOOKS[ctx.key]) return SPOT_HOOKS[ctx.key].info();
   if (ctx.kind === 'spot') return SPOTS[ctx.key].info;
   return null;
 }
@@ -2781,6 +3381,7 @@ function keyAction(repeat) {
   if (ctx.kind === 'exit') { if (!repeat) exitMachine(); return; }
   if (ctx.kind === 'dismount') { if (!repeat) dismountHorse(); return; }
   if (ctx.kind === 'poop') { doPoop(ctx.k); return; }
+  if (ctx.kind === 'decor') { if (!repeat) moveDecor(ctx.k); return; }
   if (ctx.kind === 'horse') { if (!repeat) mountHorse(); return; }
   if (ctx.kind === 'fish') { if (!repeat) fishAction(); return; }
   if (ctx.kind === 'pet') { if (!repeat) petInteract(); return; }
@@ -3287,6 +3888,16 @@ function clickAt(e) {
   if (fishing.state === 'bite') { fishAction(); fishMouse = true; return hit; }
   if (fishing.state === 'reeling' || fishing.state === 'caught' || fishing.state === 'casting') { fishMouse = true; return hit; }
   if (fishing.state === 'waiting' && hit.kind !== 'water') endFishing();
+  if (placing) {
+    // Colocando decoração: o clique escolhe o lugar (no mouse, já coloca)
+    const pt = new THREE.Vector3();
+    if (raycaster.ray.intersectPlane(pickPlane, pt)) {
+      placing.x = pt.x; placing.z = pt.z; placing.follow = 'fixed';
+      updatePlacing();
+      if (e.pointerType === 'mouse') confirmPlacing();
+    }
+    return hit;
+  }
   cancelJobs();
   if (riding) {
     // Montado: qualquer clique leva o cavalo até aquele ponto do chão
@@ -3300,6 +3911,7 @@ function clickAt(e) {
   }
   if (hit.kind === 'horse') { player.queue.push({ kind: 'horse' }); return hit; }
   if (hit.kind === 'poop') { player.queue.push({ kind: 'poop', k: hit.k }); return hit; }
+  if (hit.kind === 'decor') { player.queue.push({ kind: 'decor', k: hit.k }); return hit; }
   if (hit.kind === 'water') {
     if (!core.S.fishing.rod) ui.toast('🎣 Compre uma vara de pesca na loja para pescar aqui.');
     else if (fishing.state === 'idle') player.queue.push({ kind: 'fish', x: hit.x, z: hit.z });
@@ -3418,6 +4030,10 @@ function bindInput() {
     if (e.pointerType === 'touch') return;
     setNdc(e);
     mouseIn = true;
+    if (placing) {
+      raycaster.setFromCamera(ndc, camera);
+      if (raycaster.ray.intersectPlane(pickPlane, tmpPlace)) { placing.x = tmpPlace.x; placing.z = tmpPlace.z; placing.follow = 'mouse'; }
+    }
     if (!dragging) return;
     const hit = pick();
     if (hit && hit.kind === 'tile' && hit.i !== lastDragTile) {
@@ -3446,13 +4062,15 @@ function bindInput() {
   canvas.addEventListener('wheel', (e) => { e.preventDefault(); zoomBy(e.deltaY > 0 ? 1.1 : 1 / 1.1); }, { passive: false });
 
   window.addEventListener('keydown', (e) => {
-    if (ui.uiBlocking() || e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
     const k = e.key.toLowerCase();
-    if (k.length === 1) {
+    if (k.length === 1 && !e.ctrlKey && !e.metaKey) {
       typed = (typed + k).slice(-12);
-      if (typed.endsWith('godmode')) { typed = ''; core.godMode(); }
+      if (typed.endsWith('godmode')) { typed = ''; core.godMode(); ui.closeMap(); return; }
     }
+    if (ui.uiBlocking() || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (k === 'm' && !placing) { ui.openMap(); return; }
+    if (k === 'p' && !placing) { ui.togglePhoto(); return; }
     if (k === ' ' || k.startsWith('arrow')) e.preventDefault();
     if (document.activeElement && document.activeElement.tagName === 'BUTTON') document.activeElement.blur();
     if (k === ' ' || k === 'e') {
@@ -3464,6 +4082,9 @@ function bindInput() {
     else if (k === 'q') rotateCamera(Math.PI / 4);
     else if (k === 'r') rotateCamera(-Math.PI / 4);
     else if (k === 'c') resetCamera();
+    else if (k === 'escape' && placing) cancelPlacing();
+    else if (k === 'enter' && placing) confirmPlacing();
+    else if (k === 'g' && placing) rotatePlacing();
     keys.add(k);
   });
   window.addEventListener('keyup', (e) => {
@@ -3569,6 +4190,11 @@ export function worldFrame(dt) {
   updateGrove(dt);
   updateSawmill(dt);
   updateCheesery();
+  updateFactoryVis(dt);
+  updateOrchard(dt);
+  updateDecor(dt);
+  updateCrows(dt);
+  updateSeason(dt);
   updateSites(dt);
   updateCompost();
   updateBench(dt);
@@ -3589,4 +4215,4 @@ export function worldFrame(dt) {
 }
 
 // Usado pelos testes no console do navegador
-export const debug = { player, animalVis, npcs, machines, fishing, fishAction, startCast, pet, petInteract, randomSpot, fauna, get driving() { return driving; }, get riding() { return riding; }, poopPos, get horse() { return horse; }, mountHorse, dismountHorse, enterMachine, exitMachine, bigCellAt, bigCellCenter, get zoom() { return zoom; }, get zoomMult() { return zoomMult; }, get camH() { return camera.top - camera.bottom; }, tileAt, tilePos, get nav() { return nav; } };
+export const debug = { player, animalVis, npcs, machines, fishing, fishAction, startCast, pet, petInteract, randomSpot, fauna, get driving() { return driving; }, get riding() { return riding; }, poopPos, crows, spawnCrow, get horse() { return horse; }, mountHorse, dismountHorse, enterMachine, exitMachine, bigCellAt, bigCellCenter, get zoom() { return zoom; }, get zoomMult() { return zoomMult; }, get camH() { return camera.top - camera.bottom; }, tileAt, tilePos, get nav() { return nav; } };

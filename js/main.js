@@ -34,6 +34,13 @@ ui.initUI({
   onPanel: (tab) => tutorial.onEvent('panel', tab),
   onZoom: (f) => world.zoomBy(f),
   onCamReset: () => world.resetCamera(),
+  onPlaceDecor: (id) => world.startPlacing(id),
+  drawMap: (ctx, w, h) => world.drawMap(ctx, w, h),
+  mapPlaces: () => world.mapPlaces(),
+  mapBounds: () => world.mapBounds(),
+  travelTo: (x, z) => world.travelTo(x, z),
+  setPhotoMode: (on, hide) => world.setPhotoMode(on, hide),
+  capture: () => world.capture(),
   onActionHeld: (held) => world.setActionHeld(held),
 });
 

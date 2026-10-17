@@ -39,6 +39,8 @@
     </nav>
     <div class="hud-btns">
       <button class="icon-btn" id="btn-sound" title="Som, música e controles">🔊</button>
+      <button class="icon-btn" id="btn-map" title="Mapa e viagem rápida (M)">🗺️</button>
+      <button class="icon-btn" id="btn-photo" title="Modo foto (P)">📷</button>
       <button class="icon-btn" id="btn-help" title="Guia da Fazenda">❓</button>
       <button class="icon-btn" id="btn-reset" title="Recomeçar fazenda">🔄</button>
     </div>
@@ -47,6 +49,12 @@
   <div class="bottom">
     <div id="prompt" class="prompt" hidden></div>
     <div id="status" class="status"></div>
+    <div id="placebar" class="placebar" hidden>
+      <span id="place-text"></span>
+      <button class="btn ghost" id="place-rot" title="Girar (G)">↻ Girar</button>
+      <button class="btn" id="place-ok" title="Colocar (Enter)">✔ Colocar</button>
+      <button class="btn ghost" id="place-cancel" title="Cancelar (Esc)">✖</button>
+    </div>
     <div id="seed-picker" class="seed-picker" hidden></div>
     <div id="toolbar" class="toolbar"></div>
   </div>
@@ -80,6 +88,23 @@
       <div class="seg"><button data-joy="left">◀ Esquerda</button><button data-joy="right">Direita ▶</button></div>
     </div>
     <p class="set-hint">A música fica mais calma à noite. As configurações ficam salvas neste aparelho.</p>
+  </div>
+
+  <div id="map" class="modal-bg map-bg" hidden>
+    <div class="map-card" role="dialog" aria-label="Mapa da fazenda">
+      <div class="set-head"><b>🗺️ Mapa da fazenda</b><button class="tab-close" id="map-close" title="Fechar (Esc)">✕</button></div>
+      <div class="map-wrap"><canvas id="map-canvas"></canvas></div>
+      <p class="hint" style="margin:6px 0">Toque num lugar do mapa ou num botão para viajar até lá. Você é o ponto vermelho.</p>
+      <div class="chips" id="map-places"></div>
+    </div>
+  </div>
+
+  <div id="photobar" class="photobar" hidden>
+    <b>📷 Modo foto</b>
+    <span class="hint" id="photo-hint">Arraste para girar · roda ou ＋/－ para zoom</span>
+    <label class="set-check"><input type="checkbox" id="photo-labels" checked> Esconder placas</label>
+    <button class="btn" id="photo-save">💾 Salvar foto</button>
+    <button class="btn ghost" id="photo-exit">Sair</button>
   </div>
 
   <div id="char" class="char" hidden>

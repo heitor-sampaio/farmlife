@@ -57,6 +57,11 @@ export class NavGrid {
     }
   }
 
+  /** Guarda a grade atual como base (obstáculos fixos do mapa). */
+  snapshot() { this.base = this.blocked.slice(); }
+  /** Volta para a base (antes de bloquear de novo os obstáculos que mudam, como decorações). */
+  restore() { if (this.base) this.blocked.set(this.base); }
+
   lineFree(ax, az, bx, bz) {
     const len = Math.hypot(bx - ax, bz - az);
     const n = Math.ceil(len / (this.cell * 0.4));

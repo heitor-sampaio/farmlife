@@ -195,3 +195,114 @@ export const CUSTOMERS = [
   '👵 Dona Maria', '👨‍🍳 Chef Paulo', '🧑‍🌾 Seu João', '👧 Aninha',
   '🏪 Mercadinho da Vila', '🥐 Padaria Sol Nascente', '🍲 Restaurante Sabor', '👴 Vô Antônio',
 ];
+
+// ================= Cadeias de produção =================
+// Produtos novos (frutas, mel e o que sai das fábricas)
+export const GOODS = {
+  maca:     { name: 'Maçã',            icon: '🍎', sell: 30,  xp: 2 },
+  laranja:  { name: 'Laranja',         icon: '🍊', sell: 45,  xp: 3 },
+  manga:    { name: 'Manga',           icon: '🥭', sell: 70,  xp: 4 },
+  mel:      { name: 'Mel',             icon: '🍯', sell: 120, xp: 6 },
+  farinha:  { name: 'Farinha',         icon: '🥣', sell: 50,  xp: 3 },
+  pao:      { name: 'Pão',             icon: '🍞', sell: 140, xp: 8 },
+  torta:    { name: 'Torta de maçã',   icon: '🥧', sell: 260, xp: 15 },
+  suco:     { name: 'Suco de laranja', icon: '🧃', sell: 200, xp: 12 },
+  geleia:   { name: 'Geleia de manga', icon: '🫙', sell: 340, xp: 18 },
+  bolo:     { name: 'Bolo',            icon: '🎂', sell: 560, xp: 30 },
+  tecido:   { name: 'Tecido',          icon: '🧵', sell: 340, xp: 18 },
+  roupa:    { name: 'Roupa',           icon: '👕', sell: 860, xp: 45 },
+  defumado: { name: 'Peixe defumado',  icon: '🍢', sell: 150, xp: 10 },
+};
+// Fábricas: obras de madeira que transformam produtos sozinhas (até com o jogo fechado).
+// recipes[].in: o que gasta ('peixe' = qualquer peixe); out: o que faz; time: segundos por unidade
+export const FACTORIES = {
+  moinho:      { name: 'Moinho',      icon: '🌬️', level: 3, at: [20.6, 2.6],  size: [3.2, 3.2], cost: { madeira: 16, viga: 4 }, capacity: 12, desc: 'Mói o trigo em farinha.',
+    recipes: [{ id: 'farinha', in: { trigo: 3 }, out: 'farinha', time: 25 }] },
+  padaria:     { name: 'Padaria',     icon: '🥖', level: 4, at: [20.6, 7.6],  size: [3.4, 2.8], cost: { madeira: 22, viga: 6 }, capacity: 10, fem: true, desc: 'Faz pão, tortas, sucos, geleias e bolos.',
+    recipes: [
+      { id: 'pao',    in: { farinha: 2 },                   out: 'pao',    time: 40 },
+      { id: 'torta',  in: { farinha: 1, maca: 3 },          out: 'torta',  time: 60 },
+      { id: 'suco',   in: { laranja: 3 },                   out: 'suco',   time: 45 },
+      { id: 'geleia', in: { manga: 3, mel: 1 },             out: 'geleia', time: 75 },
+      { id: 'bolo',   in: { farinha: 2, ovo: 2, leite: 1 }, out: 'bolo',   time: 90 },
+    ] },
+  tear:        { name: 'Tear',        icon: '🧶', level: 5, at: [20.6, 12.3], size: [3.2, 2.6], cost: { madeira: 20, viga: 6 }, capacity: 8, desc: 'Tece a lã em tecido e costura roupas.',
+    recipes: [
+      { id: 'tecido', in: { la: 2 },     out: 'tecido', time: 60 },
+      { id: 'roupa',  in: { tecido: 2 }, out: 'roupa',  time: 120 },
+    ] },
+  defumadouro: { name: 'Defumadouro', icon: '🔥', level: 3, at: [4.2, 6.7],   size: [2.4, 2.2], cost: { madeira: 12, viga: 3 }, capacity: 10, desc: 'Defuma os peixes do lago (2 peixes quaisquer → 1 defumado).',
+    recipes: [{ id: 'defumado', in: { peixe: 2 }, out: 'defumado', time: 50 }] },
+};
+// As fábricas também são obras (entram na Oficina e nos canteiros)
+for (const [id, f] of Object.entries(FACTORIES)) {
+  BUILDINGS[id] = { name: f.name, icon: f.icon, cost: f.cost, level: f.level, fem: f.fem, desc: f.desc };
+}
+
+// Pomar: seis covas ao norte do Campo de Trigo. A muda cresce e depois dá frutas de tempos em tempos.
+export const ORCHARD = { slots: 6, grow: 360, stock: 3 };
+export const FRUIT_TREES = {
+  maca:    { name: 'Macieira',   fruit: 'maca',    icon: '🍎', cost: 600,  level: 3, every: 120 },
+  laranja: { name: 'Laranjeira', fruit: 'laranja', icon: '🍊', cost: 900,  level: 4, every: 150 },
+  manga:   { name: 'Mangueira',  fruit: 'manga',   icon: '🥭', cost: 1400, level: 6, every: 180 },
+};
+// Colmeias: fazem mel e as abelhas polinizam o pomar (frutas mais rápido)
+export const HIVES = { name: 'Colmeia', icon: '🐝', cost: 800, level: 4, max: 4, every: 150, stock: 3, boost: 0.3 };
+
+// ================= Estações do ano =================
+// Cada estação dura SEASON_DAYS dias de jogo. crops: culturas que crescem mais rápido nela.
+// weather: multiplica a chance de cada evento climático; fruit: ritmo do pomar; growOff: culturas fora de época.
+export const SEASON_DAYS = 7;
+export const SEASONS = [
+  { id: 'primavera', name: 'Primavera', icon: '🌸', crops: ['cenoura', 'morango', 'girassol'], fruit: 1,   growOff: 1,
+    weather: { chuva: 1.6, ventania: 0.8, neve: 0, calor: 0.6, tempestade: 1, arcoiris: 2.5, eclipse: 1 },
+    tint: [1, 1, 1], leaf: null, desc: 'Chove mais e o arco-íris aparece com frequência.' },
+  { id: 'verao', name: 'Verão', icon: '☀️', crops: ['trigo', 'tomate', 'milho', 'berinjela', 'girassol'], fruit: 1.2, growOff: 1,
+    weather: { chuva: 0.8, ventania: 0.7, neve: 0, calor: 3, tempestade: 1.6, arcoiris: 1, eclipse: 1 },
+    tint: [1.06, 1.02, 0.82], leaf: null, desc: 'Sol escaldante e tempestades de raios são mais comuns.' },
+  { id: 'outono', name: 'Outono', icon: '🍂', crops: ['trigo', 'cenoura', 'abobora'], fruit: 1.3, growOff: 1,
+    weather: { chuva: 1.3, ventania: 2.5, neve: 0.2, calor: 0.5, tempestade: 0.8, arcoiris: 0.8, eclipse: 1.5 },
+    tint: [1.12, 0.92, 0.62], leaf: [0xd9822b, 0.65], desc: 'Folhas alaranjadas, ventanias e eclipses mais frequentes. O pomar rende mais.' },
+  { id: 'inverno', name: 'Inverno', icon: '❄️', crops: ['cenoura'], fruit: 0, growOff: 0.7,
+    weather: { chuva: 0.6, ventania: 1, neve: 4, calor: 0, tempestade: 0.4, arcoiris: 0.5, eclipse: 1 },
+    tint: [1.3, 1.36, 1.45], leaf: [0x8d7b6a, 0.7], desc: 'Neva bastante, o pomar descansa e as culturas fora de época crescem mais devagar.' },
+];
+export const SEASON_BONUS = 1.3; // culturas da estação crescem 30% mais rápido
+
+// ================= Vila: encomendas especiais, amizade e feira =================
+export const QUEST = { due: 540, cooldown: 120, mult: 2.4 };          // prazo de 3 dias; nova após 2/3 de dia
+export const FRIEND = { perHeart: 5, hearts: 5, orderBonus: 0.05 };   // +5% nos pedidos por coração
+export const FAIR = {
+  cats: {
+    lavoura: { name: 'Lavoura', icon: '🥕', desc: 'colheitas (gigantes e mutadas valem mais)' },
+    animais: { name: 'Animais', icon: '🥚', desc: 'ovos, lã, leite, trufas e queijo' },
+    cozinha: { name: 'Cozinha', icon: '🎂', desc: 'tudo o que sai das fábricas e do pomar' },
+  },
+  prizes: [3, 1.6, 0.8], // 🥇 🥈 🥉 (× nível × 300 moedas)
+};
+
+// ================= Decoração e espaço no celeiro =================
+// r: raio que ocupa no chão (0 = dá para passar por cima); special: efeito no jogo
+export const DECOR = {
+  espantalho: { name: 'Espantalho',        icon: '👒', cost: 300,  r: 0.3,  level: 2, desc: 'Espanta os corvos das plantações num raio de 8 m.' },
+  bau:        { name: 'Baú',               icon: '🧰', cost: 800,  r: 0.4,  level: 1, desc: '+100 de espaço no celeiro (cada baú colocado).' },
+  canteiro:   { name: 'Canteiro de flores', icon: '🌷', cost: 120,  r: 0.45, level: 1, desc: 'Flores coloridas num canteiro de madeira.' },
+  banco:      { name: 'Banco',             icon: '🪑', cost: 150,  r: 0.45, level: 1, desc: 'Um banco de praça para descansar.' },
+  lampiao:    { name: 'Lampião',           icon: '🏮', cost: 250,  r: 0.2,  level: 2, desc: 'Acende sozinho à noite.' },
+  placa:      { name: 'Placa da fazenda',  icon: '🪧', cost: 200,  r: 0.3,  level: 1, desc: 'Com o nome da sua fazenda.' },
+  cerca:      { name: 'Cerquinha',         icon: '🚧', cost: 60,   r: 0.35, level: 1, desc: 'Um pedaço de cerca branca.' },
+  arvore:     { name: 'Árvore',            icon: '🌳', cost: 200,  r: 0.45, level: 1, desc: 'Uma árvore frondosa.' },
+  caminho:    { name: 'Pedras do caminho', icon: '🪨', cost: 40,   r: 0,    level: 1, desc: 'Pedras para fazer trilhas (dá para pisar).' },
+  fonte:      { name: 'Fonte',             icon: '⛲', cost: 2500, r: 0.75, level: 4, desc: 'Uma fonte de pedra com água.' },
+  estatua:    { name: 'Estátua de galo',   icon: '🐓', cost: 1500, r: 0.4,  level: 3, desc: 'Um galo dourado de enfeite.' },
+};
+export const STORAGE = { base: 500, chest: 100 }; // itens no celeiro (sem contar sementes)
+
+// ================= Corvos e o faro do pet =================
+// A cada round há chance de um corvo pousar numa planta crescendo; se ninguém espantar, ela volta ao começo.
+export const CROWS = { every: 45, chance: 0.35, eat: 25, scare: 2.6, scarecrow: 8, level: 2 };
+// O pet acha alguma coisa cavando, uma vez por dia
+export const PET_FINDS = [
+  { id: 'trufa', q: 1, w: 2 }, { id: 'tronco', q: 3, w: 4 }, { id: 'esterco', q: 2, w: 3 }, { id: 'fertilizante', q: 1, w: 2 },
+  { coins: 120, w: 4 }, { seeds: 'milho', q: 3, w: 3 }, { id: 'bota', q: 1, w: 1 },
+];

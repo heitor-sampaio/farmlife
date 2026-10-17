@@ -5,7 +5,7 @@ import {
   WORKERS, WORK_TIME, BIG_FIELD, BIG_CELLS, MACHINES, FISH, RODS, PET,
   MUTATIONS, WEATHER_EVENTS, EVENT_ROUND, EVENT_CHANCE, EVENT_COOLDOWN,
   AXES, LOG, WOOD, CHOP_TREES, SAWMILL, PLANK, BEAM, RECIPES, BUILDINGS, CARPENTRY, HORSE, SADDLE,
-  MANURE, COMPOST, FERTILIZER, BREED, PASTURE, CHEESERY, CHEESE,
+  MANURE, COMPOST, FERTILIZER, BREED, PASTURE, CHEESERY, CHEESE, GOODS, FACTORIES, ORCHARD, STORAGE,
 } from './data.js';
 
 // ================= Utilidades =================
@@ -41,6 +41,7 @@ ITEMS.madeira = { ...PLANK };
 ITEMS.viga = { ...BEAM };
 ITEMS.esterco = { name: MANURE.name, icon: MANURE.icon, sell: MANURE.sell, xp: MANURE.xp };
 ITEMS.queijo = { ...CHEESE };
+for (const [id, g] of Object.entries(GOODS)) ITEMS[id] = { ...g };
 ITEMS.fertilizante = { name: FERTILIZER.name, icon: FERTILIZER.icon, sell: FERTILIZER.sell, xp: FERTILIZER.xp };
 
 // ================= Ganchos para a interface/cena =================
@@ -50,7 +51,10 @@ const toast = (msg, type) => hooks.toast(msg, type);
 const sfx = (name) => hooks.sfx(name);
 const fx = (target, text, cls) => hooks.fx(target, text, cls);
 const markDirty = (...parts) => hooks.dirty(...parts);
-const emit = (name, data) => hooks.event(name, data);
+const listeners = [];
+const emit = (name, data) => { hooks.event(name, data); for (const fn of listeners) fn(name, data); };
+/** Outros módulos de regras podem escutar os eventos do jogo. */
+export const onEvent = (fn) => listeners.push(fn);
 
 // Avisos gerados durante simulações silenciosas (offline, sono), mostrados depois
 const notices = [];
@@ -131,7 +135,16 @@ function newState() {
     saw: { owned: false, queue: 0, t: 0, ready: 0 }, // serraria: troncos na fila, progresso do atual, tábuas prontas
     pet: { owned: false, name: PET.defaultName, day: 0 },
     char: { chosen: false, gender: 'm', name: '' },
-    cheese: { owned: false, queue: 0, t: 0, ready: 0 }, // queijaria: queijos curando, progresso, prontos
+    cheese: { owned: false, queue: 0, t: 0, ready: 0 },
+    fac: Object.fromEntries(Object.keys(FACTORIES).map((id) => [id, { queue: [], t: 0, ready: {}, sel: FACTORIES[id].recipes[0].id }])),
+    orchard: Array.from({ length: ORCHARD.slots }, () => ({ type: null, g: 0, t: 0, fruit: 0 })),
+    hives: { n: 0, t: 0, honey: 0 },
+    ach: {},
+    decor: [],                                        // decorações colocadas: { id, x, z, r }
+    decorInv: {},                                     // compradas e ainda não colocadas                                          // conquistas já desbloqueadas
+    quest: null, questT: 60,                          // encomenda especial e tempo até a próxima
+    friends: {},                                       // pontos de amizade por morador
+    fair: { id: 0, done: {}, rivals: {} },             // feira do fim da estação // queijaria: queijos curando, progresso, prontos
     pasture: false,                          // pasto do gado comprado?
     manure: 0, poopT: 0,                     // montinhos de esterco no curral
     compost: { queue: 0, t: 0, ready: 0 },   // composteira: esterco na fila, progresso, fertilizante pronto // personagem escolhido na primeira vez
@@ -301,6 +314,7 @@ function rollPrices() {
 // ================= Simulação =================
 function newDay(day, quiet) {
   rollPrices();
+  for (const fn of dayHooks) fn(day, quiet);
   const paid = payWages(quiet);
   if (!quiet) {
     const wages = paid ? ` · Salários: -🪙${fmt(paid)}` : '';
@@ -328,9 +342,9 @@ function payWages(quiet) {
 export const currentEvent = () => (S.event ? WEATHER_EVENTS[S.event.id] : null);
 
 function pickEvent() {
-  const opts = Object.entries(WEATHER_EVENTS);
-  let roll = Math.random() * opts.reduce((s, [, e]) => s + e.weight, 0);
-  for (const [id, e] of opts) { if ((roll -= e.weight) <= 0) return id; }
+  const opts = Object.entries(WEATHER_EVENTS).map(([id, e]) => [id, e.weight * weatherMod(id)]).filter(([, w]) => w > 0);
+  let roll = Math.random() * opts.reduce((s, [, w]) => s + w, 0);
+  for (const [id, w] of opts) { if ((roll -= w) <= 0) return id; }
   return 'chuva';
 }
 
@@ -446,7 +460,7 @@ export function update(dt, quiet) {
       const c = CROPS[p.crop];
       if (p.g < c.time) {
         const wetTime = auto ? dt : Math.min(dt, p.w);
-        p.g = Math.min(c.time, p.g + wetTime * speed);
+        p.g = Math.min(c.time, p.g + wetTime * speed * growMod(p.crop));
       }
     }
     if (p.w > 0) p.w = Math.max(0, p.w - dt * evaporate);
@@ -469,7 +483,7 @@ export function update(dt, quiet) {
   if (S.big.owned) {
     const b = S.big;
     for (let k = 0; k < BIG_CELLS; k++) {
-      if (b.s[k] === 2 && b.g[k] < BIG_FIELD.time) b.g[k] = Math.min(BIG_FIELD.time, b.g[k] + dt * speed);
+      if (b.s[k] === 2 && b.g[k] < BIG_FIELD.time) b.g[k] = Math.min(BIG_FIELD.time, b.g[k] + dt * speed * growMod('trigo'));
     }
   }
 
@@ -521,6 +535,7 @@ export function update(dt, quiet) {
   }
 
   if (quiet) workersOffline(dt);
+  for (const fn of updaters) fn(dt, quiet);
 
   for (const a of S.animals) {
     if (inPasture(a) && !a.ready) a.fed = true; // pastando
@@ -623,6 +638,9 @@ function availableItems() {
   if (S.saw.owned || built('celeiro')) ids.push('madeira');
   if (built('celeiro')) ids.push('viga');
   if (built('queijaria') && S.animals.some((a) => a.type === 'vaca')) ids.push('queijo');
+  for (const [fid, f] of Object.entries(FACTORIES)) if (built(fid)) for (const r of f.recipes) ids.push(r.out);
+  for (const o of S.orchard) if (o.type && !ids.includes(o.type)) ids.push(o.type);
+  if (S.hives.n > 0) ids.push('mel');
   return ids;
 }
 
@@ -772,6 +790,7 @@ function fertilize(i, quiet) {
 }
 
 function harvest(i, silent = false) {
+  if (!canStore()) { fullWarn(silent); return null; }
   const p = S.plots[i];
   const c = CROPS[p.crop];
   const muts = p.m || [];
@@ -779,6 +798,7 @@ function harvest(i, silent = false) {
   gainXp(c.xp, silent);
   S.stats.harvest++;
   if (muts.length) S.stats.mutated = (S.stats.mutated || 0) + 1;
+  if (muts.includes('gigante')) S.stats.giants = (S.stats.giants || 0) + 1;
   if (!silent) {
     fx({ tile: i }, `+1 ${c.icon}${muts.map((m) => MUTATIONS[m].icon).join('')}`, muts.length ? 'mut' : 'gold');
     sfx(muts.length ? 'catch' : 'harvest');
@@ -862,6 +882,7 @@ export function interactAnimal(id, quiet = false) {
     return null;
   }
   if (a.ready) {
+    if (!canStore()) { fullWarn(quiet); return null; }
     const prod = collectAnimal(a);
     fx({ animal: id }, `+1 ${PRODUCTS[prod].icon}`, 'gold');
     sfx('harvest');
@@ -952,13 +973,14 @@ export function bigWork(machine, k) {
     markDirty('toolbar', 'panel');
     return 'plant';
   }
-  if (machine === 'colheitadeira' && bigReady(k)) {
+  if (machine === 'colheitadeira' && bigReady(k) && canStore()) {
     b.s[k] = 0;
     b.g[k] = 0;
     const muts = maskToList(b.mm[k]);
     b.mm[k] = 0;
     addItem(itemKey('trigo', muts), 1);
     if (muts.length) S.stats.mutated = (S.stats.mutated || 0) + 1;
+  if (muts.includes('gigante')) S.stats.giants = (S.stats.giants || 0) + 1;
     gainXp(1);
     S.stats.harvest++;
     return 'harvest';
@@ -1060,6 +1082,7 @@ export function chopTree(i, quiet = false) {
     if (!quiet) { toast('🪓 Compre um machado na loja para cortar árvores.', 'bad'); sfx('error'); }
     return null;
   }
+  if (!canStore(4)) { fullWarn(quiet); return null; }
   tr.hits++;
   if (tr.hits < a.hits) { sfx('chop'); return 'hit'; }
   const logs = WOOD.logs[0] + Math.floor(Math.random() * (WOOD.logs[1] - WOOD.logs[0] + 1)) + a.bonus;
@@ -1237,7 +1260,8 @@ export function cheat(code) {
 export function cheeseUse() {
   const ch = S.cheese;
   if (!built('queijaria')) return null;
-  const collected = ch.ready;
+  const collected = canStore(ch.ready) ? ch.ready : 0;
+  if (ch.ready && !collected) fullWarn(false);
   if (collected) {
     addItem('queijo', collected);
     gainXp(collected * CHEESE.xp);
@@ -1287,6 +1311,7 @@ export function cheeseInfo() {
 /** Recolhe um montinho de esterco do curral. */
 export function collectManure() {
   if (S.manure <= 0) return false;
+  if (!canStore()) { fullWarn(false); return false; }
   S.manure--;
   addItem('esterco', 1);
   gainXp(MANURE.xp);
@@ -1300,7 +1325,8 @@ export function collectManure() {
 /** Usar a composteira: coleta o fertilizante pronto e coloca o esterco do celeiro para curtir. */
 export function compostUse() {
   const cp = S.compost;
-  const collected = cp.ready;
+  const collected = canStore(cp.ready) ? cp.ready : 0;
+  if (cp.ready && !collected) fullWarn(false);
   if (collected) {
     addItem('fertilizante', collected);
     S.stats.fertMade = (S.stats.fertMade || 0) + collected;
@@ -1360,7 +1386,8 @@ export function buySawmill() {
 export function sawmillUse() {
   const saw = S.saw;
   if (!saw.owned) return null;
-  const collected = saw.ready;
+  const collected = canStore(saw.ready) ? saw.ready : 0;
+  if (saw.ready && !collected) fullWarn(false);
   if (collected) {
     addItem('madeira', collected);
     gainXp(collected * PLANK.xp);
@@ -1452,9 +1479,11 @@ export function rollFish() {
 
 export function catchFish(id) {
   const f = FISH[id];
+  if (!canStore()) { toast(`📦 Celeiro cheio: você soltou o ${f.icon} ${f.name.toLowerCase()} de volta no lago.`, 'bad'); sfx('splash'); return; }
   addItem(id, 1);
   gainXp(f.xp);
   S.stats.fish = (S.stats.fish || 0) + 1;
+  if (FISH[id].rare) S.stats.rareFish = (S.stats.rareFish || 0) + 1;
   emit('fish', id);
   const msg = f.junk ? `${f.icon} Ops… você pescou uma ${f.name.toLowerCase()}.` : `🎣 Você pescou: ${f.icon} ${f.name}! (vale 🪙${price(id)})`;
   toast(msg, f.rare ? 'level' : f.junk ? '' : 'good');
@@ -1504,7 +1533,7 @@ export function workerAct(id, target, silent = false) {
     }
   } else if (id === 'tratador') {
     const a = findAnimal(target);
-    if (a && a.ready) {
+    if (a && a.ready && canStore()) {
       const prod = collectAnimal(a, silent);
       if (!silent) { fx({ animal: target }, `+1 ${PRODUCTS[prod].icon}`, 'gold'); sfx('harvest'); }
       return 'collect';
@@ -1621,12 +1650,13 @@ export function fulfillOrder(k) {
   if (!o || !canFulfill(o)) return;
   for (const r of o.req) S.inv[r.id] -= r.qty;
   S.orders.splice(k, 1);
-  earn(o.coins);
+  const coins = Math.round(o.coins * orderBonus(o.who));
+  earn(coins);
   gainXp(o.xp);
   S.stats.orders++;
-  emit('order');
+  emit('order', o.who);
   fillOrders();
-  toast(`📦 Pedido entregue para ${o.who}! +🪙${fmt(o.coins)} · +${o.xp} XP`, 'good');
+  toast(`📦 Pedido entregue para ${o.who}! +🪙${fmt(coins)}${coins > o.coins ? ' ❤️' : ''} · +${o.xp} XP`, 'good');
   sfx('coin');
 }
 
@@ -1650,7 +1680,7 @@ export function plotInfo(i) {
   const muts = p.m || [];
   const mutTxt = muts.length ? ` · ${muts.map((m) => `${MUTATIONS[m].icon} ${MUTATIONS[m].name}`).join(', ')} (×${mutMult(muts).toLocaleString('pt-BR')})` : '';
   if (isReady(p)) return `${c.icon} ${c.name} pronto para colher!${mutTxt}`;
-  const left = Math.ceil((c.time - p.g) / GROW_SPEED[S.up.adubo]);
+  const left = Math.ceil((c.time - p.g) / (GROW_SPEED[S.up.adubo] * growMod(p.crop)));
   const water = wet
     ? (autoWater() ? '💧 regado' : `💧 regado (${Math.ceil(p.w)}s)`)
     : '⚠️ precisa de água!';
@@ -1667,6 +1697,55 @@ export function toolHint() {
   const id = tool.slice(5);
   return `${CROPS[id].icon} Plantando ${CROPS[id].name}: ${S.seeds[id] || 0} sementes.`;
 }
+
+// ================= Ganchos para os sistemas novos (systems.js) =================
+// ================= Corvos =================
+/** Planta crescendo que pode ser bicada por um corvo. */
+export const crowTarget = (i) => S.plots[i] && S.plots[i].s === 'planted' && !isReady(S.plots[i]);
+/** O corvo bicou: a planta volta ao começo (perde o crescimento, mas não o adubo nem as mutações). */
+export function crowEat(i) {
+  const p = S.plots[i];
+  if (!crowTarget(i)) return false;
+  p.g = 0;
+  S.stats.crowLoss = (S.stats.crowLoss || 0) + 1;
+  toast(`🐦‍⬛ Um corvo bicou a plantação de ${CROPS[p.crop].name.toLowerCase()}: a planta voltou a crescer do começo! Espante os corvos chegando perto, com o pet ou com espantalhos 👒.`, 'bad');
+  sfx('error');
+  markDirty('panel');
+  return true;
+}
+
+// ================= Espaço no celeiro =================
+export const stored = () => Object.values(S.inv).reduce((s, n) => s + (n > 0 ? n : 0), 0);
+export const capacity = () => STORAGE.base + S.decor.filter((x) => x.id === 'bau').length * STORAGE.chest;
+export const canStore = (n = 1) => stored() + n <= capacity();
+let fullT = 0;
+export function fullWarn(quiet) {
+  if (quiet || performance.now() - fullT < 2500) return;
+  fullT = performance.now();
+  toast(`📦 O celeiro está cheio (${fmt(stored())}/${fmt(capacity())})! Venda ou use itens, ou coloque baús 🧰 (decoração).`, 'bad');
+  sfx('error');
+}
+
+const updaters = [];
+let growMod = () => 1;
+let orderBonus = () => 1; // amizade com o morador aumenta o pagamento
+export const setOrderBonus = (fn) => { orderBonus = fn; };
+/** Itens que a vila pode pedir agora. */
+export const orderPool = () => availableItems();    // multiplicador de crescimento por cultura (estações)
+let weatherMod = () => 1; // multiplicador de chance de cada evento climático (estações)
+export const setGrowMod = (fn) => { growMod = fn; };
+export const setWeatherMod = (fn) => { weatherMod = fn; };
+const dayHooks = [];
+/** Registra uma função chamada a cada atualização (também na simulação offline). */
+export const onUpdate = (fn) => updaters.push(fn);
+/** Registra uma função chamada no começo de cada dia. */
+export const onNewDay = (fn) => dayHooks.push(fn);
+/** Ferramentas internas para os outros módulos de regras. */
+export const H = {
+  toast: (m, t) => toast(m, t), sfx: (n) => sfx(n), fx: (a, b, c) => fx(a, b, c), dirty: (...p) => markDirty(...p),
+  emit: (n, d) => emit(n, d), notify: (m, t, q) => notify(m, t, q),
+  addItem: (id, n) => addItem(id, n), gainXp: (n, s) => gainXp(n, s), spend: (n, q) => spend(n, q), earn: (n) => earn(n),
+};
 
 // ================= Salvamento =================
 export function save() {
@@ -1703,6 +1782,14 @@ function load() {
       char: { ...base.char, ...d.char },
       compost: { ...base.compost, ...d.compost },
       cheese: { ...base.cheese, ...d.cheese },
+      fac: Object.fromEntries(Object.keys(FACTORIES).map((id) => [id, { ...base.fac[id], ...(d.fac && d.fac[id]) }])),
+      orchard: base.orchard.map((o, k) => ({ ...o, ...(d.orchard && d.orchard[k]) })),
+      hives: { ...base.hives, ...d.hives },
+      friends: { ...(d.friends || {}) },
+      ach: { ...(d.ach || {}) },
+      decor: Array.isArray(d.decor) ? d.decor : [],
+      decorInv: { ...(d.decorInv || {}) },
+      fair: { ...base.fair, ...d.fair },
       tutorial: d.tutorial ? { ...base.tutorial, ...d.tutorial, tips: { ...(d.tutorial.tips || {}) } } : { ...base.tutorial, done: true },
       big: d.big && Array.isArray(d.big.s) && d.big.s.length === BIG_CELLS ? d.big : base.big,
     };

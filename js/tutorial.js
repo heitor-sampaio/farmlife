@@ -9,6 +9,8 @@ import * as core from './core.js';
 import { CHANGELOG, VERSION, compareVersions } from './changelog.js';
 import { sfx } from './audio.js';
 import { sideWord } from './prefs.js';
+import * as sys from './systems.js';
+import { SEASONS, SEASON_DAYS, SEASON_BONUS, FACTORIES, GOODS, FRUIT_TREES, HIVES, ORCHARD, DECOR, STORAGE, FAIR, FRIEND, QUEST, CROWS } from './data.js';
 
 const $ = (sel) => document.querySelector(sel);
 let api = null; // funções do mundo e da interface (entregues pelo main.js)
@@ -176,6 +178,25 @@ const TIPS = {
     body: () => `Leve o 🥛 leite das vacas até a ${CHEESERY.icon} <b>Queijaria</b> (a seta, ao lado da loja) e use ${ACT()}: cada ${CHEESERY.milk} leites viram 1 ${CHEESE.icon} <b>queijo</b> em ${core.fmtDuration(CHEESERY.time)},
       até com o jogo fechado. Volte para coletar: o queijo vale 🪙${CHEESE.sell}, bem mais que o leite.`,
   },
+  quest: {
+    title: 'Encomenda especial! 📜', target: null,
+    body: () => `Um morador mandou uma <b>encomenda especial</b>: um pedido grande, com prazo, que paga bem mais e dá um bônus. Veja no painel <b>📦 Pedidos</b>; dá para entregar aos poucos.
+      Cada entrega também aumenta a <b>amizade</b> ❤️ com quem pediu.`,
+  },
+  tree: {
+    title: 'Muda plantada! 🌱', target: { spot: 'pomar:0' },
+    body: () => `O <b>pomar</b> fica ao norte do Campo de Trigo (a seta). A muda cresce em ~${Math.round(ORCHARD.grow / 180)} dias e depois dá frutas sozinha: chegue perto e use ${ACT()} para colher.
+      As frutas viram suco, torta e geleia na 🥖 padaria. Colmeias 🐝 deixam o pomar mais rápido.`,
+  },
+  decor: {
+    title: 'Fazenda com a sua cara 🌻', target: null,
+    body: () => `Decorações podem ser movidas quando quiser: chegue perto e use ${ACT()}. O 👒 espantalho espanta corvos e o 🧰 baú aumenta o espaço do celeiro.`,
+  },
+  crow: {
+    title: 'Corvos! 🐦‍⬛', target: null,
+    body: () => `Às vezes um corvo pousa numa planta que está crescendo (aparece um ❗). Se ninguém espantar, ele bica e a planta volta ao começo.
+      Chegue perto para espantar, deixe o seu pet correr atrás dele ou coloque um <b>👒 espantalho</b> (Loja, Decoração): ele protege tudo num raio de 8 m.`,
+  },
   pasture: {
     title: 'Pasto comprado!', target: { pasture: true },
     body: () => `O ${PASTURE.icon} <b>${PASTURE.name}</b> fica a leste, depois do Campo de Trigo (siga a seta). Todo o gado mora lá agora: até ${PASTURE.slots} cabeças,
@@ -215,6 +236,11 @@ const TIPS = {
     body: () => `Entre a casa e o celeiro fica a ${CARPENTRY.icon} <b>${CARPENTRY.name}</b>: ali você transforma 🪵 troncos em 🟫 tábuas e tábuas em 📏 vigas, na mão.
       Escolha a receita na <b>🪚 Oficina</b> (botão no topo) e use ${ACT()} na mesa. Na Oficina você também vê o que falta para cada obra.`,
   },
+  ...Object.fromEntries(Object.entries(FACTORIES).map(([id, f]) => ['built-' + id, {
+    title: `${f.name} ${f.fem ? 'pronta' : 'pronto'}!`, target: { spot: id },
+    body: () => `${f.icon} ${f.desc} Chegue perto e use ${ACT()}: ${f.fem ? 'ela' : 'ele'} pega no celeiro o material da receita (${f.recipes.map((r) => `${sys.ioText(r.in)} → ${GOODS[r.out].icon}`).join(' · ')}) e trabalha sozinh${f.fem ? 'a' : 'o'}.
+      ${f.recipes.length > 1 ? 'Escolha a receita na 🪚 Oficina.' : ''}`,
+  }])),
   'built-celeiro': {
     title: 'Celeiro construído!', target: { spot: 'celeiro' },
     body: () => `Agora dá para <b>vender</b> a colheita, os produtos e os peixes no 🛖 Celeiro (ou pelo botão 🛖 no topo).`,
@@ -278,6 +304,7 @@ let currentTip = null;
 let tipTargetArg = null;
 
 function queueTip(key, arg) {
+  if (!TIPS[key]) return;
   const T = core.S.tutorial;
   if (T.tips[key] || tipQueue.some((t) => t.key === key) || (currentTip && currentTip.key === key)) return;
   T.tips[key] = true;
@@ -436,6 +463,9 @@ export function onEvent(name, data) {
   else if (name === 'manure') queueTip('manure');
   else if (name === 'birth') queueTip('birth');
   else if (name === 'pasture') queueTip('pasture');
+  else if (name === 'quest') queueTip('quest');
+  else if (name === 'tree') queueTip('tree');
+  else if (name === 'decor') queueTip('decor');
   else if (name === 'male') queueTip('male');
   else if (name === 'fertilizer') queueTip('fertilizer');
   else if (name === 'saddle') queueTip('saddle');
@@ -496,6 +526,7 @@ export function tutorialFrame(dt) {
     const S = core.S;
     if (core.darkness() > 0.6) queueTip('night');
     if (S.manure > 0 && core.built('curral')) queueTip('manure');
+    if (window.farmlife && window.farmlife.world.debug.crows.some((c) => c.state === 'ground')) queueTip('crow');
     if (!(S.stats.logs > 0)) queueTip('axe');
     else if (!(S.stats.crafted > 0)) queueTip('bench');
     if (S.level >= 2 && !(S.stats.fish > 0)) queueTip('rod');
@@ -543,6 +574,9 @@ function roadmap() {
   AXES.forEach((a) => a && add(a.level, `${a.icon} ${a.name}`));
   add(SAWMILL.level, `${SAWMILL.icon} ${SAWMILL.name}`);
   add(CHEESERY.level, `${CHEESERY.icon} ${CHEESERY.name}`);
+  for (const f of Object.values(FACTORIES)) add(f.level, `${f.icon} ${f.name}`);
+  for (const t of Object.values(FRUIT_TREES)) add(t.level, `${t.icon} ${t.name}`);
+  add(HIVES.level, `${HIVES.icon} Colmeias`);
   add(PET.level, `${PET.icon} Pet (${PET.breed})`);
   add(HORSE.level, `${HORSE.icon} Cavalo e ${SADDLE.icon} sela`);
   return L;
@@ -605,6 +639,9 @@ const TOPICS = [
           ['Zoom', 'Roda do mouse · <kbd>+</kbd> <kbd>−</kbd>', 'Botões ＋ e －'],
           ['Girar a câmera', 'Botão direito + arrastar · <kbd>Q</kbd> <kbd>R</kbd> · <kbd>C</kbd> ou 🧭 volta ao normal', `Arrastar na metade ${sideWord(true)} da tela (ou com um 2º dedo) · 🧭 volta ao normal`],
           ['Som e música', 'Botão 🔊 no topo: volume geral, música e efeitos', 'Botão 🔊 no topo'],
+          ['Mapa e viagem rápida', '<kbd>M</kbd> ou 🗺️', 'Botão 🗺️'],
+          ['Modo foto', '<kbd>P</kbd> ou 📷 · <kbd>Esc</kbd> sai', 'Botão 📷'],
+          ['Colocar decoração', 'Clique no chão · <kbd>G</kbd> gira · <kbd>Enter</kbd> coloca · <kbd>Esc</kbd> cancela', 'Toque no chão · ✔ Colocar'],
           ['Fechar janelas', '<kbd>Esc</kbd>', '✕'],
         ],
       );
@@ -679,7 +716,10 @@ const TOPICS = [
         <li>Leve a madeira até o <b>canteiro 🏗️</b> da obra e use ${ACT()} para entregar. Dá para entregar aos poucos: a obra vai subindo.</li></ol>` +
       table(['Receita', 'Precisa', 'Faz', 'Golpes'], RECIPES.map((rc) => [`${rc.icon} ${rc.name}`, Object.entries(rc.input).map(([id, q]) => `${q} ${core.ITEMS[id].icon}`).join(' + '), Object.entries(rc.output).map(([id, q]) => `${q} ${core.ITEMS[id].icon}`).join(' + '), rc.work])) +
       table(['Construção', 'Custa', 'Libera', 'Onde'], Object.entries(BUILDINGS).map(([id, b]) => [`${b.icon} ${b.name}${core.built(id) ? ' ✔' : ''}`, costTxt(id), b.desc,
-        id === 'celeiro' ? 'Ao lado da loja' : id === 'curral' ? 'Portão do curral, a oeste' : id === 'queijaria' ? `Entre a loja e o galpão (nível ${b.level}${lock(b.level)})` : 'Perto do Campo de Trigo, a leste'])) +
+        id === 'celeiro' ? 'Ao lado da loja' : id === 'curral' ? 'Portão do curral, a oeste' : id === 'queijaria' ? `Entre a loja e o galpão (nível ${b.level}${lock(b.level)})`
+          : id === 'defumadouro' ? `Perto do lago (nível ${b.level}${lock(b.level)})`
+          : ['moinho', 'padaria', 'tear'].includes(id) ? `Rua das fábricas, entre o Campo do Leste e o de Trigo (nível ${b.level}${lock(b.level)})`
+          : 'Perto do Campo de Trigo, a leste'])) +
       `<p>💡 Tábuas (🪙${PLANK.sell}) e vigas (🪙${BEAM.sell}) também podem ser vendidas ou entregues em pedidos. A ${SAWMILL.icon} Serraria (nível ${SAWMILL.level}) serra tábuas sozinha.</p>`,
   },
   {
@@ -697,6 +737,51 @@ const TOPICS = [
         <li>A cavalo você anda <b>${String(RIDE_MULT).replace('.', ',')}× mais rápido</b>. ${isTouch() ? 'Leve o joystick até a borda' : 'Segure <kbd>Shift</kbd>'} para galopar. Um ${TAP()} no chão leva o cavalo até lá.</li>
         <li>Montado, você não usa ferramentas nem entra nas máquinas: use ${ACT()} para descer. O cavalo fica onde você desceu.</li>
       </ul>`,
+  },
+  {
+    id: 'producao', icon: '🏭', title: 'Fábricas e pomar',
+    html: () => `<p>As <b>fábricas</b> são obras de madeira (veja <b>🏗️ Construções</b>). Depois de prontas, chegue perto e use ${ACT()}: a fábrica coleta o que está pronto e pega no celeiro o material da receita escolhida.
+      Ela continua trabalhando sozinha, até com o jogo fechado. Escolha a receita na <b>🪚 Oficina</b> (se a escolhida não der, ela usa a primeira que der).</p>` +
+      table(['Fábrica', 'Receita', 'Faz', 'Tempo'], Object.values(FACTORIES).flatMap((f) => f.recipes.map((r, k) => [k ? '' : `${f.icon} ${f.name} <small>(nv ${f.level}${lock(f.level)})</small>`, sys.ioText(r.in), `${GOODS[r.out].icon} ${GOODS[r.out].name} (🪙${GOODS[r.out].sell})`, dur(r.time)]))) +
+      `<p>🌳 <b>Pomar</b> (ao norte do Campo de Trigo): compre mudas na Loja. Elas crescem em ~${Math.round(ORCHARD.grow / 180)} dias e depois dão frutas para sempre, até ${ORCHARD.stock} no pé.
+        No inverno o pomar descansa; no outono rende mais.</p>` +
+      table(['Muda', 'Custa', 'Fruta', 'A cada', 'Nível'], Object.values(FRUIT_TREES).map((t) => [t.name, `🪙${core.fmt(t.cost)}`, `${GOODS[t.fruit].icon} 🪙${GOODS[t.fruit].sell}`, dur(t.every), `${t.level}${lock(t.level)}`])) +
+      `<p>${HIVES.icon} <b>Colmeias</b> (até ${HIVES.max}, 🪙${core.fmt(HIVES.cost)} cada, nível ${HIVES.level}): fazem 🍯 mel e deixam o pomar ${Math.round(HIVES.boost * 100)}% mais rápido.</p>`,
+  },
+  {
+    id: 'vila', icon: '🏘️', title: 'Vila e feira',
+    html: () => `<ul class="g-list">
+      <li>📜 <b>Encomendas especiais</b> (a partir do nível 2): pedidos grandes com prazo de ${Math.round(QUEST.due / 180)} dias, que pagam bem mais e dão um bônus. Dá para entregar aos poucos no painel 📦 Pedidos. Se vencer, o morador fica um pouco chateado.</li>
+      <li>❤️ <b>Amizade:</b> cada pedido entregue aumenta a amizade com quem pediu (encomendas contam 5). A cada coração (${FRIEND.perHeart} pontos) o morador manda um presente e passa a pagar <b>+${Math.round(FRIEND.orderBonus * 100)}%</b> nos pedidos, até ${FRIEND.hearts} ❤️.</li>
+      <li>🎪 <b>Feira:</b> no último dia de cada estação. Inscreva o seu melhor produto em cada categoria (${Object.values(FAIR.cats).map((c) => `${c.icon} ${c.name.toLowerCase()}`).join(', ')}) e dispute medalhas 🥇🥈🥉 com os outros fazendeiros. Gigantes e mutados fazem mais pontos.</li>
+    </ul>`,
+  },
+  {
+    id: 'decoracao', icon: '🌻', title: 'Decoração e celeiro',
+    html: () => `<p>Compre decorações na Loja e escolha o lugar: no computador, mova o mouse e clique; no celular, toque no chão (ou ande) e use <b>✔ Colocar</b>. <b>↻ Girar</b> (tecla G) vira o objeto.
+      Para mudar de lugar, chegue perto e use ${ACT()} (Mover).</p>` +
+      table(['', 'Decoração', 'Custa', 'Efeito'], Object.values(DECOR).map((dd) => [dd.icon, dd.name, `🪙${core.fmt(dd.cost)}`, dd.desc])) +
+      `<p>📦 <b>Espaço no celeiro:</b> cabem ${STORAGE.base} itens (sem contar sementes); cada 🧰 baú colocado na fazenda dá +${STORAGE.chest}. Com o celeiro cheio, não dá para colher nem coletar: venda ou use os itens.</p>
+      <p>🐦‍⬛ <b>Corvos:</b> às vezes um corvo pousa numa planta crescendo (aparece ❗). Espante chegando perto ou com o pet; o 👒 espantalho protege tudo num raio de ${CROWS.scarecrow} m.</p>
+      <p>🐶 O pet também cava no quintal todo dia e traz alguma coisa.</p>`,
+  },
+  {
+    id: 'conquistas', icon: '🏆', title: 'Conquistas',
+    html: () => {
+      const done = sys.ACHIEVEMENTS.filter((a) => sys.achDone(a.id)).length;
+      return `<p>Você já desbloqueou <b>${done} de ${sys.ACHIEVEMENTS.length}</b> conquistas. Cada uma dá moedas na hora.</p><div class="ach-list">${sys.ACHIEVEMENTS.map((a) => {
+        const ok = sys.achDone(a.id);
+        const cur = Math.min(a.goal, a.cur());
+        return `<div class="ach${ok ? ' ok' : ''}"><span class="ach-ico">${ok ? a.icon : '🔒'}</span><div><b>${a.name}</b><small>${a.desc} · 🪙${core.fmt(a.reward)}</small>
+          ${ok ? '<small class="up">✔ Conquistada</small>' : `<div class="progress"><i style="width:${Math.round((cur / a.goal) * 100)}%"></i></div><small>${core.fmt(cur)}/${core.fmt(a.goal)}</small>`}</div></div>`;
+      }).join('')}</div>`;
+    },
+  },
+  {
+    id: 'estacoes', icon: '🍂', title: 'Estações do ano',
+    html: () => `<p>O ano tem quatro estações de ${SEASON_DAYS} dias cada (agora: <b>${sys.season().icon} ${sys.season().name}</b>, dia ${sys.seasonDay()}). O ícone ao lado do dia, no topo, mostra a estação.</p>
+      <p>As culturas da estação crescem <b>${Math.round((SEASON_BONUS - 1) * 100)}% mais rápido</b>; no inverno, as que estão fora de época crescem mais devagar. Cada estação também muda o clima e o pomar.</p>` +
+      table(['', 'Estação', 'Crescem rápido', 'Clima e pomar'], SEASONS.map((s) => [s.icon, s.name, s.crops.map((c) => CROPS[c].icon + ' ' + CROPS[c].name).join(', '), s.desc])),
   },
   {
     id: 'ajudantes', icon: '👷', title: 'Funcionários',

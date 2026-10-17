@@ -1539,3 +1539,216 @@ export function makeCheesery() {
   }
   return { group: g, cans, wheels, lights: [] };
 }
+
+// ================= Fábricas =================
+/** Casinha básica das fábricas (frente para +z). */
+function workshop(g, w, d, wallColor, roofColor, h = 1.4) {
+  g.add(box(w + 0.2, 0.12, d + 0.2, 0xb8b0a0, 0, 0.06, 0));
+  g.add(box(w, h, d, wallColor, 0, 0.12 + h / 2, 0));
+  for (const x of [-w / 2, w / 2]) g.add(box(0.1, h, d + 0.02, 0x8d6334, x, 0.12 + h / 2, 0));
+  const r = gableRoof(d + 0.5, 0.8, w + 0.4, 0xe8d8b0, roofColor);
+  r.position.set(0, 0.12 + h, 0);
+  r.rotation.y = Math.PI / 2;
+  g.add(r);
+  g.add(box(0.55, 0.95, 0.06, 0x7a4f2a, -w / 4, 0.6, d / 2 + 0.01));
+  g.add(box(0.5, 0.42, 0.05, 0x9fd6f2, w / 4, 0.95, d / 2 + 0.01));
+}
+
+/** Placa com o ícone (desenhado com formas) presa na fachada. */
+function signBoard(g, y, z, color) {
+  g.add(box(0.8, 0.36, 0.06, 0xc49a63, 0, y, z));
+  g.add(box(0.5, 0.18, 0.02, color, 0, y, z + 0.04));
+}
+
+/** Moinho de vento: torre, telhado em cone e pás que giram (spin). */
+export function makeWindmill() {
+  const g = new THREE.Group();
+  g.add(box(3.0, 0.12, 3.0, 0xb8b0a0, 0, 0.06, 0));
+  const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 1.25, 3.2, 8), mat(0xf1e6cf));
+  tower.position.y = 1.72;
+  tower.castShadow = tower.receiveShadow = true;
+  g.add(tower);
+  for (const y of [0.9, 1.9, 2.8]) g.add(cyl(1.27 - y * 0.13, 0.08, 0x8d6334, 0, y, 0));
+  g.add(cone(1.15, 1.1, 0x8d3a2b, 0, 3.85, 0));
+  g.add(box(0.55, 0.9, 0.08, 0x7a4f2a, 0, 0.57, 1.18));
+  g.add(box(0.36, 0.36, 0.06, 0x9fd6f2, 0, 2.2, 0.98));
+  const spin = new THREE.Group();
+  spin.position.set(0, 3.15, 1.0);
+  spin.add(rot(cyl(0.12, 0.3, 0x5a3a20, 0, 0, 0), Math.PI / 2, 0, 0));
+  for (let k = 0; k < 4; k++) {
+    const arm = new THREE.Group();
+    arm.rotation.z = (k / 4) * Math.PI * 2;
+    arm.add(box(0.08, 1.9, 0.06, 0x6f4825, 0, 0.95, 0.12));
+    arm.add(box(0.42, 1.5, 0.03, 0xf5f0e0, 0.24, 1.1, 0.14));
+    spin.add(arm);
+  }
+  g.add(spin);
+  return { group: g, spin, smoke: null, lights: [] };
+}
+
+/** Padaria: casinha de tijolo com chaminé e toldo listrado. */
+export function makeBakery() {
+  const g = new THREE.Group();
+  workshop(g, 3.0, 2.4, 0xd98c5f, 0x7a3b2e);
+  g.add(box(0.36, 1.0, 0.36, 0x8a5a44, 0.9, 2.3, -0.4));
+  for (let k = 0; k < 5; k++) g.add(rot(box(0.28, 0.04, 0.5, k % 2 ? 0xffffff : 0xe74c3c, -0.84 + k * 0.28, 1.5, 1.42), -0.5, 0, 0));
+  signBoard(g, 1.9, 1.24, 0xf4c27a);
+  g.add(ball(0.2, 0.1, 0.12, 0xd4914a, 0, 1.93, 1.32));
+  return { group: g, spin: null, smoke: new THREE.Vector3(0.9, 2.9, -0.4), lights: [] };
+}
+
+/** Tear: casinha de madeira com novelos de lã na varanda. */
+export function makeLoomHouse() {
+  const g = new THREE.Group();
+  workshop(g, 2.8, 2.2, 0xe8d6b0, 0x5d6d7e);
+  signBoard(g, 1.85, 1.14, 0xb39ddb);
+  for (const [x, c] of [[-1.1, 0xf06292], [-0.8, 0x64b5f6], [1.15, 0xffd54f]]) g.add(ball(0.13, 0.13, 0.13, c, x, 0.25, 1.35));
+  // Tear do lado de fora
+  g.add(box(0.06, 0.9, 0.06, 0x8d6334, 1.75, 0.45, 0.2));
+  g.add(box(0.06, 0.9, 0.06, 0x8d6334, 1.75, 0.45, 1.0));
+  g.add(box(0.06, 0.06, 0.86, 0x8d6334, 1.75, 0.88, 0.6));
+  g.add(box(0.02, 0.6, 0.7, 0x9575cd, 1.75, 0.55, 0.6));
+  return { group: g, spin: null, smoke: null, lights: [] };
+}
+
+/** Defumadouro: cabaninha de pedra com chaminé e peixes pendurados. */
+export function makeSmokehouse() {
+  const g = new THREE.Group();
+  workshop(g, 2.0, 1.8, 0x9e9e9e, 0x4e342e, 1.2);
+  g.add(box(0.32, 0.9, 0.32, 0x757575, 0.6, 2.0, -0.3));
+  g.add(box(1.4, 0.05, 0.05, 0x6f4825, 0, 1.2, 1.15));
+  for (const x of [-0.5, -0.15, 0.2, 0.55]) g.add(ball(0.06, 0.16, 0.04, 0xc0763a, x, 1.03, 1.15));
+  return { group: g, spin: null, smoke: new THREE.Vector3(0.6, 2.5, -0.3), lights: [] };
+}
+
+// ================= Pomar e colmeias =================
+const FRUIT_COLOR = { maca: 0xe53935, laranja: 0xff9800, manga: 0xffc107 };
+
+/** Árvore frutífera: muda (sapling) e árvore adulta com até 6 frutas visíveis. */
+export function makeFruitTree(type) {
+  const g = new THREE.Group();
+  const sapling = new THREE.Group();
+  sapling.add(cyl(0.04, 0.5, 0x7a5230, 0, 0.25, 0));
+  sapling.add(ball(0.22, 0.2, 0.22, 0x67b852, 0, 0.55, 0));
+  g.add(sapling);
+  const adult = new THREE.Group();
+  adult.add(cyl(0.14, 1.0, 0x7a5230, 0, 0.5, 0));
+  const leaf = type === 'manga' ? 0x3f8f46 : type === 'laranja' ? 0x4f9a3d : 0x5aa845;
+  adult.add(ball(0.8, 0.7, 0.8, leaf, 0, 1.55, 0));
+  adult.add(ball(0.5, 0.45, 0.5, leaf, 0.42, 1.9, 0.18));
+  adult.add(ball(0.46, 0.42, 0.46, leaf, -0.38, 1.85, -0.22));
+  const fruits = [];
+  for (const [x, y, z] of [[0.55, 1.4, 0.5], [-0.5, 1.6, 0.55], [0.15, 1.2, 0.75], [0.75, 1.85, -0.1], [-0.65, 1.3, -0.3], [0.1, 2.05, 0.55]]) {
+    const f = ball(type === 'manga' ? 0.09 : 0.085, type === 'manga' ? 0.12 : 0.085, 0.085, FRUIT_COLOR[type] || 0xe53935, x, y, z);
+    f.visible = false;
+    adult.add(f);
+    fruits.push(f);
+  }
+  g.add(adult);
+  return { group: g, sapling, adult, fruits };
+}
+
+/** Cova vazia do pomar (montinho de terra). */
+export function makePit() {
+  const g = new THREE.Group();
+  g.add(cyl(0.45, 0.06, 0x7a5a3a, 0, 0.03, 0));
+  g.add(cyl(0.3, 0.05, 0x5d4330, 0, 0.06, 0));
+  return g;
+}
+
+/** Colmeia de caixas (abelhas são partículas no mundo). */
+export function makeHive() {
+  const g = new THREE.Group();
+  g.add(box(0.6, 0.12, 0.6, 0x6f4825, 0, 0.3, 0));
+  for (const [x, z] of [[-0.24, -0.24], [0.24, -0.24], [-0.24, 0.24], [0.24, 0.24]]) g.add(box(0.06, 0.3, 0.06, 0x6f4825, x, 0.15, z));
+  for (let k = 0; k < 3; k++) g.add(box(0.56, 0.2, 0.5, k % 2 ? 0xf2c14e : 0xe8b23a, 0, 0.47 + k * 0.21, 0));
+  g.add(box(0.64, 0.06, 0.58, 0xa0703c, 0, 1.1, 0));
+  g.add(box(0.16, 0.04, 0.02, 0x3e2723, 0, 0.42, 0.26));
+  return g;
+}
+
+// ================= Decorações =================
+/** Modelo de cada decoração (frente para +z). glow: material que acende à noite. */
+export function makeDecor(id) {
+  const g = new THREE.Group();
+  let glow = null;
+  if (id === 'espantalho') {
+    g.add(cyl(0.04, 1.4, 0x8d6334, 0, 0.7, 0));
+    g.add(box(1.0, 0.06, 0.06, 0x8d6334, 0, 1.05, 0));
+    g.add(box(0.36, 0.42, 0.22, 0x5d8a3c, 0, 0.98, 0));
+    g.add(box(0.36, 0.12, 0.22, 0x3d5a9e, 0, 0.72, 0));
+    for (const x of [-0.32, 0.32]) g.add(box(0.28, 0.12, 0.14, 0x5d8a3c, x, 1.05, 0));
+    for (const x of [-0.5, 0.5]) g.add(cone(0.06, 0.12, 0xe9c35a, x, 1.02, 0));
+    g.add(ball(0.17, 0.17, 0.17, 0xf4e2b8, 0, 1.38, 0));
+    g.add(cyl(0.28, 0.03, 0xd9b45a, 0, 1.52, 0));
+    g.add(cone(0.15, 0.2, 0xd9b45a, 0, 1.62, 0));
+    for (const x of [-0.06, 0.06]) g.add(box(0.03, 0.03, 0.01, 0x222222, x, 1.4, 0.17));
+    g.add(box(0.08, 0.015, 0.01, 0x222222, 0, 1.32, 0.17));
+  } else if (id === 'bau') {
+    g.add(box(0.75, 0.42, 0.48, 0x8d5a2b, 0, 0.21, 0));
+    g.add(box(0.77, 0.16, 0.5, 0x7a4a22, 0, 0.5, 0));
+    for (const x of [-0.3, 0.3]) g.add(box(0.06, 0.6, 0.52, 0x6d6d6d, x, 0.3, 0));
+    g.add(box(0.1, 0.12, 0.04, 0xd4af37, 0, 0.4, 0.26));
+  } else if (id === 'canteiro') {
+    g.add(box(0.9, 0.18, 0.6, 0x8d6334, 0, 0.09, 0));
+    g.add(box(0.8, 0.04, 0.5, 0x5d4330, 0, 0.19, 0));
+    const cols = [0xff6f91, 0xffd54f, 0xba68c8, 0xffffff, 0xff8a65];
+    for (let k = 0; k < 8; k++) {
+      const x = -0.3 + (k % 4) * 0.2, z = -0.12 + Math.floor(k / 4) * 0.24;
+      g.add(cyl(0.012, 0.18, 0x5fae47, x, 0.29, z));
+      g.add(ball(0.06, 0.045, 0.06, cols[k % cols.length], x, 0.39, z));
+    }
+  } else if (id === 'banco') {
+    g.add(box(1.1, 0.06, 0.38, 0xa0703c, 0, 0.42, 0));
+    g.add(box(1.1, 0.26, 0.05, 0xa0703c, 0, 0.62, -0.18));
+    for (const x of [-0.48, 0.48]) {
+      g.add(box(0.06, 0.42, 0.06, 0x333333, x, 0.21, 0.12));
+      g.add(box(0.06, 0.7, 0.06, 0x333333, x, 0.35, -0.16));
+    }
+  } else if (id === 'lampiao') {
+    g.add(cyl(0.05, 1.6, 0x2f2f2f, 0, 0.8, 0));
+    g.add(cyl(0.12, 0.08, 0x2f2f2f, 0, 0.04, 0));
+    g.add(box(0.06, 0.06, 0.3, 0x2f2f2f, 0, 1.58, 0.13));
+    glow = mat(0xffe08a, { emissive: 0xffc861, emissiveIntensity: 0 });
+    const lamp = new THREE.Mesh(GEO.box, glow);
+    lamp.scale.set(0.2, 0.26, 0.2);
+    lamp.position.set(0, 1.42, 0.28);
+    g.add(lamp);
+    g.add(cone(0.16, 0.12, 0x2f2f2f, 0, 1.6, 0.28));
+  } else if (id === 'placa') {
+    g.add(cyl(0.05, 1.2, 0x6f4825, -0.45, 0.6, 0));
+    g.add(cyl(0.05, 1.2, 0x6f4825, 0.45, 0.6, 0));
+    g.add(box(1.15, 0.5, 0.07, 0xc49a63, 0, 1.0, 0));
+    g.add(box(0.95, 0.08, 0.02, 0x6f4825, 0, 1.08, 0.045));
+    g.add(box(0.7, 0.06, 0.02, 0x6f4825, 0, 0.94, 0.045));
+    g.add(ball(0.06, 0.06, 0.03, 0xffd54f, 0.42, 1.14, 0.05));
+  } else if (id === 'cerca') {
+    for (const x of [-0.45, 0.45]) g.add(box(0.08, 0.6, 0.08, 0xf5f5f5, x, 0.3, 0));
+    for (const y of [0.22, 0.45]) g.add(box(1.0, 0.07, 0.04, 0xf5f5f5, 0, y, 0));
+    for (const x of [-0.45, 0.45]) g.add(cone(0.06, 0.1, 0xf5f5f5, x, 0.65, 0));
+  } else if (id === 'arvore') {
+    g.add(makeTree('round', 1.05));
+  } else if (id === 'caminho') {
+    for (const [x, z, s] of [[-0.25, -0.2, 0.22], [0.2, -0.15, 0.18], [0, 0.2, 0.24], [-0.3, 0.25, 0.15], [0.3, 0.28, 0.16]]) {
+      const st = mesh(GEO.rock, 0xbdb5a6, s, 0.05, s * 0.85, x, 0.02, z);
+      st.rotation.y = x * 7;
+      g.add(st);
+    }
+  } else if (id === 'fonte') {
+    g.add(cyl(0.75, 0.32, 0xbdbdbd, 0, 0.16, 0));
+    g.add(cyl(0.62, 0.04, 0x5fb4e6, 0, 0.3, 0));
+    g.add(cyl(0.12, 0.7, 0xbdbdbd, 0, 0.6, 0));
+    g.add(cyl(0.32, 0.1, 0xbdbdbd, 0, 0.92, 0));
+    g.add(cyl(0.26, 0.03, 0x5fb4e6, 0, 0.97, 0));
+    g.add(ball(0.08, 0.14, 0.08, 0x9fd6f2, 0, 1.08, 0));
+  } else if (id === 'estatua') {
+    g.add(box(0.6, 0.45, 0.6, 0xbdbdbd, 0, 0.22, 0));
+    const gold = mat(0xd4af37, { metalness: 0.6, roughness: 0.35 });
+    g.add(ball(0.2, 0.2, 0.26, gold, 0, 0.72, 0));
+    g.add(ball(0.11, 0.11, 0.11, gold, 0, 0.98, 0.16));
+    g.add(rot(cone(0.1, 0.32, gold, 0, 0.92, -0.26), -0.7, 0, 0));
+    g.add(box(0.03, 0.12, 0.12, gold, 0, 1.1, 0.16));
+    g.add(rot(cone(0.03, 0.08, gold, 0, 0.96, 0.29), Math.PI / 2, 0, 0));
+  }
+  return { group: g, glow };
+}

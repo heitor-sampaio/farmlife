@@ -1,5 +1,6 @@
 /* FarmLife — interface em HTML sobre a cena 3D (HUD, hotbar, painel, avisos) */
-import { CROPS, ANIMALS, PRODUCTS, UPGRADES, WORKERS, FIELDS, BIG_FIELD, BIG_CELLS, MACHINES, FISH, RODS, PET, MUTATIONS, RARITY_COLOR, WEATHER_EVENTS, AXES, LOG, WOOD, SAWMILL, PLANK, RECIPES, BUILDINGS, CARPENTRY, HORSE, SADDLE, PASTURE, CHEESERY, CHEESE } from './data.js';
+import { CROPS, ANIMALS, PRODUCTS, UPGRADES, WORKERS, FIELDS, BIG_FIELD, BIG_CELLS, MACHINES, FISH, RODS, PET, MUTATIONS, RARITY_COLOR, WEATHER_EVENTS, AXES, LOG, WOOD, SAWMILL, PLANK, RECIPES, BUILDINGS, CARPENTRY, HORSE, SADDLE, PASTURE, CHEESERY, CHEESE, FACTORIES, ORCHARD, FRUIT_TREES, HIVES, GOODS, FAIR, FRIEND, CUSTOMERS, DECOR, STORAGE } from './data.js';
+import * as sys from './systems.js';
 import * as core from './core.js';
 import { joySide, setJoySide } from './prefs.js';
 import { sfx, settings as audioSettings, setVolume, setMuted, unlockAudio } from './audio.js';
@@ -18,7 +19,7 @@ export const markDirty = (...parts) => parts.forEach((p) => dirty.add(p));
 export const isPanelOpen = () => el.panel.classList.contains('open');
 export const isModalOpen = () => !el.modal.hidden;
 /** Verdadeiro quando o teclado deve ir para a interface, e não para o personagem. */
-export const uiBlocking = () => isModalOpen() || !document.getElementById('char').hidden;
+export const uiBlocking = () => isModalOpen() || !document.getElementById('char').hidden || !document.getElementById('map').hidden;
 
 // ================= Efeitos e avisos =================
 export function fxAt(x, y, text, cls = '') {
@@ -129,6 +130,7 @@ function shopHtml() {
       <div class="ico">${c.icon}</div>
       <div class="info"><b>${c.name}</b>
         <small>⏱ ${core.fmtDuration(c.time)} · vende 🪙${c.sell}${c.regrow ? ' · 🔁 rebrota' : ''}</small>
+        <small>${sys.inSeason(id) ? `<b class="up">${sys.season().icon} da estação: +30%</b>` : `Melhor em: ${sys.cropSeasons(id) || '—'}`}</small>
         ${locked ? '' : `<small>Você tem: ${S.seeds[id] || 0}</small>`}</div>
       <div class="btns">${locked
         ? `<span class="req">🔒 Nível ${c.level}</span>`
@@ -322,6 +324,55 @@ function shopHtml() {
         </div></div></div>`;
   }
 
+  h += '<h3 id="sec-pomar">🌳 Pomar e colmeias</h3><div class="cards">';
+  const free = S.orchard.filter((o) => !o.type).length;
+  for (const [id, t] of Object.entries(FRUIT_TREES)) {
+    const locked = t.level > S.level;
+    const fruit = GOODS[t.fruit];
+    h += `<div class="card${locked ? ' locked' : ''}">
+      <div class="ico">${t.icon}</div>
+      <div class="info"><b>Muda de ${t.name.toLowerCase()}</b>
+        <small>Cresce em ~${Math.round(ORCHARD.grow / 180)} dias e depois dá ${fruit.icon} ${fruit.name.toLowerCase()} (🪙${fruit.sell}) a cada ${core.fmtDuration(t.every)}, para sempre. Até ${ORCHARD.stock} no pé.</small>
+        <small>Pomar: ${ORCHARD.slots - free}/${ORCHARD.slots} covas usadas</small></div>
+      <div class="btns">${locked
+        ? `<span class="req">🔒 Nível ${t.level}</span>`
+        : !free
+          ? '<span class="req">Pomar cheio</span>'
+          : `<button class="btn" data-act="tree" data-id="${id}" ${S.coins < t.cost ? 'disabled' : ''}>🪙${fmt(t.cost)}</button>`}
+      </div></div>`;
+  }
+  {
+    const hv = S.hives;
+    const locked = HIVES.level > S.level;
+    h += `<div class="card${locked ? ' locked' : ''}${hv.n ? ' hired' : ''}">
+      <div class="ico">${HIVES.icon}</div>
+      <div class="info"><b>${HIVES.name}${hv.n ? ` <small>${hv.n}/${HIVES.max}</small>` : ''}</b>
+        <small>As abelhas fazem 🍯 mel (🪙${GOODS.mel.sell}) e polinizam o pomar: frutas ${Math.round(HIVES.boost * 100)}% mais rápidas. Ficam ao lado do pomar.</small></div>
+      <div class="btns">${locked
+        ? `<span class="req">🔒 Nível ${HIVES.level}</span>`
+        : hv.n >= HIVES.max
+          ? '<span class="req">✔ Máximo</span>'
+          : `<button class="btn alt" data-act="hive" ${S.coins < HIVES.cost ? 'disabled' : ''}>🪙${fmt(HIVES.cost)}</button>`}
+      </div></div></div>`;
+  }
+  h += '<p class="hint">🌳 O pomar fica ao norte do Campo de Trigo, no caminho para o pasto.</p>';
+
+  h += '<h3 id="sec-decor">🌻 Decoração</h3><div class="cards">';
+  for (const [id, dd] of Object.entries(DECOR)) {
+    const locked = dd.level > S.level;
+    const inHand = sys.decorInv(id);
+    const placed = S.decor.filter((x) => x.id === id).length;
+    h += `<div class="card${locked ? ' locked' : ''}">
+      <div class="ico">${dd.icon}</div>
+      <div class="info"><b>${dd.name}${placed ? ` <small>${placed} na fazenda</small>` : ''}</b><small>${dd.desc}</small></div>
+      <div class="btns">${locked
+        ? `<span class="req">🔒 Nível ${dd.level}</span>`
+        : `${inHand ? `<button class="btn" data-act="decorplace" data-id="${id}">Colocar (${inHand})</button>` : ''}
+           <button class="btn alt" data-act="decor" data-id="${id}" ${S.coins < dd.cost ? 'disabled' : ''}>🪙${fmt(dd.cost)}</button>`}
+      </div></div>`;
+  }
+  h += '</div><p class="hint">Depois de comprar, escolha o lugar no mapa. Para mudar algo de lugar, chegue perto e use a ação (Mover).</p>';
+
   const size = core.penSize();
   const full = core.penCount() >= size;
   const penBuilt = core.built('curral');
@@ -410,6 +461,8 @@ function barnHtml() {
   const reserve = S.animals.length;
   const total = ids.reduce((s, id) => s + core.price(id) * (id === 'trigo' ? Math.max(0, S.inv[id] - reserve) : S.inv[id]), 0);
   const canSell = core.built('celeiro');
+  const used = core.stored(), cap = core.capacity();
+  const storage = `<div class="storage">📦 Espaço: ${fmt(used)}/${fmt(cap)}${used >= cap ? ' <span class="down">cheio!</span>' : ''}<div class="progress"><i style="width:${Math.min(100, Math.round((used / cap) * 100))}%"></i></div><small class="hint">Cada 🧰 baú colocado na fazenda dá +${STORAGE.chest} de espaço.</small></div>`;
   let h = canSell
     ? `<div class="barn-head">
     <div>Valor de venda: <b>🪙${fmt(total)}</b>${reserve ? `<small>Guarda ${reserve} 🌾 para os animais</small>` : ''}</div>
@@ -418,6 +471,7 @@ function barnHtml() {
       (${costText(BUILDINGS.celeiro.cost)}). Enquanto isso, entregue os 📦 pedidos da vila para ganhar moedas.
       <br><button class="btn alt" data-act="tab" data-id="oficina">🪚 Ver a Oficina</button></div>`;
 
+  h = storage + h;
   if (!ids.length) {
     h += '<p class="empty-msg">Seu celeiro está vazio. Vá colher algo! 🧺</p>';
   } else {
@@ -485,6 +539,19 @@ function workshopHtml() {
         : `<button class="btn alt" data-act="bench" data-id="${rc.id}">Escolher</button>`}
       </div></div>`;
   }
+  h += '</div>';
+  const facs = Object.entries(FACTORIES);
+  h += `<h3>🏭 Fábricas</h3><p class="hint" style="margin:0 0 8px">Escolha o que cada fábrica faz. Ela usa o que está no celeiro quando você chega perto e usa a ação, e continua trabalhando até com o jogo fechado.</p><div class="cards">`;
+  for (const [fid, f] of facs) {
+    const done = core.built(fid);
+    const st = S.fac[fid];
+    h += `<div class="card${done ? '' : ' locked'}">
+      <div class="ico">${f.icon}</div>
+      <div class="info"><b>${f.name}${done ? ` <small>${st.queue.length}/${f.capacity} na fila</small>` : ''}</b>
+        <small>${done ? f.desc : `Ainda não construíd${f.fem ? 'a' : 'o'}: veja em Obras (nível ${f.level}).`}</small>
+        ${done ? `<div class="chips" style="margin-top:6px">${f.recipes.map((r) => `<button class="chip${st.sel === r.id ? ' sel' : ''}" data-act="facrecipe" data-id="${fid}:${r.id}" title="${sys.ioText(r.in)} → ${GOODS[r.out].name} (🪙${GOODS[r.out].sell}), ${core.fmtDuration(r.time)}">${sys.ioText(r.in)} → ${GOODS[r.out].icon}</button>`).join('')}</div>` : ''}</div>
+      <div class="btns"></div></div>`;
+  }
   h += '</div><h3>🏗️ Obras</h3><div class="cards">';
   for (const [id, b] of Object.entries(BUILDINGS)) {
     const done = core.built(id);
@@ -502,9 +569,56 @@ function workshopHtml() {
   return h;
 }
 
+function questHtml() {
+  const q = sys.quest();
+  if (!q) return `<h3>📜 Encomenda especial</h3><p class="hint" style="margin:0 0 6px">${core.S.level < 2 ? 'As encomendas especiais começam no nível 2.' : `Uma nova encomenda chega em ${core.fmtDuration(Math.max(0, core.S.questT))}.`}</p>`;
+  const ok = q.req.every((r) => r.got + (core.S.inv[r.id] || 0) >= r.qty);
+  const some = q.req.some((r) => r.got < r.qty && (core.S.inv[r.id] || 0) > 0);
+  return `<h3>📜 Encomenda especial</h3>
+    <div class="order quest${ok ? ' ok' : ''}">
+      <div class="who">${q.who} <small>· vence em ${core.fmtDuration(Math.max(0, q.t))}</small></div>
+      <div class="reqs">${q.req.map((r) => `<span class="req-item${r.got >= r.qty ? ' done' : ''}">${core.ITEMS[r.id].icon} ${Math.min(r.qty, r.got + (core.S.inv[r.id] || 0))}/${r.qty}${r.got ? ` <small>(${r.got} entregues)</small>` : ''}</span>`).join('')}</div>
+      <div class="order-foot">
+        <span class="reward">🪙${core.fmt(q.coins)} · ⭐${q.xp} XP · bônus ${Object.entries(q.bonus).map(([id, n]) => `${n} ${core.ITEMS[id].icon}`).join(' + ')}</span>
+        <span class="btns"><button class="btn" data-act="quest" ${some ? '' : 'disabled'}>${ok ? 'Entregar' : 'Entregar parte'}</button></span>
+      </div></div>`;
+}
+
+function fairHtml() {
+  if (!sys.fairToday()) {
+    const n = sys.daysToFair();
+    return `<h3>🎪 Feira</h3><p class="hint" style="margin:0 0 6px">A feira acontece no último dia de cada estação: ${n === 1 ? 'amanhã' : `daqui a ${n} dias`}. Guarde seus melhores produtos (gigantes e mutados valem mais pontos).</p>`;
+  }
+  const f = sys.fairState();
+  let h = '<h3>🎪 Feira de hoje</h3><p class="hint" style="margin:0 0 8px">Inscreva o seu melhor produto em cada categoria (o mais valioso do celeiro vai automaticamente). Os três primeiros ganham medalha e prêmio.</p><div class="cards">';
+  for (const [cat, c] of Object.entries(FAIR.cats)) {
+    const done = f.done[cat];
+    const best = sys.fairBest(cat);
+    const it = best && core.itemInfo(best);
+    h += `<div class="card${done && done.place <= 3 ? ' hired' : ''}">
+      <div class="ico">${c.icon}</div>
+      <div class="info"><b>${c.name}</b><small>${c.desc}</small>
+        <small>${done ? `${['🥇', '🥈', '🥉'][done.place - 1] || '🎗️'} ${done.place}º lugar com ${done.score} pontos` : best ? `Vai inscrever: ${it.icon} ${it.name}${it.tag ? ' ' + it.tag : ''} (~${core.fmt(core.price(best))} pontos)` : 'Nada no celeiro para esta categoria.'}</small>
+        <small>Concorrentes: ${f.rivals[cat].slice().sort((a, b) => b - a).join(' · ')} pontos</small></div>
+      <div class="btns">${done ? '<span class="req">✔</span>' : `<button class="btn" data-act="fair" data-id="${cat}" ${best ? '' : 'disabled'}>Inscrever</button>`}</div></div>`;
+  }
+  return h + '</div>';
+}
+
+function friendsHtml() {
+  const rows = CUSTOMERS.map((who) => {
+    const hs = sys.hearts(who);
+    const pts = sys.friendPts(who);
+    const next = hs >= FRIEND.hearts ? 'amizade máxima' : `${(hs + 1) * FRIEND.perHeart - pts} entregas para o próximo ❤️`;
+    return `<div class="friend"><span>${who}</span><span class="hearts">${'❤️'.repeat(hs)}${'🤍'.repeat(FRIEND.hearts - hs)}</span><small>${hs ? `+${Math.round(hs * FRIEND.orderBonus * 100)}% nos pedidos · ` : ''}${next}</small></div>`;
+  }).join('');
+  return `<h3>❤️ Moradores</h3><p class="hint" style="margin:0 0 6px">Cada pedido entregue aumenta a amizade com quem pediu (encomendas especiais contam 5). A cada coração novo, o morador manda um presente e passa a pagar mais.</p><div class="friends">${rows}</div>`;
+}
+
 function ordersHtml() {
   const S = core.S;
-  let h = '<h3>📦 Pedidos da vila</h3><div class="cards">';
+  let h = questHtml();
+  h += '<h3>📦 Pedidos da vila</h3><div class="cards">';
   S.orders.forEach((o, k) => {
     const ok = core.canFulfill(o);
     h += `<div class="order${ok ? ' ok' : ''}">
@@ -514,7 +628,7 @@ function ordersHtml() {
         return `<span class="req-item${have >= r.qty ? ' done' : ''}">${core.ITEMS[r.id].icon} ${have}/${r.qty}</span>`;
       }).join('')}</div>
       <div class="order-foot">
-        <span class="reward">🪙${core.fmt(o.coins)} · ⭐${o.xp} XP</span>
+        <span class="reward">🪙${core.fmt(Math.round(o.coins * (1 + sys.hearts(o.who) * FRIEND.orderBonus)))}${sys.hearts(o.who) ? ' ❤️' : ''} · ⭐${o.xp} XP</span>
         <span class="btns">
           <button class="btn ghost" data-act="skip" data-k="${k}" title="Recusar e receber outro pedido">✖</button>
           <button class="btn" data-act="order" data-k="${k}" ${ok ? '' : 'disabled'}>Entregar</button>
@@ -522,6 +636,7 @@ function ordersHtml() {
       </div></div>`;
   });
   h += '</div><p class="hint">Pedidos pagam bem mais do que o mercado. Recuse (✖) os que não te interessam. ✉️ A cartinha em cima do quadro de Pedidos avisa quando chega pedido novo.</p>';
+  h += fairHtml() + friendsHtml();
   return h;
 }
 
@@ -627,7 +742,9 @@ function renderHud() {
   const need = core.xpNeed(S.level);
   el.xpfill.style.width = Math.min(100, (S.xp / need) * 100) + '%';
   setText(el.xptext, `${Math.floor(S.xp)}/${need} XP`);
-  setText(el.day, `Dia ${core.dayOf(S.time)}`);
+  const ss = sys.season();
+  setText(el.day, `${ss.icon} Dia ${core.dayOf(S.time)}`);
+  el.day.title = `${ss.name}, dia ${sys.seasonDay()} de 7. Crescem mais rápido: ${ss.crops.map((c) => CROPS[c].name).join(', ')}.`;
   const hours = core.dayHours();
   const h = Math.floor(hours) % 24;
   const m = Math.floor((hours % 1) * 6) * 10;
@@ -644,6 +761,54 @@ function renderHud() {
     el.eventPill.title = `${ev.name}: plantas crescendo podem ficar ${m.name} (${m.rarity}, ×${m.mult} no valor).`;
   }
 }
+
+// ================= Mapa e modo foto =================
+let mapPlacesCache = [];
+export function openMap() {
+  const m = $('#map');
+  if (!m.hidden) { closeMap(); return; }
+  if (document.body.classList.contains('photo')) togglePhoto();
+  closePanel();
+  m.hidden = false;
+  drawMapNow();
+  sfx('open');
+}
+export function closeMap() { $('#map').hidden = true; }
+function drawMapNow() {
+  const cv = $('#map-canvas');
+  const b = handlers.mapBounds();
+  const W = Math.max(640, Math.min(940, $('.map-wrap').clientWidth || 900));
+  const H = Math.round(W * ((b.maxZ - b.minZ) / (b.maxX - b.minX)) * 1.6); // um pouco esticado na vertical para ler melhor
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  cv.width = W * dpr; cv.height = H * dpr;
+  cv.style.width = W + 'px'; cv.style.height = H + 'px';
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  handlers.drawMap(ctx, W, H);
+  mapPlacesCache = handlers.mapPlaces();
+  $('#map-places').innerHTML = mapPlacesCache.map((p, k) => `<button class="chip" data-place="${k}">${p.icon} ${p.name}</button>`).join('');
+}
+function travelPlace(p) { if (handlers.travelTo(p.x, p.z)) closeMap(); }
+
+export function togglePhoto() {
+  const on = !document.body.classList.contains('photo');
+  document.body.classList.toggle('photo', on);
+  $('#photobar').hidden = !on;
+  closePanel();
+  closeMap();
+  handlers.setPhotoMode(on, $('#photo-labels').checked);
+}
+
+// ================= Colocar decoração =================
+let placeHandlers = null;
+export function showPlaceBar(def, left, h) {
+  placeHandlers = h;
+  const bar = $('#placebar');
+  $('#place-text').textContent = `${def.icon} ${def.name}${left > 1 ? ` (${left})` : ''}: ${window.matchMedia('(pointer: coarse)').matches ? 'toque no chão ou ande' : 'mova o mouse e clique'} para escolher o lugar`;
+  bar.hidden = false;
+  closePanel();
+}
+export function hidePlaceBar() { $('#placebar').hidden = true; placeHandlers = null; }
 
 // ================= Lado do joystick =================
 export function renderJoyPick(root) {
@@ -764,6 +929,34 @@ export function initUI(h) {
   document.addEventListener('pointerdown', (e) => {
     if (pickerOpen && !e.target.closest('#seed-picker') && !e.target.closest('[data-slot="seeds"]')) setPicker(false);
   });
+  $('#btn-map').addEventListener('click', (e) => { e.currentTarget.blur(); openMap(); });
+  $('#map-close').addEventListener('click', closeMap);
+  $('#map').addEventListener('click', (e) => { if (e.target.id === 'map') closeMap(); });
+  $('#map-places').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-place]');
+    if (b) travelPlace(mapPlacesCache[+b.dataset.place]);
+  });
+  $('#map-canvas').addEventListener('click', (e) => {
+    const cv = e.currentTarget, r = cv.getBoundingClientRect(), b = handlers.mapBounds();
+    const x = b.minX + ((e.clientX - r.left) / r.width) * (b.maxX - b.minX);
+    const z = b.minZ + ((e.clientY - r.top) / r.height) * (b.maxZ - b.minZ);
+    // Lugar com nome mais perto do clique, senão o ponto clicado
+    const near = mapPlacesCache.map((p) => ({ p, d: Math.hypot(p.x - x, p.z - z) })).sort((a, c) => a.d - c.d)[0];
+    travelPlace(near && near.d < 4 ? near.p : { x, z });
+  });
+  $('#btn-photo').addEventListener('click', (e) => { e.currentTarget.blur(); togglePhoto(); });
+  $('#photo-exit').addEventListener('click', togglePhoto);
+  $('#photo-labels').addEventListener('change', (e) => handlers.setPhotoMode(true, e.target.checked));
+  $('#photo-save').addEventListener('click', () => {
+    const a = document.createElement('a');
+    a.href = handlers.capture();
+    a.download = `farmlife-${new Date().toISOString().slice(0, 10)}.png`;
+    a.click();
+    sfx('coin');
+  });
+  $('#place-ok').addEventListener('click', () => placeHandlers && placeHandlers.ok());
+  $('#place-rot').addEventListener('click', () => placeHandlers && placeHandlers.rotate());
+  $('#place-cancel').addEventListener('click', () => placeHandlers && placeHandlers.cancel());
   $('#zoom-in').addEventListener('click', () => handlers.onZoom(1 / 1.2));
   $('#zoom-out').addEventListener('click', () => handlers.onZoom(1.2));
   $('#cam-reset').addEventListener('click', (e) => { handlers.onCamReset(); e.currentTarget.blur(); });
@@ -806,6 +999,13 @@ export function initUI(h) {
     else if (act === 'pet') core.buyPet();
     else if (act === 'horse') core.buyHorse();
     else if (act === 'pasture') core.buyPasture();
+    else if (act === 'quest') sys.questDeliver();
+    else if (act === 'decor') { if (sys.buyDecor(id)) handlers.onPlaceDecor(id); return; }
+    else if (act === 'decorplace') { handlers.onPlaceDecor(id); return; }
+    else if (act === 'fair') sys.fairEnter(id);
+    else if (act === 'tree') sys.buyTree(id);
+    else if (act === 'hive') sys.buyHive();
+    else if (act === 'facrecipe') { const [fid, rid] = id.split(':'); sys.setRecipe(fid, rid); }
     else if (act === 'saddle') core.buySaddle();
     else if (act === 'petname') {
       const name = prompt('Qual o nome da sua border collie?', core.S.pet.name);
@@ -834,6 +1034,8 @@ export function initUI(h) {
       return;
     }
     if (e.key === 'Escape' && isPanelOpen()) closePanel();
+    if (e.key === 'Escape' && !$('#map').hidden) closeMap();
+    else if (e.key === 'Escape' && document.body.classList.contains('photo')) togglePhoto();
   });
 
   markDirty('panel', 'toolbar');
