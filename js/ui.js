@@ -1,5 +1,5 @@
 /* FarmLife — interface em HTML sobre a cena 3D (HUD, hotbar, painel, avisos) */
-import { CROPS, ANIMALS, PRODUCTS, UPGRADES, WORKERS, FIELDS, BIG_FIELD, BIG_CELLS, MACHINES, FISH, RODS, PET, SOUND_KEY } from './data.js';
+import { CROPS, ANIMALS, PRODUCTS, UPGRADES, WORKERS, FIELDS, BIG_FIELD, BIG_CELLS, MACHINES, FISH, RODS, PET, MUTATIONS, RARITY_COLOR, WEATHER_EVENTS, SOUND_KEY } from './data.js';
 import * as core from './core.js';
 import { Sound, sfx } from './audio.js';
 
@@ -291,7 +291,9 @@ function barnHtml() {
   const S = core.S;
   const fmt = core.fmt;
   const ITEMS = core.ITEMS;
-  const ids = Object.keys(ITEMS).filter((id) => (S.inv[id] || 0) > 0);
+  // Itens comuns primeiro; mutados (mais valiosos) depois, do mais caro para o mais barato
+  const ids = Object.keys(S.inv).filter((id) => (S.inv[id] || 0) > 0 && core.itemInfo(id));
+  ids.sort((a, b) => (a.includes('|') - b.includes('|')) || (a.includes('|') ? core.price(b) - core.price(a) : 0));
   const reserve = S.animals.length;
   const total = ids.reduce((s, id) => s + core.price(id) * (id === 'trigo' ? Math.max(0, S.inv[id] - reserve) : S.inv[id]), 0);
   let h = `<div class="barn-head">
@@ -303,10 +305,12 @@ function barnHtml() {
   } else {
     h += '<div class="cards">';
     for (const id of ids) {
-      const it = ITEMS[id];
-      h += `<div class="card">
+      const it = core.itemInfo(id);
+      const top = it.muts.length ? MUTATIONS[core.topMutation(it.muts)] : null;
+      const tags = it.muts.map((m) => `<span class="mut-tag" style="--mc:${RARITY_COLOR[MUTATIONS[m].rarity]}" title="${MUTATIONS[m].name} (${MUTATIONS[m].rarity})">${MUTATIONS[m].icon}</span>`).join('');
+      h += `<div class="card${top ? ' mutated' : ''}"${top ? ` style="--mc:${RARITY_COLOR[top.rarity]}"` : ''}>
         <div class="ico">${it.icon}</div>
-        <div class="info"><b>${it.name} ×${S.inv[id]}</b><small>🪙${core.price(id)} cada ${trend(id)}</small></div>
+        <div class="info"><b>${it.name} ${tags} ×${S.inv[id]}</b><small>🪙${core.fmt(core.price(id))} cada ${trend(it.base)}${top ? ` · <b class="mut-mult">×${it.mult.toLocaleString('pt-BR')}</b>` : ''}</small></div>
         <div class="btns">
           <button class="btn ghost" data-act="sell" data-id="${id}" data-q="1">Vender 1</button>
           <button class="btn" data-act="sell" data-id="${id}" data-q="${S.inv[id]}">Tudo</button>
@@ -330,7 +334,8 @@ function barnHtml() {
     <div><b>${fmt(S.stats.harvest)}</b>colheitas</div>
     <div><b>${fmt(S.stats.earned)}</b>moedas ganhas</div>
     <div><b>${fmt(S.stats.orders)}</b>pedidos</div>
-    <div><b>${fmt(S.stats.fish || 0)}</b>peixes</div></div>`;
+    <div><b>${fmt(S.stats.fish || 0)}</b>peixes</div>
+    <div><b>${fmt(S.stats.mutated || 0)}</b>mutadas</div></div>`;
   return h;
 }
 
@@ -411,7 +416,17 @@ function renderHud() {
   const h = Math.floor(hours) % 24;
   const m = Math.floor((hours % 1) * 6) * 10;
   setText(el.clock, `${core.pad(h)}:${core.pad(m)}`);
-  setText(el.weather, S.weather === 'chuva' ? '🌧️' : core.darkness() > 0.4 ? '🌙' : '☀️');
+  const ev = core.currentEvent();
+  setText(el.weather, ev ? ev.icon : core.darkness() > 0.4 ? '🌙' : '☀️');
+  el.eventPill.hidden = !ev;
+  if (ev) {
+    const m = MUTATIONS[ev.mutation];
+    const left = Math.max(0, Math.ceil(S.event.t));
+    setText(el.eventName, ev.name);
+    setText(el.eventInfo, `${m.icon} ×${m.mult} · ${Math.floor(left / 60)}:${core.pad(left % 60)}`);
+    el.eventPill.style.setProperty('--mc', RARITY_COLOR[m.rarity]);
+    el.eventPill.title = `${ev.name}: plantas crescendo podem ficar ${m.name} (${m.rarity}, ×${m.mult} no valor).`;
+  }
 }
 
 // ================= Modal =================
@@ -427,6 +442,7 @@ export function initUI(h) {
   Object.assign(el, {
     coins: $('#coins'), level: $('#level'), xpfill: $('#xpfill'), xptext: $('#xptext'),
     day: $('#day'), clock: $('#clock'), weather: $('#weather'),
+    eventPill: $('#event-pill'), eventName: $('#event-name'), eventInfo: $('#event-info'),
     toolbar: $('#toolbar'), status: $('#status'), prompt: $('#prompt'),
     panel: $('#panel'), tabContent: $('#tab-content'), badge: $('#badge'),
     fx: $('#fx'), toasts: $('#toasts'), modal: $('#modal'), btnSound: $('#btn-sound'), fade: $('#fade'),

@@ -432,6 +432,65 @@ kbd {
 .reward { font-size: 14px; font-weight: 700; }
 .hint { margin: 10px 0 0; font-size: 12px; color: var(--muted); }
 
+/* ---------- Eventos climáticos e mutações ---------- */
+.event-pill {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  padding: 4px 14px;
+  border: 2px solid var(--mc, #f5b82e);
+  line-height: 1.15;
+  animation: eventPulse 1.6s ease-in-out infinite;
+}
+.event-pill[hidden] { display: none; }
+.event-pill small { display: block !important; font-size: .72rem; }
+@keyframes eventPulse { 50% { box-shadow: 0 3px 0 rgba(0, 0, 0, .18), 0 0 0 4px color-mix(in srgb, var(--mc, #f5b82e) 40%, transparent); } }
+.toast.event { background: linear-gradient(90deg, #5e35b1, #1e88e5); font-size: 15px; }
+.fx.mut { color: #fff; font-size: 16px; text-shadow: 0 2px 0 rgba(60, 20, 100, .7), 0 0 10px rgba(255, 255, 255, .6); }
+.card.mutated { border-color: var(--mc); background: linear-gradient(90deg, color-mix(in srgb, var(--mc) 12%, #fffdf6), #fffdf6); }
+.mut-tag {
+  display: inline-block;
+  padding: 0 4px;
+  border: 1.5px solid var(--mc);
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 18px;
+}
+.mut-mult { color: #8e24aa; }
+
+/* ---------- Atualização e novidades ---------- */
+.update-bar {
+  position: fixed;
+  top: 8px;
+  left: 50%;
+  z-index: 66;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  width: max-content;
+  max-width: calc(100vw - 24px);
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: linear-gradient(90deg, #2e7d32, #1e88e5);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .3);
+  color: #fff;
+  font-size: 14px;
+  transform: translateX(-50%);
+  animation: toastIn .3s ease-out;
+}
+.update-bar[hidden] { display: none; }
+.update-btns { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+.update-bar .tut-link { color: #e3f2fd; }
+.update-bar .btn { background: #fff3b0; box-shadow: 0 3px 0 #e0b84a; color: var(--ink); }
+.guide-version { color: var(--muted); font-size: .8rem; font-weight: 600; }
+.cl-ver { margin: 0 0 14px; padding: 10px 14px; border-left: 4px solid var(--line); border-radius: 8px; background: #fffdf6; }
+.cl-ver.new { border-left-color: #1e88e5; background: #eef6ff; }
+.cl-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
+.cl-head small { color: var(--muted); }
+.cl-badge { padding: 1px 8px; border-radius: 99px; background: #1e88e5; color: #fff; font-size: 11px; font-weight: 700; }
+.cl-ver .g-list { margin: 6px 0 0; }
+
 /* ---------- Tutorial e dicas ---------- */
 .tut {
   position: fixed;

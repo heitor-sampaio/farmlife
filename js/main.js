@@ -5,12 +5,16 @@ import * as ui from './ui.js';
 import * as world from './world/world.js';
 import { sfx } from './audio.js';
 import * as tutorial from './tutorial.js';
+import * as updates from './updates.js';
 
 core.setHooks({
   toast: ui.toast,
   sfx,
   dirty: ui.markDirty,
-  event: (name, data) => tutorial.onEvent(name, data),
+  event: (name, data) => {
+    tutorial.onEvent(name, data);
+    if (name === 'strike') world.onStrike(data);
+  },
   fx: (target, text, cls) => {
     const p = world.screenPosOf(target);
     if (p) ui.fxAt(p.x, p.y, text, cls);
@@ -18,6 +22,7 @@ core.setHooks({
 });
 
 const away = core.startGame();
+const isNewGame = core.S.time === 0;
 
 ui.initUI({
   onReset: () => { core.resetGame(); world.onReset(); tutorial.onReset(); },
@@ -36,6 +41,8 @@ tutorial.initTutorial({
   playerPos: () => world.debug.player.pos,
   toast: ui.toast,
 });
+
+updates.initUpdates({ save: core.save, openGuide: tutorial.openGuide, isNewGame });
 
 if (away) {
   setTimeout(() => ui.toast(`👋 Bem-vindo de volta! Você ficou fora ${core.fmtDuration(away)} e a fazenda continuou crescendo.`, 'good'), 400);
@@ -60,4 +67,4 @@ setInterval(core.save, 10000);
 document.addEventListener('visibilitychange', () => { if (document.hidden) core.save(); });
 window.addEventListener('pagehide', core.save);
 
-window.farmlife = { core, world, tutorial }; // acesso para depuração no console
+window.farmlife = { core, world, tutorial, updates }; // acesso para depuração no console

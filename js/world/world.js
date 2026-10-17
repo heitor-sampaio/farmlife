@@ -1,6 +1,6 @@
 /* FarmLife — mundo 3D: cena, câmera isométrica, personagem, animais e interações */
 import * as THREE from 'three';
-import { ANIMALS, PRODUCTS, CROPS, WORKERS, FIELDS, TOTAL_PLOTS, fieldOf, BIG_FIELD, BIG_CELLS, MACHINES, FISH } from '../data.js';
+import { ANIMALS, PRODUCTS, CROPS, WORKERS, FIELDS, TOTAL_PLOTS, fieldOf, BIG_FIELD, BIG_CELLS, MACHINES, FISH, MUTATIONS } from '../data.js';
 import { sfx } from '../audio.js';
 import * as core from '../core.js';
 import * as ui from '../ui.js';
@@ -200,6 +200,7 @@ export async function initWorld(cv) {
   buildBigField();
   buildNature();
   buildRain();
+  buildWeatherFx();
   buildHelpers();
   buildFishing();
   buildGuide();
@@ -337,7 +338,7 @@ function buildFarm() {
     }
     group.add(deco);
     scene.add(group);
-    plotVis.push({ group, base, deco, top: 0.08, baseKey: '', crop: null, cropKey: '', cropH: 0, pop: 1, ind: null, indKey: '' });
+    plotVis.push({ group, base, deco, top: 0.08, baseKey: '', crop: null, cropKey: '', cropH: 0, pop: 1, ind: null, indKey: '', aura: null, auraKey: '' });
   }
 }
 
@@ -392,6 +393,8 @@ function buildBuildings() {
 let bigTex, bigTexData, bigWheat, bigSign, bigProxy, bigOwnedShown = null;
 const bigTexKeys = new Uint8Array(BIG_CELLS).fill(255);
 const bigStage = new Int8Array(BIG_CELLS).fill(-2);
+const bigMaskShown = new Int16Array(BIG_CELLS).fill(-1);
+const tmpMutColor = new THREE.Color();
 const bigRot = new Float32Array(BIG_CELLS).map(() => Math.random() * Math.PI * 2);
 const bigShade = new Float32Array(BIG_CELLS).map(() => Math.random());
 
@@ -514,8 +517,10 @@ function syncBig() {
       texDirty = true;
     }
     const stage = st === 2 ? (b.g[k] >= T ? 11 : Math.floor((b.g[k] / T) * 10)) : -1;
-    if (bigStage[k] !== stage) {
+    const mask = b.mm ? b.mm[k] | 0 : 0;
+    if (bigStage[k] !== stage || bigMaskShown[k] !== mask) {
       bigStage[k] = stage;
+      bigMaskShown[k] = mask;
       const c = bigCellCenter(k);
       if (stage < 0) {
         tmpS.set(0, 0, 0);
@@ -527,7 +532,13 @@ function syncBig() {
       tmpQ.setFromAxisAngle(UP, bigRot[k]);
       tmpM.compose(tmpV.set(c.x, 0.02, c.z), tmpQ, tmpS);
       bigWheat.setMatrixAt(k, tmpM);
-      if (stage >= 0) bigWheat.setColorAt(k, stage === 11 ? C_WHEAT_RIPE : tmpColor.copy(C_WHEAT_GREEN).lerp(C_WHEAT_GOLD, stage / 12));
+      if (stage >= 0) {
+        tmpColor.copy(stage === 11 ? C_WHEAT_RIPE : C_WHEAT_GREEN);
+        if (stage !== 11) tmpColor.lerp(C_WHEAT_GOLD, stage / 12);
+        const top = mask ? core.topMutation(core.maskToList(mask)) : null;
+        if (top) tmpColor.lerp(tmpMutColor.setHex(MUTATIONS[top].color), 0.6);
+        bigWheat.setColorAt(k, tmpColor);
+      }
       instDirty = true;
     }
   }
@@ -809,6 +820,193 @@ function buildRain() {
   scene.add(rain);
 }
 
+// ================= Efeitos dos eventos climáticos =================
+let snow, snowCover, leaves, rainbow;
+const bolts = [];
+const SNOW_N = 900;
+const LEAF_N = 110;
+
+function buildWeatherFx() {
+  // Neve: flocos (pontos) que caem devagar com um leve balanço
+  const pos = new Float32Array(SNOW_N * 3);
+  const flakes = [];
+  for (let k = 0; k < SNOW_N; k++) flakes.push({ x: rand(-22, 22), y: rand(0, 14), z: rand(-22, 22), p: rand(0, 6.28) });
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const dot = document.createElement('canvas');
+  dot.width = dot.height = 32;
+  const g = dot.getContext('2d');
+  const grd = g.createRadialGradient(16, 16, 0, 16, 16, 16);
+  grd.addColorStop(0, 'rgba(255,255,255,1)');
+  grd.addColorStop(0.5, 'rgba(255,255,255,.8)');
+  grd.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grd;
+  g.fillRect(0, 0, 32, 32);
+  const tex = new THREE.CanvasTexture(dot);
+  snow = new THREE.Points(geo, new THREE.PointsMaterial({ size: 6 * Math.min(window.devicePixelRatio, 2), map: tex, transparent: true, opacity: 0, depthWrite: false }));
+  snow.userData.flakes = flakes;
+  snow.frustumCulled = false;
+  snow.visible = false;
+  scene.add(snow);
+
+  // Manto branco sobre o chão
+  snowCover = new THREE.Mesh(
+    new THREE.PlaneGeometry(140, 140),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0, roughness: 1, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3, depthWrite: false }),
+  );
+  snowCover.rotation.x = -Math.PI / 2;
+  snowCover.position.y = 0.025;
+  snowCover.visible = false;
+  scene.add(snowCover);
+
+  // Ventania: folhas voando
+  leaves = new THREE.Group();
+  const leafGeo = new THREE.BoxGeometry(0.18, 0.02, 0.12);
+  const leafColors = [0x7cb342, 0xc0ca33, 0xffb300, 0x8d6e63];
+  for (let k = 0; k < LEAF_N; k++) {
+    const m = new THREE.Mesh(leafGeo, basicMat(leafColors[k % leafColors.length]));
+    m.userData = { x: rand(-18, 18), y: rand(0.3, 4), z: rand(-18, 18), s: rand(0.7, 1.3), p: rand(0, 6.28) };
+    leaves.add(m);
+  }
+  leaves.visible = false;
+  scene.add(leaves);
+
+  // Arco-íris: sete arcos coloridos
+  rainbow = new THREE.Group();
+  const colors = [0xff3b30, 0xff9500, 0xffcc00, 0x34c759, 0x32ade6, 0x5856d6, 0xaf52de];
+  colors.forEach((col, k) => {
+    const arc = new THREE.Mesh(
+      new THREE.TorusGeometry(8.6 - k * 0.24, 0.12, 6, 64, Math.PI),
+      new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0, depthWrite: false }),
+    );
+    arc.renderOrder = 4;
+    rainbow.add(arc);
+  });
+  rainbow.rotation.y = Math.PI / 4; // de frente para a câmera
+  rainbow.visible = false;
+  scene.add(rainbow);
+}
+
+function fadeTo(current, target, dt, speed = 1.5) {
+  return current + (target - current) * Math.min(1, dt * speed);
+}
+
+function updateWeatherFx(dt, evId) {
+  // Neve
+  const snowOn = evId === 'neve';
+  snow.material.opacity = fadeTo(snow.material.opacity, snowOn ? 0.95 : 0, dt);
+  snow.visible = snow.material.opacity > 0.01;
+  if (snow.visible) {
+    const arr = snow.geometry.attributes.position.array;
+    for (let k = 0; k < SNOW_N; k++) {
+      const f = snow.userData.flakes[k];
+      f.y -= 1.3 * dt;
+      f.x += Math.sin(clock * 1.3 + f.p) * 0.4 * dt;
+      if (f.y < 0) { f.y += 14; f.x = rand(-22, 22); f.z = rand(-22, 22); }
+      arr[k * 3] = camTarget.x + f.x;
+      arr[k * 3 + 1] = f.y;
+      arr[k * 3 + 2] = camTarget.z + f.z;
+    }
+    snow.geometry.attributes.position.needsUpdate = true;
+  }
+  // O chão vai ficando branco durante a neve e derrete depois
+  snowCover.material.opacity = fadeTo(snowCover.material.opacity, snowOn ? 0.5 : 0, dt, snowOn ? 0.08 : 0.25);
+  snowCover.visible = snowCover.material.opacity > 0.01;
+  if (snowCover.visible) snowCover.position.set(camTarget.x, 0.025, camTarget.z);
+
+  // Folhas na ventania
+  const windOn = evId === 'ventania';
+  leaves.visible = windOn || (leaves.visible && leaves.scale.x > 0.05);
+  leaves.scale.setScalar(fadeTo(leaves.scale.x, windOn ? 1 : 0, dt, 2));
+  if (leaves.visible) {
+    for (const m of leaves.children) {
+      const u = m.userData;
+      u.x += 7 * u.s * dt;
+      u.z += 2.5 * u.s * dt;
+      if (u.x > 18) { u.x -= 36; u.z = rand(-18, 18); u.y = rand(0.3, 4); }
+      if (u.z > 18) u.z -= 36;
+      m.position.set(camTarget.x + u.x, u.y + Math.sin(clock * 3 + u.p) * 0.4, camTarget.z + u.z);
+      m.rotation.set(clock * 6 * u.s + u.p, clock * 4 + u.p, clock * 5 * u.s);
+    }
+  }
+
+  // Arco-íris
+  const rbOn = evId === 'arcoiris';
+  const rbTarget = rbOn ? 0.42 : 0;
+  let rbOp = 0;
+  for (const arc of rainbow.children) {
+    arc.material.opacity = fadeTo(arc.material.opacity, rbTarget, dt, 0.8);
+    rbOp = arc.material.opacity;
+  }
+  rainbow.visible = rbOp > 0.01;
+  if (rainbow.visible) {
+    // Ajusta ao enquadramento: o arco cobre a largura da tela, com os pés perto da parte de baixo
+    const halfW = (camera.right - camera.left) / 2, halfH = (camera.top - camera.bottom) / 2;
+    rainbow.scale.setScalar((halfW * 0.85) / 8.6);
+    const d = (0.35 * halfH) / 0.63; // deslocamento no chão em direção à câmera
+    rainbow.position.set(camTarget.x + d * 0.707, -0.2, camTarget.z + d * 0.707);
+  }
+
+  // Raios
+  for (let k = bolts.length - 1; k >= 0; k--) {
+    const b = bolts[k];
+    b.t -= dt;
+    const o = Math.max(0, b.t / b.max);
+    for (const m of b.group.children) m.material.opacity = o;
+    if (b.t <= 0) {
+      scene.remove(b.group);
+      bolts.splice(k, 1);
+    }
+  }
+}
+
+const boltGeo = new THREE.CylinderGeometry(1, 1, 1, 5);
+const UP_Y = new THREE.Vector3(0, 1, 0);
+
+/** Um raio caindo (tempestade): clarão, trovão, faíscas e o risco do raio até o alvo. */
+export function onStrike(data) {
+  let x, z, y = 0.3;
+  if (data.tile != null) {
+    const t = tilePos(data.tile);
+    x = t.x; z = t.z; y = plotVis[data.tile].top + 0.3;
+  } else if (data.cell != null) {
+    const c = bigCellCenter(data.cell);
+    x = c.x; z = c.z;
+  } else {
+    x = camTarget.x + rand(-9, 9); z = camTarget.z + rand(-9, 9);
+  }
+  const group = new THREE.Group();
+  const pts = [];
+  for (let k = 0; k <= 9; k++) {
+    const t = k / 9;
+    const j = k === 0 || k === 9 ? 0 : 0.6 * (1 - t * 0.5);
+    pts.push(new THREE.Vector3(x + rand(-j, j), 16 - t * (16 - y), z + rand(-j, j)));
+  }
+  const core1 = new THREE.MeshBasicMaterial({ color: 0xfffde7, transparent: true, depthWrite: false });
+  const glow = new THREE.MeshBasicMaterial({ color: 0xb39ddb, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+  for (let k = 0; k < pts.length - 1; k++) {
+    const a = pts[k], b = pts[k + 1];
+    const dir = new THREE.Vector3().subVectors(b, a);
+    const len = dir.length();
+    for (const [mat, rad] of [[core1, 0.05], [glow, 0.16]]) {
+      const m = new THREE.Mesh(boltGeo, mat);
+      m.position.copy(a).addScaledVector(dir, 0.5);
+      m.scale.set(rad, len, rad);
+      m.quaternion.setFromUnitVectors(UP_Y, dir.normalize());
+      group.add(m);
+      dir.multiplyScalar(len);
+    }
+  }
+  const flare = M.makeGlow(0xfff59d, 3.2);
+  flare.position.set(x, y + 0.2, z);
+  group.add(flare);
+  scene.add(group);
+  bolts.push({ group, t: 0.45, max: 0.45 });
+  flashT = 0.4;
+  burst(x, y, z, 0xfff176, 18, { up: 3.2, spread: 0.9, size: 0.06, life: 0.6 });
+  sfx('thunder');
+}
+
 function squareRing(color, opacity) {
   const geo = new THREE.RingGeometry(0.6, 0.7, 4, 1, Math.PI / 4);
   geo.rotateX(-Math.PI / 2);
@@ -978,6 +1176,30 @@ const C_NIGHT = new THREE.Color(0x16203f);
 const C_RAIN = new THREE.Color(0x8d9fb0);
 const C_MOON = new THREE.Color(0x6070a0);
 const tmpColor = new THREE.Color();
+const C_FLASH = new THREE.Color(0xf4f1ff);
+const C_HEAT = new THREE.Color(0xffb74d);
+const C_SNOWY = new THREE.Color(0xe8f4ff);
+const C_ECLIPSE = new THREE.Color(0x7e57c2);
+// Cor do céu de cada evento e quanto ela pesa
+const EVENT_TINT = {
+  neve: [new THREE.Color(0xe3edf5), 0.6],
+  calor: [new THREE.Color(0xffc46b), 0.5],
+  tempestade: [new THREE.Color(0x3c4656), 0.75],
+  ventania: [new THREE.Color(0xb7c7b0), 0.35],
+  eclipse: [new THREE.Color(0x2a1f4a), 0.55],
+  arcoiris: [new THREE.Color(0xcff3ff), 0.3],
+};
+// Luz da cena em cada evento: [intensidade, cor do sol]
+const EVENT_LIGHT = {
+  tempestade: [0.38, new THREE.Color(0x9fb3d1)],
+  chuva: [0.8, new THREE.Color(0xd5dde6)],
+  calor: [1.3, new THREE.Color(0xffa64d)],
+  neve: [0.95, new THREE.Color(0xe3f0ff)],
+  ventania: [0.85, new THREE.Color(0xeef3dc)],
+  arcoiris: [1.05, new THREE.Color(0xfff1dc)],
+  eclipse: [0.6, new THREE.Color(0xa592ff)],
+};
+let flashT = 0;
 
 function updateSky(dt) {
   const S = core.S;
@@ -989,23 +1211,41 @@ function updateSky(dt) {
   const dusk = d > 0 && d < 1 ? 1 - Math.abs(d - 0.5) * 2 : 0;
   tmpColor.lerp(C_DUSK, dusk * 0.55);
   if (raining) tmpColor.lerp(C_RAIN, 0.65 * (1 - d));
+  const evId = S.event ? S.event.id : null;
+  const tint = EVENT_TINT[evId];
+  if (tint) tmpColor.lerp(tint[0], tint[1]);
   scene.background.lerp(tmpColor, 1 - Math.exp(-3 * dt));
+  if (flashT > 0) {
+    flashT = Math.max(0, flashT - dt);
+    scene.background.lerp(C_FLASH, Math.min(1, flashT * 2.5));
+  }
 
   // O sol atravessa o céu entre 6h e 19h, mudando a direção das sombras
   const a = THREE.MathUtils.clamp((h - 6) / 13, 0, 1) * Math.PI;
   sun.position.set(camTarget.x + Math.cos(a) * 12, camTarget.y + 3 + Math.sin(a) * 16, camTarget.z + 8);
   sun.target.position.copy(camTarget);
-  sun.intensity = (1 - d) * (raining ? 1.0 : 2.4);
+  sun.intensity = (1 - d) * (raining ? 1.0 : evId === 'calor' ? 3.3 : evId === 'neve' ? 1.6 : 2.4);
   sun.color.setHSL(0.1, 0.6, 0.85 - dusk * 0.15);
   moon.intensity = d * 0.8;
   hemi.intensity = 0.5 + (1 - d) * (raining ? 0.6 : 0.8);
   hemi.color.copy(C_DAY).lerp(C_MOON, d);
+  if (evId === 'calor') hemi.color.lerp(C_HEAT, 0.5);
+  if (evId === 'neve') hemi.color.lerp(C_SNOWY, 0.5);
+  if (evId === 'eclipse') hemi.color.lerp(C_ECLIPSE, 0.6);
+  const light = EVENT_LIGHT[evId];
+  if (light) {
+    sun.intensity *= light[0];
+    hemi.intensity *= (light[0] + 1) / 2;
+    sun.color.lerp(light[1], 0.7);
+  }
+  hemi.intensity += flashT * 4;
+  updateWeatherFx(dt, evId);
 
   for (const l of lamps) l.intensity = d * 14;
   for (const m of glowMats) m.emissiveIntensity = d * 1.3;
 
   // Chuva
-  const target = raining ? 0.55 : 0;
+  const target = raining ? (evId === 'tempestade' ? 0.8 : 0.55) : 0;
   rain.material.opacity += (target - rain.material.opacity) * Math.min(1, dt * 2);
   rain.visible = rain.material.opacity > 0.01;
   if (rain.visible) {
@@ -1134,14 +1374,27 @@ function syncPlots() {
     const ready = core.isReady(p);
     const thirsty = p.s === 'planted' && !ready && !wet;
     const buyable = p.s === 'locked' && core.isBuyable(i);
-    const indKey = ready ? '✨' : thirsty ? '💧' : buyable ? '🪙' : '';
+    // Plantas mutadas: aura da cor da mutação mais rara e, quando prontas, o ícone dela no lugar do ✨
+    const top = p.s === 'planted' && p.m && p.m.length ? core.topMutation(p.m) : null;
+    const indKey = ready ? (top ? MUTATIONS[top].icon : '✨') : thirsty ? '💧' : buyable ? '🪙' : '';
     if (v.indKey !== indKey) {
       if (v.ind) v.group.remove(v.ind);
       v.ind = null;
       v.indKey = indKey;
       if (indKey) {
-        v.ind = M.emojiSprite(indKey, indKey === '✨' ? 0.5 : indKey === '🪙' ? 0.3 : 0.42, indKey === '💧');
+        const bubble = indKey === '💧' || (ready && top);
+        v.ind = M.emojiSprite(indKey, indKey === '✨' ? 0.5 : indKey === '🪙' ? 0.3 : 0.42, bubble);
         v.group.add(v.ind);
+      }
+    }
+    const auraKey = top || '';
+    if (v.auraKey !== auraKey) {
+      if (v.aura) v.group.remove(v.aura);
+      v.aura = null;
+      v.auraKey = auraKey;
+      if (top) {
+        v.aura = M.makeGlow(MUTATIONS[top].color, 1.5);
+        v.group.add(v.aura);
       }
     }
   }
@@ -1157,7 +1410,14 @@ function animatePlots() {
         const s = 1 + 2.2 * Math.pow(t - 1, 3) + 1.2 * Math.pow(t - 1, 2); // ease-out-back
         v.crop.scale.setScalar(Math.max(0.01, s));
       }
-      v.crop.rotation.z = Math.sin(clock * 1.6 + i) * 0.03;
+      // Na ventania as plantas balançam bem mais
+      const windy = core.S.event && core.S.event.id === 'ventania';
+      v.crop.rotation.z = windy ? Math.sin(clock * 5 + i) * 0.16 + 0.08 : Math.sin(clock * 1.6 + i) * 0.03;
+    }
+    if (v.aura) {
+      v.aura.position.y = v.top + 0.3;
+      v.aura.material.opacity = 0.45 + Math.sin(clock * 3 + i) * 0.2;
+      if (v.auraKey === 'arcoiris') v.aura.material.color.setHSL((clock * 0.25 + i * 0.1) % 1, 0.9, 0.6);
     }
     if (v.ind) {
       const base = v.indKey === '🪙' ? 0.4 : v.top + Math.max(0.5, v.cropH) + 0.25;

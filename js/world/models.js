@@ -1103,3 +1103,21 @@ export function makeFirefly() {
   sp.scale.set(0.35, 0.35, 1);
   return sp;
 }
+
+let glowTex = null;
+/** Brilho suave (aditivo) tingido de uma cor: aura das plantas mutadas, clarão dos raios. */
+export function makeGlow(color, size = 1) {
+  if (!glowTex) {
+    glowTex = canvasTexture(64, 64, (g) => {
+      const grd = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+      grd.addColorStop(0, 'rgba(255,255,255,1)');
+      grd.addColorStop(0.35, 'rgba(255,255,255,.55)');
+      grd.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = grd;
+      g.fillRect(0, 0, 64, 64);
+    });
+  }
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+  sp.scale.set(size, size, 1);
+  return sp;
+}

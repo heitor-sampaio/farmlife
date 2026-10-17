@@ -3,6 +3,7 @@ import {
   COLS, ROWS, DAY_LEN, MAX_OFFLINE, SAVE_KEY, FIELDS, TOTAL_PLOTS, fieldOf,
   CROPS, PRODUCTS, ANIMALS, WATER_TIME, GROW_SPEED, PEN_SIZE, UPGRADES, CUSTOMERS,
   WORKERS, WORK_TIME, BIG_FIELD, BIG_CELLS, MACHINES, FISH, RODS, PET,
+  MUTATIONS, WEATHER_EVENTS, EVENT_ROUND, EVENT_CHANCE, EVENT_COOLDOWN,
 } from './data.js';
 
 // ================= Utilidades =================
@@ -71,7 +72,7 @@ export function toolList() {
 
 // Campo de Trigo: s = 0 palha (precisa arar), 1 arado, 2 plantado; g = crescimento em segundos
 function newBigField() {
-  return { owned: false, s: new Array(BIG_CELLS).fill(0), g: new Array(BIG_CELLS).fill(0) };
+  return { owned: false, s: new Array(BIG_CELLS).fill(0), g: new Array(BIG_CELLS).fill(0), mm: new Array(BIG_CELLS).fill(0) };
 }
 
 function newState() {
@@ -80,11 +81,11 @@ function newState() {
     for (let c = 0; c < COLS; c++) {
       const open = c >= 2 && c < 6 && r >= 1 && r < 4;
       const tilled = open && c >= 3 && c < 5 && r >= 1 && r < 3;
-      plots.push({ s: open ? (tilled ? 'tilled' : 'grass') : 'locked', crop: null, g: 0, w: 0 });
+      plots.push({ s: open ? (tilled ? 'tilled' : 'grass') : 'locked', crop: null, g: 0, w: 0, m: [] });
     }
   }
   // Lotes dos outros campos (bloqueados até o campo ser comprado)
-  while (plots.length < TOTAL_PLOTS) plots.push({ s: 'locked', crop: null, g: 0, w: 0 });
+  while (plots.length < TOTAL_PLOTS) plots.push({ s: 'locked', crop: null, g: 0, w: 0, m: [] });
   return {
     v: 2,
     coins: 60,
@@ -102,10 +103,12 @@ function newState() {
     workers: { colhedor: false, plantador: false, tratador: false },
     up: { regador: 0, adubo: 0, curral: 0, alimentador: 0, aspersor: 0 },
     weather: 'sol',
+    event: null,      // evento climático atual: { id, t, dur, strikeT }
+    nextEvent: EVENT_ROUND * 2, // segundos até a próxima rodada de sorteio do clima
     prices: {},
     orders: [],
     bought: 0,
-    stats: { harvest: 0, earned: 0, orders: 0, fish: 0 },
+    stats: { harvest: 0, earned: 0, orders: 0, fish: 0, mutated: 0 },
     fishing: { rod: 0 },
     pet: { owned: false, name: PET.defaultName, day: 0 },
     tutorial: { step: 0, count: 0, done: false, tips: {} },
@@ -117,7 +120,31 @@ function newState() {
 export const dayOf = (t) => Math.floor(t / DAY_LEN) + 1;
 export const xpNeed = (l) => Math.round(50 * Math.pow(l, 1.5));
 export const autoWater = () => S.weather === 'chuva' || S.up.aspersor > 0;
-export const price = (id) => Math.max(1, Math.round(ITEMS[id].sell * (S.prices[id] || 1)));
+// Itens mutados ficam no inventário com a chave "base|mut1+mut2" (ex.: "tomate|congelada+eletrizada")
+export const MUT_IDS = Object.keys(MUTATIONS);
+export const MUT_BIT = Object.fromEntries(MUT_IDS.map((id, k) => [id, 1 << k]));
+export const maskToList = (mask) => MUT_IDS.filter((id) => mask & MUT_BIT[id]);
+/** Multiplicador de venda: cada mutação soma o seu bônus. */
+export const mutMult = (list) => 1 + list.reduce((s, id) => s + MUTATIONS[id].mult - 1, 0);
+export const itemKey = (base, list) => (list && list.length ? base + '|' + MUT_IDS.filter((id) => list.includes(id)).join('+') : base);
+export function parseKey(key) {
+  const [base, m] = key.split('|');
+  return { base, muts: m ? m.split('+').filter((id) => MUTATIONS[id]) : [] };
+}
+/** Nome, ícone e valor de um item (com ou sem mutações). */
+export function itemInfo(key) {
+  const { base, muts } = parseKey(key);
+  const it = ITEMS[base];
+  if (!it) return null;
+  return { ...it, base, muts, mult: mutMult(muts), tag: muts.map((m) => MUTATIONS[m].icon).join('') };
+}
+/** Mutação de maior valor da lista (para cores e ícones). */
+export const topMutation = (list) => list.reduce((best, id) => (!best || MUTATIONS[id].mult > MUTATIONS[best].mult ? id : best), null);
+
+export const price = (key) => {
+  const { base, muts } = parseKey(key);
+  return Math.max(1, Math.round(ITEMS[base].sell * (S.prices[base] || 1) * mutMult(muts)));
+};
 export const plotCost = () => Math.round(80 * Math.pow(1.2, S.bought));
 export const penSize = () => PEN_SIZE[S.up.curral];
 export const isReady = (p) => p.s === 'planted' && p.g >= CROPS[p.crop].time;
@@ -130,6 +157,12 @@ export const dayHours = () => 6 + ((S.time % DAY_LEN) / DAY_LEN) * 24;
 
 /** Escuridão de 0 (dia) a 1 (noite fechada). */
 export function darkness() {
+  // No eclipse o dia vira noite
+  if (S.event && S.event.id === 'eclipse') return Math.max(0.85, nightness());
+  return nightness();
+}
+
+function nightness() {
   const h = dayHours();
   if (h >= 18 && h < 20) return (h - 18) / 2;
   if (h >= 20 && h < 28) return 1;
@@ -177,12 +210,10 @@ function rollPrices() {
 // ================= Simulação =================
 function newDay(day, quiet) {
   rollPrices();
-  S.weather = Math.random() < 0.22 ? 'chuva' : 'sol';
   const paid = payWages(quiet);
   if (!quiet) {
     const wages = paid ? ` · Salários: -🪙${fmt(paid)}` : '';
-    if (S.weather === 'chuva') toast(`🌧️ Dia ${day}: está chovendo! Tudo fica regado hoje.${wages}`);
-    else toast(`☀️ Dia ${day} começou. Os preços do mercado mudaram!${wages}`);
+    toast(`☀️ Dia ${day} começou. Os preços do mercado mudaram!${wages}`);
   }
   markDirty('panel');
 }
@@ -202,6 +233,96 @@ function payWages(quiet) {
   return paid;
 }
 
+// ================= Eventos climáticos e mutações =================
+export const currentEvent = () => (S.event ? WEATHER_EVENTS[S.event.id] : null);
+
+function pickEvent() {
+  const opts = Object.entries(WEATHER_EVENTS);
+  let roll = Math.random() * opts.reduce((s, [, e]) => s + e.weight, 0);
+  for (const [id, e] of opts) { if ((roll -= e.weight) <= 0) return id; }
+  return 'chuva';
+}
+
+function startEvent(id, quiet) {
+  const ev = WEATHER_EVENTS[id];
+  const dur = Math.round(rand(ev.dur[0], ev.dur[1]));
+  S.event = { id, t: dur, dur, strikeT: 2 };
+  if (!quiet) {
+    const m = MUTATIONS[ev.mutation];
+    toast(`${ev.icon} ${ev.name}! ${ev.desc} Plantas crescendo podem ficar ${m.icon} ${m.name} (${m.rarity}, ×${m.mult}).`, 'event');
+    sfx(id === 'tempestade' ? 'thunder' : 'event');
+  }
+  emit('weather', id);
+}
+
+function endEvent(quiet) {
+  const prev = S.event.id;
+  S.event = null;
+  // Depois da chuva, às vezes vem um arco-íris
+  if ((prev === 'chuva' || prev === 'tempestade') && Math.random() < WEATHER_EVENTS.arcoiris.after) {
+    startEvent('arcoiris', quiet);
+    return;
+  }
+  S.nextEvent = EVENT_ROUND * (1 + EVENT_COOLDOWN);
+  if (!quiet) toast(`${WEATHER_EVENTS[prev].icon} ${WEATHER_EVENTS[prev].name} passou.`);
+}
+
+/** Dá uma mutação a um lote (se ainda não tiver). */
+function mutatePlot(i, mut, quiet) {
+  const p = S.plots[i];
+  if (p.m.includes(mut)) return false;
+  p.m.push(mut);
+  if (!quiet) fx({ tile: i }, `${MUTATIONS[mut].icon} ${MUTATIONS[mut].name}!`, 'mut');
+  return true;
+}
+
+const growingPlots = () => S.plots.map((p, i) => (p.s === 'planted' && !isReady(p) ? i : -1)).filter((i) => i >= 0);
+const growingCells = () => {
+  const out = [];
+  if (S.big.owned) for (let k = 0; k < BIG_CELLS; k++) if (S.big.s[k] === 2 && !bigReady(k)) out.push(k);
+  return out;
+};
+
+function applyEvent(dt, quiet) {
+  const ev = currentEvent();
+  const mut = ev.mutation;
+  if (ev.rate) {
+    const chance = ev.rate * dt;
+    S.plots.forEach((p, i) => {
+      if (p.s === 'planted' && !isReady(p) && !p.m.includes(mut) && Math.random() < chance) mutatePlot(i, mut, quiet);
+    });
+    if (S.big.owned) {
+      const bit = MUT_BIT[mut];
+      for (let k = 0; k < BIG_CELLS; k++) {
+        if (S.big.s[k] === 2 && !(S.big.mm[k] & bit) && !bigReady(k) && Math.random() < chance) S.big.mm[k] |= bit;
+      }
+    }
+  }
+  // Tempestade: raios caem em plantas específicas
+  if (ev.strikes) {
+    S.event.strikeT -= dt;
+    if (S.event.strikeT <= 0) {
+      S.event.strikeT = rand(ev.strikes[0], ev.strikes[1]);
+      const plots = growingPlots(), cells = growingCells();
+      if (plots.length && (!cells.length || Math.random() < 0.7)) {
+        const i = pick(plots);
+        mutatePlot(i, mut, quiet);
+        if (!quiet) emit('strike', { tile: i });
+      } else if (cells.length) {
+        // No Campo de Trigo, o raio eletriza a célula atingida e as vizinhas
+        const k = pick(cells);
+        const cols = BIG_FIELD.cols;
+        for (const n of [k, k - 1, k + 1, k - cols, k + cols]) {
+          if (n >= 0 && n < BIG_CELLS && S.big.s[n] === 2 && !bigReady(n)) S.big.mm[n] |= MUT_BIT[mut];
+        }
+        if (!quiet) emit('strike', { cell: k });
+      } else if (!quiet) {
+        emit('strike', { random: true });
+      }
+    }
+  }
+}
+
 let feederWarned = false;
 
 export function update(dt, quiet) {
@@ -209,6 +330,22 @@ export function update(dt, quiet) {
   S.time += dt;
   const after = dayOf(S.time);
   if (after !== before) newDay(after, quiet);
+
+  if (S.event) {
+    applyEvent(dt, quiet);
+    S.event.t -= dt;
+    if (S.event.t <= 0) endEvent(quiet);
+  } else {
+    // Rodada: só às vezes o clima muda
+    S.nextEvent -= dt;
+    if (S.nextEvent <= 0) {
+      S.nextEvent = EVENT_ROUND;
+      if (Math.random() < EVENT_CHANCE) startEvent(pickEvent(), quiet);
+    }
+  }
+  const ev = currentEvent();
+  S.weather = ev && ev.waters ? 'chuva' : 'sol';
+  const evaporate = ev && ev.evaporate ? ev.evaporate : 1;
 
   const auto = autoWater();
   const speed = GROW_SPEED[S.up.adubo];
@@ -220,7 +357,7 @@ export function update(dt, quiet) {
         p.g = Math.min(c.time, p.g + wetTime * speed);
       }
     }
-    if (p.w > 0) p.w = Math.max(0, p.w - dt);
+    if (p.w > 0) p.w = Math.max(0, p.w - dt * evaporate);
   }
   // Alimentador automático: animais com fome comem o trigo guardado no celeiro
   if (S.up.alimentador > 0) {
@@ -434,6 +571,7 @@ function useTileInner(i, quiet) {
     p.s = 'planted';
     p.crop = id;
     p.g = 0;
+    p.m = [];
     sfx('plant');
     fx(target, '🌱');
     markDirty('toolbar', 'panel');
@@ -447,13 +585,16 @@ function useTileInner(i, quiet) {
 function harvest(i, silent = false) {
   const p = S.plots[i];
   const c = CROPS[p.crop];
-  addItem(p.crop, 1);
+  const muts = p.m || [];
+  addItem(itemKey(p.crop, muts), 1);
   gainXp(c.xp, silent);
   S.stats.harvest++;
+  if (muts.length) S.stats.mutated = (S.stats.mutated || 0) + 1;
   if (!silent) {
-    fx({ tile: i }, `+1 ${c.icon}`, 'gold');
-    sfx('harvest');
+    fx({ tile: i }, `+1 ${c.icon}${muts.map((m) => MUTATIONS[m].icon).join('')}`, muts.length ? 'mut' : 'gold');
+    sfx(muts.length ? 'catch' : 'harvest');
   }
+  p.m = []; // a planta recomeça sem mutações; elas ficam no item colhido
   if (c.regrow) {
     p.g = c.time * (1 - c.regrow);
   } else {
@@ -604,13 +745,17 @@ export function bigWork(machine, k) {
     S.seeds.trigo--;
     b.s[k] = 2;
     b.g[k] = 0;
+    b.mm[k] = 0;
     markDirty('toolbar', 'panel');
     return 'plant';
   }
   if (machine === 'colheitadeira' && bigReady(k)) {
     b.s[k] = 0;
     b.g[k] = 0;
-    addItem('trigo', 1);
+    const muts = maskToList(b.mm[k]);
+    b.mm[k] = 0;
+    addItem(itemKey('trigo', muts), 1);
+    if (muts.length) S.stats.mutated = (S.stats.mutated || 0) + 1;
     gainXp(1);
     S.stats.harvest++;
     return 'harvest';
@@ -726,6 +871,7 @@ export function workerAct(id, target, silent = false) {
       p.s = 'planted';
       p.crop = seed;
       p.g = 0;
+      p.m = [];
       if (!silent) { sfx('plant'); fx({ tile: target }, CROPS[seed].icon); }
       markDirty('toolbar', 'panel');
       return 'plant';
@@ -819,7 +965,8 @@ export function sell(id, qty) {
 export function sellAll() {
   const reserve = S.animals.length;
   let total = 0;
-  for (const id of Object.keys(ITEMS)) {
+  for (const id of Object.keys(S.inv)) {
+    if (!itemInfo(id)) continue;
     let qty = S.inv[id] || 0;
     if (id === 'trigo') qty = Math.max(0, qty - reserve);
     if (qty > 0) { total += price(id) * qty; S.inv[id] -= qty; }
@@ -862,12 +1009,14 @@ export function plotInfo(i) {
   const wet = isWet(p);
   if (p.s === 'tilled') return `🟫 Terra arada${wet ? ' e molhada' : ''}. Escolha uma semente e plante!`;
   const c = CROPS[p.crop];
-  if (isReady(p)) return `${c.icon} ${c.name} pronto para colher!`;
+  const muts = p.m || [];
+  const mutTxt = muts.length ? ` · ${muts.map((m) => `${MUTATIONS[m].icon} ${MUTATIONS[m].name}`).join(', ')} (×${mutMult(muts).toLocaleString('pt-BR')})` : '';
+  if (isReady(p)) return `${c.icon} ${c.name} pronto para colher!${mutTxt}`;
   const left = Math.ceil((c.time - p.g) / GROW_SPEED[S.up.adubo]);
   const water = wet
     ? (autoWater() ? '💧 regado' : `💧 regado (${Math.ceil(p.w)}s)`)
     : '⚠️ precisa de água!';
-  return `${c.icon} ${c.name} — ${Math.floor((p.g / c.time) * 100)}% · faltam ~${fmtDuration(left)} · ${water}`;
+  return `${c.icon} ${c.name} — ${Math.floor((p.g / c.time) * 100)}% · faltam ~${fmtDuration(left)} · ${water}${mutTxt}`;
 }
 
 export function toolHint() {
@@ -909,6 +1058,10 @@ function load() {
     };
     // Saves antigos têm só o campo principal: completa com os lotes dos campos novos
     st.plots = base.plots.map((p, i) => d.plots[i] || p);
+    for (const p of st.plots) if (!Array.isArray(p.m)) p.m = [];
+    if (!Array.isArray(st.big.mm) || st.big.mm.length !== BIG_CELLS) st.big.mm = new Array(BIG_CELLS).fill(0);
+    if (st.event && !WEATHER_EVENTS[st.event.id]) st.event = null;
+    if (typeof st.nextEvent !== 'number' || st.nextEvent > EVENT_ROUND * (1 + EVENT_COOLDOWN)) st.nextEvent = EVENT_ROUND;
     for (const p of st.plots) if (p.s === 'planted' && !CROPS[p.crop]) { p.s = 'tilled'; p.crop = null; p.g = 0; }
     st.animals = (st.animals || []).filter((a) => ANIMALS[a.type]);
     st.nextId = st.nextId || 1;

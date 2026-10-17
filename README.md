@@ -41,15 +41,28 @@ Depois acesse http://localhost:5173. Na primeira vez, precisa de internet para b
 - **Tempo**: dia de 3 minutos com sol que muda as sombras, noite com lampiões e dias de chuva.
 - **Expansão**: no campo principal, compre lotes vizinhos um a um; na loja, compre campos inteiros novos (Leste, Sul e Lago, com 24 a 32 lotes cada), marcados no mapa com placas de venda.
 - **Pescaria**: com uma vara (bambu ou fibra) você pesca no lago: lance, espere a mordida (❗) e segure a ação no minigame para manter o peixe na faixa verde. Seis tipos de pesca, com bagres à noite, lagostins na chuva e uma rara carpa dourada.
+- **Clima e mutações**: eventos climáticos (chuva, ventania, neve, sol escaldante, tempestade de raios, arco-íris e eclipse) dão mutações às plantas que estão crescendo. As mutações se acumulam até a planta amadurecer, vão para o item colhido e aumentam o preço de venda conforme a raridade (cada uma soma o seu bônus, de ×1,5 a ×20). Vale também para o Campo de Trigo e para os funcionários.
 - **Pet**: uma border collie (nível 2) que segue o jogador, senta quando ele para, corre atrás dos passarinhos e ganha carinho (+10 XP por dia). Dá para trocar o nome.
 - **Fauna de cenário**: sapos na beira do lago (pulam na água se você chega perto), passarinhos que bicam o chão e voam quando alguém se aproxima, bandos no céu, joaninhas, borboletas de dia, coelhos, patos no lago e vaga-lumes à noite.
 - **Lavoura mecanizada**: um Campo de Trigo de 384 lotes trabalhado com máquinas que você dirige (trator com arado de 3 faixas, trator com plantadeira de 4 e colheitadeira de 5), guardadas num galpão. Entre e saia com `Espaço`/`E` ou ✋; dirija com `WASD` ou o joystick.
 - **Progresso**: níveis desbloqueiam culturas, animais, melhorias, campos e máquinas.
 - **Salvamento**: automático no `localStorage`, com até 8h de progresso enquanto você está fora.
 
+## Versões e atualizações
+
+- O histórico completo está em [CHANGELOG.md](CHANGELOG.md) e, dentro do jogo, no ❓ Guia em **📜 Novidades**.
+- O jogo confere o `version.json` do site a cada 5 minutos (e quando o jogador volta para a aba). Se houver uma versão mais nova, aparece uma faixa com **Atualizar agora**: o jogo salva, baixa de novo os arquivos sem cache e recarrega.
+- Depois de atualizar, quem já jogava vê as novidades desde a última versão que abriu.
+
+**Para publicar uma versão nova:**
+
+1. Adicione a versão no topo de `js/changelog.js` (número, data, título e itens).
+2. Gere o `CHANGELOG.md` e o `version.json`: `node tools/gerar-versao.mjs`
+3. Faça o commit e o push. Em cerca de um minuto o GitHub Pages publica, e os jogadores com o jogo aberto recebem o aviso.
+
 ## Estrutura
 
-- `index.html`: página, HUD e modal de ajuda
+- `index.html`: página, HUD, tutorial e Guia
 - `css/style.css`: interface sobre a cena 3D
 - `js/data.js`: balanceamento (culturas, animais, melhorias)
 - `js/core.js`: regras do jogo e salvamento (sem dependência de renderização)
@@ -59,3 +72,8 @@ Depois acesse http://localhost:5173. Na primeira vez, precisa de internet para b
 - `js/world/nav.js`: grade de colisão e rotas (A*)
 - `js/world/world.js`: cena, câmera, luz, personagem, animais e interações
 - `js/main.js`: inicialização e loop principal
+- `js/tutorial.js`: tutorial, dicas e Guia da Fazenda
+- `js/changelog.js`: histórico de versões (fonte do CHANGELOG.md e do version.json)
+- `js/updates.js`: aviso de versão nova e novidades
+- `js/world/critters.js`: pet e fauna
+- `tools/gerar-versao.mjs`: gera CHANGELOG.md e version.json

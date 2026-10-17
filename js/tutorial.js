@@ -1,8 +1,10 @@
 /* FarmLife — tutorial interativo, dicas na hora certa e o Guia da Fazenda */
 import {
   CROPS, ANIMALS, PRODUCTS, UPGRADES, WORKERS, FIELDS, BIG_FIELD, BIG_CELLS, MACHINES, FISH, RODS, PET, WATER_TIME, PEN_SIZE,
+  WEATHER_EVENTS, MUTATIONS, RARITY_COLOR, EVENT_ROUND, EVENT_CHANCE,
 } from './data.js';
 import * as core from './core.js';
+import { CHANGELOG, VERSION, compareVersions } from './changelog.js';
 import { sfx } from './audio.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -126,14 +128,23 @@ const TIPS = {
       ${isTouch() ? 'o <b>joystick</b>' : '<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>'}: ela vira aos poucos para onde você aponta e trabalha por onde passa.
       Ciclo: <b>arar → plantar → esperar → colher</b>. Use ${ACT()} de novo para sair.`,
   },
+  weather: {
+    title: 'Evento climático!', target: null,
+    body: () => {
+      const ev = core.currentEvent();
+      const m = ev ? MUTATIONS[ev.mutation] : null;
+      return `De vez em quando o clima muda (veja o aviso no topo). Enquanto o evento dura, as plantas que estão <b>crescendo</b> podem ganhar uma <b>mutação</b>${m ? `: agora é ${m.icon} <b>${m.name}</b> (${m.rarity}, ×${m.mult})` : ''}.
+        Mutações se acumulam, vão para o item colhido e <b>multiplicam o preço de venda</b>. Plantas mutadas brilham. Detalhes no ❓ Guia, em "Clima e mutações".`;
+    },
+  },
   night: {
     title: 'Anoiteceu 🌙', target: { spot: 'casa' },
     body: () => `As plantas continuam crescendo à noite. Se quiser pular para a manhã, entre na sua 🏠 <b>Casa</b> e durma (depois das 18h).
       À noite aparecem mais 🐡 bagres no lago e vaga-lumes pela fazenda.`,
   },
   rain: {
-    title: 'Dia de chuva 🌧️', target: null,
-    body: () => `Hoje a chuva <b>rega tudo sozinha</b>: pode deixar o regador de lado. Na chuva também aparecem mais 🦞 lagostins no lago.`,
+    title: 'Chuva 🌧️', target: null,
+    body: () => `Enquanto chover, a chuva <b>rega tudo sozinha</b>: pode deixar o regador de lado. As plantas crescendo também podem ficar 💧 <b>Molhadas</b> (valem mais). Na chuva também aparecem mais 🦞 lagostins no lago.`,
   },
   order: {
     title: 'Pedido pronto!', target: { spot: 'pedidos' },
@@ -295,6 +306,7 @@ export function onEvent(name, data) {
   else if (name === 'field') queueTip('field', data);
   else if (name === 'bigfield') queueTip('bigfield');
   else if (name === 'machine') queueTip('machine', data);
+  else if (name === 'weather') queueTip('weather');
   else if (name === 'level') {
     if (data >= 2) queueTip('level2');
     if (data >= 6) queueTip('level6');
@@ -400,6 +412,9 @@ const lock = (lv) => (lv > core.S.level ? ` <span class="g-lock">🔒 Nv ${lv}</
 const table = (head, rows) => `<div class="g-table-wrap"><table class="g-table${head[0] === '' ? ' has-ico' : ''}"><thead><tr>${head.map((h) => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 const dur = (s) => core.fmtDuration(s);
 
+let guideSince = VERSION; // versões depois desta ganham o selo "Novo para você"
+const dateBR = (d) => d.split('-').reverse().join('/');
+
 const TOPICS = [
   {
     id: 'inicio', icon: '🌻', title: 'Primeiros passos',
@@ -408,6 +423,16 @@ const TOPICS = [
       <p>Com o dinheiro, você compra sementes melhores, animais, melhorias e terreno. Cada colheita, produto e pedido dá <b>XP</b>, e cada nível libera coisas novas (veja <b>🏆 Progressão</b>).</p>
       <p>O jogo salva sozinho, e a fazenda continua crescendo enquanto você está fora (até 8 horas).</p>
       <button class="btn" data-guide="restart">🔁 Refazer o tutorial</button>`,
+  },
+  {
+    id: 'novidades', icon: '📜', title: 'Novidades',
+    html: () => `<p>Tudo o que mudou no FarmLife, da versão mais nova para a mais antiga. Você está na <b>v${VERSION}</b>.</p>` +
+      CHANGELOG.map((v) => {
+        const isNew = compareVersions(v.version, guideSince) > 0;
+        return `<div class="cl-ver${isNew ? ' new' : ''}">
+          <div class="cl-head"><b>v${v.version}</b> · ${v.title} <small>${dateBR(v.date)}</small>${isNew ? '<span class="cl-badge">Novo para você</span>' : ''}</div>
+          <ul class="g-list">${v.items.map((i) => `<li>${i}</li>`).join('')}</ul></div>`;
+      }).join(''),
   },
   {
     id: 'controles', icon: '🎮', title: 'Controles',
@@ -493,11 +518,32 @@ const TOPICS = [
     ) + '<p>💡 A plantadeira usa as suas sementes de trigo: compre o <b>saco ×50</b> na loja.</p>',
   },
   {
+    id: 'clima', icon: '🌩️', title: 'Clima e mutações',
+    html: () => `<p>Os eventos climáticos são <b>raros</b>: a cada ${EVENT_ROUND} segundos (1/3 de dia) há <b>${Math.round(EVENT_CHANCE * 100)}% de chance</b> de começar um, e depois de cada evento o clima descansa um pouco. Quando acontece, o aviso aparece no topo da tela com a contagem regressiva.
+      Enquanto ele dura, as plantas que ainda estão <b>crescendo</b> podem ganhar a <b>mutação</b> daquele evento.</p>
+      <ul class="g-list">
+        <li>Uma planta pode <b>acumular várias mutações</b> até amadurecer (plantas prontas não ganham mais).</li>
+        <li>Ao colher, as mutações vão <b>para o item colhido</b> e a planta recomeça sem nenhuma (inclusive as que rebrotam).</li>
+        <li>Itens mutados ficam separados no 🛖 Celeiro e valem mais: <b>cada mutação soma o seu bônus</b>.
+          Ex.: 💧 Molhada (×1,5) + ⚡ Eletrizada (×5) = 1 + 0,5 + 4 = <b>×5,5</b> o preço normal.</li>
+        <li>Plantas mutadas brilham com a cor da sua mutação mais rara; prontas, mostram o ícone dela.</li>
+        <li>Vale também para o ${BIG_FIELD.icon} Campo de Trigo e para o que os funcionários colhem.</li>
+      </ul>` + table(
+      ['', 'Evento', 'O que acontece', 'Mutação', 'Raridade', 'Bônus'],
+      Object.values(WEATHER_EVENTS).map((e) => {
+        const m = MUTATIONS[e.mutation];
+        return [e.icon, e.name, e.desc + (e.strikes ? ' Cada raio eletriza a planta atingida.' : '') + (e.after ? ' Costuma aparecer depois da chuva.' : ''),
+          `${m.icon} ${m.name}`, `<b style="color:${RARITY_COLOR[m.rarity]}">${m.rarity}</b>`, `×${String(m.mult).replace('.', ',')}`];
+      }),
+    ) + '<p>💡 Culturas demoradas (como 🎃 abóbora e 🌻 girassol) passam por mais eventos enquanto crescem e acumulam mais mutações.</p>',
+  },
+  {
     id: 'tempo', icon: '🌦️', title: 'Tempo e clima',
     html: () => `<ul class="g-list">
       <li>☀️ Um dia dura <b>3 minutos</b>. Ao amanhecer os preços mudam e os salários são pagos.</li>
       <li>🌙 À noite as plantas continuam crescendo. Depois das 18h, durma na 🏠 <b>Casa</b> para pular para a manhã.</li>
-      <li>🌧️ Na chuva, tudo fica regado sozinho.</li>
+      <li>🌧️ Na chuva e na tempestade, tudo fica regado sozinho. No 🔥 sol escaldante, a água evapora mais rápido.</li>
+      <li>🌩️ Os eventos climáticos geram <b>mutações</b> nas plantas (veja "Clima e mutações").</li>
       <li>💾 O jogo salva sozinho. Fechou o jogo? A fazenda continua: plantas crescem, animais produzem e funcionários trabalham (até 8 horas).</li></ul>`,
   },
   {
@@ -513,8 +559,12 @@ const TOPICS = [
 ];
 let currentTopic = 'inicio';
 
-export function openGuide(topic) {
+/** Abre o Guia. since: mostra como "novo" o que veio depois dessa versão (tópico Novidades). */
+export function openGuide(topic, since) {
   if (topic) currentTopic = topic;
+  guideSince = since || VERSION;
+  const ver = document.getElementById('guide-version');
+  if (ver) ver.textContent = `v${VERSION}`;
   el.nav.innerHTML = TOPICS.map((t) => `<button class="g-nav${t.id === currentTopic ? ' active' : ''}" data-topic="${t.id}"><span>${t.icon}</span>${t.title}</button>`).join('');
   const t = TOPICS.find((x) => x.id === currentTopic) || TOPICS[0];
   el.content.innerHTML = `<h3>${t.icon} ${t.title}</h3>${t.html()}`;

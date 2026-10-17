@@ -27,6 +27,9 @@
     <div class="pill clock" title="Dia e hora na fazenda">
       <span id="weather">☀️</span> <b id="day">Dia 1</b> <span id="clock">06:00</span>
     </div>
+    <div class="pill event-pill" id="event-pill" hidden>
+      <b id="event-name"></b><small id="event-info"></small>
+    </div>
     <div class="spacer"></div>
     <nav class="hud-menu">
       <button class="menu-btn" data-open="loja" title="Loja">🏪<span>Loja</span></button>
@@ -97,11 +100,20 @@
   </section>
   <div id="guide-edge" class="guide-edge" hidden>➜</div>
 
+  <!-- Aviso de versão nova -->
+  <div id="update-bar" class="update-bar" hidden>
+    <span id="update-text"></span>
+    <span class="update-btns">
+      <button id="update-later" class="tut-link">Depois</button>
+      <button id="update-now" class="btn">🔄 Atualizar agora</button>
+    </span>
+  </div>
+
   <!-- Guia da Fazenda -->
   <div id="modal" class="modal-bg" hidden>
     <div class="modal guide" role="dialog" aria-labelledby="guide-title">
       <header class="guide-head">
-        <h2 id="guide-title">📖 Guia da Fazenda</h2>
+        <h2 id="guide-title">📖 Guia da Fazenda <small id="guide-version" class="guide-version"></small></h2>
         <button id="guide-close" class="tab-close" title="Fechar (Esc)">✕</button>
       </header>
       <div class="guide-wrap">

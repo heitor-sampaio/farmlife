@@ -87,6 +87,34 @@ export const RODS = [
 // Pet: um border collie que acompanha o jogador
 export const PET = { breed: 'Border collie', icon: '🐶', cost: 400, level: 2, defaultName: 'Pipoca', xp: 10 };
 
+// Mutações: plantas crescendo durante um evento climático podem ganhar a mutação dele.
+// O bônus de cada mutação soma: valor = base × (1 + Σ(mult − 1)).
+export const MUTATIONS = {
+  molhada:    { name: 'Molhada',    icon: '💧', rarity: 'Comum',    mult: 1.5, color: 0x4fc3f7 },
+  ventada:    { name: 'Ventada',    icon: '🍃', rarity: 'Incomum',  mult: 2,   color: 0x9ccc65 },
+  congelada:  { name: 'Congelada',  icon: '❄️', rarity: 'Incomum',  mult: 2.5, color: 0xb3e5fc },
+  escaldada:  { name: 'Escaldada',  icon: '🔥', rarity: 'Rara',     mult: 3,   color: 0xff7043 },
+  eletrizada: { name: 'Eletrizada', icon: '⚡', rarity: 'Épica',    mult: 5,   color: 0xffee58 },
+  arcoiris:   { name: 'Arco-íris',  icon: '🌈', rarity: 'Lendária', mult: 10,  color: 0xff4fa3 },
+  eclipsada:  { name: 'Eclipsada',  icon: '🌑', rarity: 'Mítica',   mult: 20,  color: 0x7e57c2 },
+};
+export const RARITY_COLOR = { Comum: '#78909c', Incomum: '#43a047', Rara: '#1e88e5', Épica: '#8e24aa', Lendária: '#f57c00', Mítica: '#d81b60' };
+
+// Eventos climáticos (um por vez). rate = chance por segundo de cada planta crescendo ganhar a mutação
+export const WEATHER_EVENTS = {
+  chuva:      { name: 'Chuva',               icon: '🌧️', mutation: 'molhada',    dur: [40, 60], weight: 30, rate: 0.02,  waters: true, desc: 'A chuva rega tudo.' },
+  ventania:   { name: 'Ventania',            icon: '🌪️', mutation: 'ventada',    dur: [30, 45], weight: 20, rate: 0.012, desc: 'Um vento forte sopra pela fazenda.' },
+  neve:       { name: 'Neve',                icon: '❄️', mutation: 'congelada',  dur: [35, 50], weight: 14, rate: 0.012, desc: 'Está nevando!' },
+  calor:      { name: 'Sol escaldante',      icon: '🔥', mutation: 'escaldada',  dur: [35, 50], weight: 16, rate: 0.01,  evaporate: 2.5, desc: 'Calorão: a água das plantas evapora rápido.' },
+  tempestade: { name: 'Tempestade de raios', icon: '⛈️', mutation: 'eletrizada', dur: [35, 50], weight: 12, strikes: [3, 6], waters: true, desc: 'Raios caem sobre as plantas!' },
+  arcoiris:   { name: 'Arco-íris',           icon: '🌈', mutation: 'arcoiris',   dur: [25, 35], weight: 1,  rate: 0.006, after: 0.1, desc: 'Um arco-íris brilha sobre a fazenda.' },
+  eclipse:    { name: 'Eclipse',             icon: '🌑', mutation: 'eclipsada',  dur: [35, 45], weight: 2,  rate: 0.004, desc: 'O sol sumiu: tudo escureceu.' },
+};
+// A cada rodada há uma chance de começar um evento. Depois de um evento, a próxima rodada é pulada.
+export const EVENT_ROUND = 60;    // segundos por rodada (1/3 de um dia do jogo)
+export const EVENT_CHANCE = 0.2;  // chance de evento em cada rodada
+export const EVENT_COOLDOWN = 1;  // rodadas de descanso depois de um evento
+
 export const WATER_TIME = [40, 70, 110, 180];
 export const GROW_SPEED = [1, 1.2, 1.45, 1.75];
 export const PEN_SIZE = [4, 8, 12];
