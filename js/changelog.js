@@ -3,6 +3,12 @@
 
 export const CHANGELOG = [
   {
+    version: '4.2.1', date: '2026-10-17', title: 'Barra de cima fixa',
+    items: [
+      '📱 No celular e em telas menores, a barra de cima agora tem duas linhas fixas: moedas, nível e hora em cima; Loja, Celeiro, Pedidos, Oficina e os botões redondos embaixo. Os botões não mudam mais de lugar quando as moedas crescem, o dia muda ou um evento aparece.',
+    ],
+  },
+  {
     version: '4.2.0', date: '2026-10-17', title: 'Progressão rebalanceada',
     items: [
       '⭐ A jornada ficou mais longa: agora são 18 níveis, e cada um pede um pouco mais de XP que o anterior. Cada nível novo libera algo.',

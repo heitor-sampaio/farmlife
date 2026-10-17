@@ -17,6 +17,7 @@
   <canvas id="scene"></canvas>
 
   <header class="hud">
+    <div class="hud-row hud-info">
     <div class="pill brand">🌻 <span id="brand-name">FarmLife</span></div>
     <div class="pill coins" title="Moedas">🪙 <b id="coins">0</b></div>
     <div class="pill level" title="Nível e experiência">
@@ -27,9 +28,8 @@
     <div class="pill clock" title="Dia e hora na fazenda">
       <span id="weather">☀️</span> <b id="day">Dia 1</b> <span id="clock">06:00</span>
     </div>
-    <div class="pill event-pill" id="event-pill" hidden>
-      <b id="event-name"></b><small id="event-info"></small>
     </div>
+    <div class="hud-row hud-nav">
     <div class="spacer"></div>
     <nav class="hud-menu">
       <button class="menu-btn" data-open="loja" title="Loja">🏪<span>Loja</span></button>
@@ -43,6 +43,10 @@
       <button class="icon-btn" id="btn-photo" title="Modo foto (P)">📷</button>
       <button class="icon-btn" id="btn-help" title="Guia da Fazenda">❓</button>
       <button class="icon-btn" id="btn-reset" title="Recomeçar fazenda">🔄</button>
+    </div>
+    </div>
+    <div class="pill event-pill" id="event-pill" hidden>
+      <b id="event-name"></b><small id="event-info"></small>
     </div>
   </header>
 

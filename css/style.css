@@ -62,6 +62,13 @@ kbd {
   pointer-events: none;
 }
 .hud > * { pointer-events: auto; }
+/* No computador as linhas não existem (os itens ficam numa faixa só); no celular viram duas linhas fixas */
+.hud-row { display: contents; }
+.hud .hud-row { pointer-events: none; }
+.hud-row > * { pointer-events: auto; }
+.hud .event-pill { order: 1; }
+.hud-nav > * { order: 2; }
+.pill b, .pill small, #clock { font-variant-numeric: tabular-nums; }
 .spacer { flex: 1; pointer-events: none; }
 .pill {
   display: flex;
@@ -912,14 +919,30 @@ body.photo .hud, body.photo .bottom, body.photo .side-ctrl, body.photo .action-b
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ---------- Telas menores ---------- */
+/* Telas em que a barra não cabe numa faixa: duas linhas fixas (informações em cima, botões embaixo),
+   para nada mudar de lugar quando os números crescem ou um evento aparece */
+@media (max-width: 1100px) {
+  .hud { flex-direction: column; flex-wrap: nowrap; align-items: stretch; }
+  .hud-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .hud-info .pill { flex: none; }
+  .hud-nav .spacer { display: none; }
+  .hud-nav { justify-content: space-between; }
+}
 @media (max-width: 900px) {
   .brand span, .menu-btn span, .pill small { display: none; }
   .xpbar { width: 60px; }
 }
 @media (max-width: 600px) {
   .hud { padding: 8px; gap: 6px; }
-  .pill { padding: 5px 10px; }
-  .icon-btn { width: 34px; height: 34px; font-size: 15px; }
+  .brand { display: none; }
+  .hud-info .level { flex: 1 1 auto; min-width: 0; }
+  .hud-info .level .xpbar { flex: 1 1 auto; width: auto; min-width: 24px; }
+  .hud-menu { gap: 4px; }
+  .hud-btns { gap: 4px; }
+  .menu-btn { padding: 6px 8px; }
+  .hud .event-pill { align-self: flex-start; }
+  .pill { padding: 5px 10px; gap: 6px; }
+  .icon-btn { width: 32px; height: 32px; font-size: 15px; }
   .toolbar { gap: 5px; padding: 6px; }
   .tool { min-width: 46px; padding: 5px 3px 4px; }
   .tool-sep { margin: 6px 0; }
@@ -935,4 +958,11 @@ body.photo .hud, body.photo .bottom, body.photo .side-ctrl, body.photo .action-b
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+}
+@media (max-width: 370px) {
+  .hud { padding: 6px; }
+  .hud-row, .hud-menu, .hud-btns { gap: 3px; }
+  .pill { padding: 4px 8px; gap: 4px; font-size: 14px; }
+  .menu-btn { padding: 5px 6px; }
+  .icon-btn { width: 30px; height: 30px; font-size: 14px; }
 }

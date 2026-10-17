@@ -2,6 +2,10 @@
 
 Todas as mudanças do jogo, da mais nova para a mais antiga. Este arquivo é gerado a partir de `js/changelog.js` por `node tools/gerar-versao.mjs`.
 
+## v4.2.1 — Barra de cima fixa (17/10/2026)
+
+- 📱 No celular e em telas menores, a barra de cima agora tem duas linhas fixas: moedas, nível e hora em cima; Loja, Celeiro, Pedidos, Oficina e os botões redondos embaixo. Os botões não mudam mais de lugar quando as moedas crescem, o dia muda ou um evento aparece.
+
 ## v4.2.0 — Progressão rebalanceada (17/10/2026)
 
 - ⭐ A jornada ficou mais longa: agora são 18 níveis, e cada um pede um pouco mais de XP que o anterior. Cada nível novo libera algo.
