@@ -35,6 +35,28 @@ export const ANIMALS = {
   porco:   { name: 'Porco',   icon: '🐖', cost: 2000, product: 'trufa', time: 200, level: 7 },
 };
 
+// Campos de plantio. O principal se expande lote a lote; os outros são comprados inteiros na loja.
+export const FIELDS = [
+  { id: 'principal', name: 'Campo principal', icon: '🏡', cols: COLS, rows: ROWS, cost: 0, level: 1 },
+  { id: 'leste', name: 'Campo do Leste', icon: '🌄', cols: 6, rows: 4, cost: 3000, level: 4 },
+  { id: 'sul', name: 'Campo do Sul', icon: '🌾', cols: 8, rows: 4, cost: 7500, level: 6 },
+  { id: 'lago', name: 'Campo do Lago', icon: '🦆', cols: 6, rows: 5, cost: 15000, level: 8 },
+];
+let fieldStart = 0;
+for (const f of FIELDS) { f.start = fieldStart; f.count = f.cols * f.rows; fieldStart += f.count; }
+export const TOTAL_PLOTS = fieldStart;
+
+/** Campo, linha e coluna de um lote pelo índice global. */
+export function fieldOf(i) {
+  for (const f of FIELDS) {
+    if (i >= f.start && i < f.start + f.count) {
+      const k = i - f.start;
+      return { field: f, r: Math.floor(k / f.cols), c: k % f.cols };
+    }
+  }
+  return null;
+}
+
 export const WATER_TIME = [40, 70, 110, 180];
 export const GROW_SPEED = [1, 1.2, 1.45, 1.75];
 export const PEN_SIZE = [4, 8, 12];

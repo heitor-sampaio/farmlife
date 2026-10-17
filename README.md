@@ -33,7 +33,8 @@ Depois acesse http://localhost:5173. Na primeira vez, precisa de internet para b
 - **Curral**: os animais andam livres, comem 🌾 trigo e produzem ovos, lã, leite e trufas. O cocho alimenta todos de uma vez, e o Alimentador automático (melhoria da loja) faz isso sozinho usando o trigo do celeiro.
 - **Funcionários**: Colhedor, Plantador e Tratador andam pela fazenda e trabalham sozinhos (também enquanto você está fora). Cobram salário no início de cada dia; sem dinheiro, pedem demissão.
 - **Tempo**: dia de 3 minutos com sol que muda as sombras, noite com lampiões e dias de chuva.
-- **Progresso**: níveis desbloqueiam culturas, animais e melhorias; terrenos vizinhos podem ser comprados.
+- **Expansão**: no campo principal, compre lotes vizinhos um a um; na loja, compre campos inteiros novos (Leste, Sul e Lago, com 24 a 32 lotes cada), marcados no mapa com placas de venda.
+- **Progresso**: níveis desbloqueiam culturas, animais, melhorias e campos.
 - **Salvamento**: automático no `localStorage`, com até 8h de progresso enquanto você está fora.
 
 ## Estrutura

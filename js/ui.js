@@ -1,5 +1,5 @@
 /* FarmLife — interface em HTML sobre a cena 3D (HUD, hotbar, painel, avisos) */
-import { CROPS, ANIMALS, PRODUCTS, UPGRADES, WORKERS, SOUND_KEY } from './data.js';
+import { CROPS, ANIMALS, PRODUCTS, UPGRADES, WORKERS, FIELDS, SOUND_KEY } from './data.js';
 import * as core from './core.js';
 import { Sound, sfx } from './audio.js';
 
@@ -59,13 +59,16 @@ export function setPrompt(html) {
 }
 
 // ================= Painel lateral =================
-export function openPanel(tab) {
+/** Abre o painel numa aba; anchor rola até uma seção (ex.: "campos"). */
+export function openPanel(tab, anchor) {
   currentTab = tab;
   document.querySelectorAll('.tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
   document.querySelectorAll('[data-open]').forEach((b) => b.classList.toggle('active', b.dataset.open === tab));
   el.panel.classList.add('open');
   renderPanel();
   el.tabContent.scrollTop = 0;
+  const sec = anchor && document.getElementById('sec-' + anchor);
+  if (sec) el.tabContent.scrollTop = sec.offsetTop - el.tabContent.offsetTop - 8;
 }
 
 export function closePanel() {
@@ -106,6 +109,24 @@ function shopHtml() {
         ? `<span class="req">🔒 Nível ${c.level}</span>`
         : `<button class="btn" data-act="seed" data-id="${id}" data-q="1" ${S.coins < c.seed ? 'disabled' : ''}>🪙${c.seed}</button>
            <button class="btn alt" data-act="seed" data-id="${id}" data-q="5" ${S.coins < c.seed * 5 ? 'disabled' : ''} title="Comprar 5 por 🪙${c.seed * 5}">×5</button>`}
+      </div></div>`;
+  }
+  h += '</div>';
+
+  h += '<h3 id="sec-campos">🗺️ Campos</h3><div class="cards">';
+  for (const f of FIELDS) {
+    if (!f.cost) continue;
+    const owned = core.fieldOwned(f.id);
+    const locked = !owned && f.level > S.level;
+    h += `<div class="card${locked ? ' locked' : ''}${owned ? ' hired' : ''}">
+      <div class="ico">${f.icon}</div>
+      <div class="info"><b>${f.name}${owned ? ' <small>✔ seu</small>' : ''}</b>
+        <small>${f.count} lotes novos (${f.cols}×${f.rows}), já limpos para arar.</small></div>
+      <div class="btns">${owned
+        ? '<span class="req">✔ Comprado</span>'
+        : locked
+          ? `<span class="req">🔒 Nível ${f.level}</span>`
+          : `<button class="btn alt" data-act="field" data-id="${f.id}" ${S.coins < f.cost ? 'disabled' : ''}>🪙${fmt(f.cost)}</button>`}
       </div></div>`;
   }
   h += '</div>';
@@ -355,6 +376,7 @@ export function initUI(h) {
     else if (act === 'upgrade') core.buyUpgrade(id);
     else if (act === 'hire') core.hireWorker(id);
     else if (act === 'fire') core.fireWorker(id);
+    else if (act === 'field') core.buyField(id);
     else if (act === 'sell') core.sell(id, +b.dataset.q);
     else if (act === 'sellall') core.sellAll();
     else if (act === 'order') core.fulfillOrder(+b.dataset.k);

@@ -1,6 +1,6 @@
 /* FarmLife — mundo 3D: cena, câmera isométrica, personagem, animais e interações */
 import * as THREE from 'three';
-import { COLS, ROWS, ANIMALS, PRODUCTS, CROPS, WORKERS } from '../data.js';
+import { ANIMALS, PRODUCTS, CROPS, WORKERS, FIELDS, TOTAL_PLOTS, fieldOf } from '../data.js';
 import * as core from '../core.js';
 import * as ui from '../ui.js';
 import * as M from './models.js';
@@ -8,7 +8,7 @@ import { NavGrid } from './nav.js';
 
 // ================= Layout do mundo =================
 const TILE = 1.08;
-const BOUNDS = { minX: -15, maxX: 11.5, minZ: -10.3, maxZ: 8 };
+const BOUNDS = { minX: -15, maxX: 18.5, minZ: -10.3, maxZ: 14.5 };
 const PLAYER_R = 0.28;
 const WALK = 3.4;
 const RUN = 5.6;
@@ -18,6 +18,9 @@ const SPAWN = new THREE.Vector3(0, 0, 4.6);
 const PEN = { x1: -14.2, x2: -7.8, z1: -4.5, z2: 3.5, gate: [-1.0, 0.6] };
 const POND = { x: 8.3, z: 4.6, r: 1.8 };
 
+// Centro de cada campo no mapa
+const FIELD_POS = { principal: [0, 0], leste: [13.6, -1.0], sul: [0, 10.8], lago: [13.6, 10.2] };
+
 const SPOTS = {
   celeiro: { label: '🛖 Celeiro', at: [-1.5, -8.3], labelY: 4.3, point: [-1.5, -6.0], r: 1.3, text: 'Abrir o Celeiro', info: '🛖 Celeiro: venda sua colheita e veja o mercado do dia.' },
   loja:    { label: '🏪 Loja', at: [6.5, -7.9], labelY: 2.9, point: [6.5, -6.4], r: 1.3, text: 'Abrir a Loja', info: '🏪 Loja: sementes, animais e melhorias.' },
@@ -25,17 +28,40 @@ const SPOTS = {
   casa:    { label: '🏠 Casa', at: [-9.5, -8.4], labelY: 3.9, point: [-8.9, -6.1], r: 1.2, text: 'Dormir até amanhã', info: '🏠 Sua casa. Depois das 18h, durma para pular para a manhã seguinte.' },
   cocho:   { label: null, at: [-13.5, -0.5], point: [-12.8, -0.5], r: 1.1, text: 'Alimentar todos no cocho', info: '🪵 Cocho: alimenta de uma vez todos os animais com fome (1 🌾 cada).' },
 };
+for (const f of FIELDS) {
+  if (!f.cost) continue;
+  const [cx, cz] = FIELD_POS[f.id];
+  SPOTS['campo:' + f.id] = {
+    label: null, at: [cx, cz], point: [cx, cz + 0.9], r: 1.4, field: f.id,
+    text: `Ver o ${f.name}`,
+    info: `${f.icon} ${f.name} à venda: ${f.count} lotes por 🪙${f.cost.toLocaleString('pt-BR')} (nível ${f.level}). Compre na loja.`,
+  };
+}
+const spotActive = (s) => !s.field || !core.fieldOwned(s.field);
 
 export function tilePos(i) {
-  const r = Math.floor(i / COLS), c = i % COLS;
-  return new THREE.Vector3((c - (COLS - 1) / 2) * TILE, 0, (r - (ROWS - 1) / 2) * TILE);
+  const { field: f, r, c } = fieldOf(i);
+  const [cx, cz] = FIELD_POS[f.id];
+  return new THREE.Vector3(cx + (c - (f.cols - 1) / 2) * TILE, 0, cz + (r - (f.rows - 1) / 2) * TILE);
 }
 
+/** Lote sob o ponto (x, z), só em campos já comprados; -1 se nenhum. */
 function tileAt(x, z) {
-  const c = Math.round(x / TILE + (COLS - 1) / 2);
-  const r = Math.round(z / TILE + (ROWS - 1) / 2);
-  if (c < 0 || c >= COLS || r < 0 || r >= ROWS) return -1;
-  return r * COLS + c;
+  for (const f of FIELDS) {
+    if (!core.fieldOwned(f.id)) continue;
+    const [cx, cz] = FIELD_POS[f.id];
+    const c = Math.round((x - cx) / TILE + (f.cols - 1) / 2);
+    const r = Math.round((z - cz) / TILE + (f.rows - 1) / 2);
+    if (c >= 0 && c < f.cols && r >= 0 && r < f.rows) return f.start + r * f.cols + c;
+  }
+  return -1;
+}
+
+/** Retângulo ocupado por um campo (com margem). */
+function fieldRect(f, m = 0) {
+  const [cx, cz] = FIELD_POS[f.id];
+  const hw = (f.cols * TILE) / 2 + 0.25 + m, hd = (f.rows * TILE) / 2 + 0.25 + m;
+  return { x1: cx - hw, x2: cx + hw, z1: cz - hd, z2: cz + hd };
 }
 
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -185,16 +211,20 @@ function buildGround() {
   strip(-9.5, -7.0, -8.3, -5.6);
   strip(-0.7, -4.4, 0.7, -3.3);
   strip(-7.8, -0.85, -4.3, 0.45);
+  strip(4.3, -1.6, 10.4, -0.4);   // até o Campo do Leste
+  strip(-0.6, 3.2, 0.6, 8.7);     // até o Campo do Sul
+  strip(4.3, 10.2, 10.4, 11.4);   // do Sul até o Campo do Lago
 
-  // Borda de terra em volta da lavoura
-  const border = new THREE.Mesh(
-    new THREE.PlaneGeometry(COLS * TILE + 0.5, ROWS * TILE + 0.5),
-    new THREE.MeshStandardMaterial({ color: 0x8a6a45, roughness: 1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }),
-  );
-  border.rotation.x = -Math.PI / 2;
-  border.position.y = 0.012;
-  border.receiveShadow = true;
-  scene.add(border);
+  // Borda de terra em volta de cada campo
+  const borderMat = new THREE.MeshStandardMaterial({ color: 0x8a6a45, roughness: 1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+  for (const f of FIELDS) {
+    const [cx, cz] = FIELD_POS[f.id];
+    const border = new THREE.Mesh(new THREE.PlaneGeometry(f.cols * TILE + 0.5, f.rows * TILE + 0.5), borderMat);
+    border.rotation.x = -Math.PI / 2;
+    border.position.set(cx, 0.012, cz);
+    border.receiveShadow = true;
+    scene.add(border);
+  }
 
   // Lago
   const pond = new THREE.Mesh(new THREE.CircleGeometry(POND.r, 18), new THREE.MeshStandardMaterial({ color: 0x5fb4e6, roughness: 0.25, metalness: 0.1, flatShading: true }));
@@ -214,8 +244,37 @@ function buildGround() {
   nav.blockCircle(POND.x, POND.z, POND.r + 0.3 + PLAYER_R);
 }
 
+const fieldVis = {};
+
 function buildFarm() {
-  for (let i = 0; i < COLS * ROWS; i++) {
+  for (const f of FIELDS) {
+    if (!f.cost) continue;
+    const [cx, cz] = FIELD_POS[f.id];
+    const g = new THREE.Group();
+    const sign = M.makeSaleSign();
+    sign.position.set(cx, 0, cz);
+    sign.rotation.y = Math.PI / 4; // de frente para a câmera
+    g.add(sign);
+    const { x1, x2, z1, z2 } = fieldRect(f, -0.1);
+    for (const [x, z] of [[x1, z1], [x2, z1], [x1, z2], [x2, z2]]) {
+      const st = M.makeStake();
+      st.position.set(x, 0, z);
+      st.rotation.y = Math.PI / 4;
+      g.add(st);
+    }
+    const label = M.textSprite(`🪧 ${f.name} · 🪙${f.cost.toLocaleString('pt-BR')}`, 0.42);
+    label.position.set(cx, 1.7, cz);
+    g.add(label);
+    scene.add(g);
+    const proxy = new THREE.Mesh(M.GEO.box, new THREE.MeshBasicMaterial({ visible: false }));
+    proxy.scale.set(1.3, 1.6, 0.6);
+    proxy.position.set(cx, 0.8, cz);
+    proxy.userData.pick = { kind: 'spot', key: 'campo:' + f.id };
+    scene.add(proxy);
+    fieldVis[f.id] = { group: g, proxy, owned: null };
+  }
+
+  for (let i = 0; i < TOTAL_PLOTS; i++) {
     const group = new THREE.Group();
     group.position.copy(tilePos(i));
     const base = new THREE.Mesh(M.GEO.box, matGrass);
@@ -327,8 +386,8 @@ function buildNature() {
     return obj;
   };
   // Árvores altas só no fundo e à esquerda (não escondem o personagem)
-  for (let x = -24; x <= 16; x += rand(1.6, 2.6)) put(M.makeTree(Math.random() < 0.55 ? 'pine' : 'round', rand(0.9, 1.35)), x, rand(-13.2, -11.4));
-  for (let x = -22; x <= 14; x += rand(2.2, 3.4)) put(M.makeTree(Math.random() < 0.5 ? 'pine' : 'round', rand(1.0, 1.5)), x, rand(-16.5, -14.5));
+  for (let x = -24; x <= 26; x += rand(1.6, 2.6)) put(M.makeTree(Math.random() < 0.55 ? 'pine' : 'round', rand(0.9, 1.35)), x, rand(-13.2, -11.4));
+  for (let x = -22; x <= 26; x += rand(2.2, 3.4)) put(M.makeTree(Math.random() < 0.5 ? 'pine' : 'round', rand(1.0, 1.5)), x, rand(-16.5, -14.5));
   for (let z = -10; z <= 4; z += rand(1.6, 2.4)) put(M.makeTree(Math.random() < 0.6 ? 'pine' : 'round', rand(0.9, 1.3)), rand(-17.8, -16.2), z);
   put(M.makeTree('apple', 1.1), -13.3, -8.6);
   put(M.makeTree('apple', 1.0), 9.8, -9.2);
@@ -336,17 +395,21 @@ function buildNature() {
   nav.blockCircle(9.8, -9.2, 0.35 + PLAYER_R);
 
   // Arbustos, pedras e flores nas bordas da frente e da direita
-  for (let x = -16; x <= 13; x += rand(1.2, 2.2)) put(M.makeBush(rand(0.8, 1.2)), x, rand(8.8, 9.6));
-  for (let z = -9; z <= 8; z += rand(1.2, 2.2)) put(M.makeBush(rand(0.8, 1.2)), rand(12.3, 13.1), z);
-  for (let z = 5; z <= 8; z += rand(1.4, 2)) put(M.makeBush(rand(0.8, 1.1)), rand(-16.2, -15.6), z);
+  for (let x = -16; x <= 20; x += rand(1.2, 2.2)) put(M.makeBush(rand(0.8, 1.2)), x, rand(15.3, 16.1));
+  for (let z = -9; z <= 15; z += rand(1.2, 2.2)) put(M.makeBush(rand(0.8, 1.2)), rand(19.3, 20.1), z);
+  for (let z = 5; z <= 15; z += rand(1.4, 2)) put(M.makeBush(rand(0.8, 1.1)), rand(-16.2, -15.6), z);
   const flowerColors = [0xff6f91, 0xffffff, 0xffd54f, 0xba68c8, 0xff8a65, 0x64b5f6];
+  const inField = (x, z) => FIELDS.some((f) => { const q = fieldRect(f, 0.5); return x > q.x1 && x < q.x2 && z > q.z1 && z < q.z2; });
   const blocked = (x, z) =>
-    (Math.abs(x) < 5 && Math.abs(z) < 3.8) ||
+    inField(x, z) ||
+    (x > 3.8 && x < 10.9 && z > -2.1 && z < 0.1) ||
+    (x > -1.1 && x < 1.1 && z > 2.7 && z < 9.2) ||
+    (x > 3.8 && x < 10.9 && z > 9.7 && z < 11.9) ||
     (x > PEN.x1 - 0.5 && x < PEN.x2 + 0.5 && z > PEN.z1 - 0.5 && z < PEN.z2 + 0.5) ||
     (z < -3.8 && z > -10.5 && x > -12 && x < 9) ||
     Math.hypot(x - POND.x, z - POND.z) < POND.r + 0.6 ||
     (z > -1.2 && z < 0.8 && x > -8 && x < -4);
-  for (let k = 0; k < 90; k++) {
+  for (let k = 0; k < 150; k++) {
     const x = rand(BOUNDS.minX, BOUNDS.maxX), z = rand(BOUNDS.minZ, BOUNDS.maxZ + 0.5);
     if (blocked(x, z)) continue;
     const r = Math.random();
@@ -523,6 +586,23 @@ function actionEffect(kind, pos, extra) {
 }
 
 // ================= Lavoura (sincroniza com o estado) =================
+function syncFields() {
+  for (const f of FIELDS) {
+    const v = fieldVis[f.id];
+    if (!v) continue;
+    const owned = core.fieldOwned(f.id);
+    if (v.owned === owned) continue;
+    const justBought = owned && v.owned === false;
+    v.owned = owned;
+    v.group.visible = !owned;
+    const k = pickables.indexOf(v.proxy);
+    if (owned && k >= 0) pickables.splice(k, 1);
+    if (!owned && k < 0) pickables.push(v.proxy);
+    for (let i = f.start; i < f.start + f.count; i++) plotVis[i].group.visible = owned;
+    if (justBought) actionEffect('buy', { x: FIELD_POS[f.id][0], z: FIELD_POS[f.id][1] });
+  }
+}
+
 function syncPlots() {
   const S = core.S;
   for (let i = 0; i < plotVis.length; i++) {
@@ -802,6 +882,10 @@ function openSpot(key) {
     }
     return;
   }
+  if (key.startsWith('campo:')) {
+    ui.openPanel('loja', 'campos');
+    return;
+  }
   if (key === 'cocho') {
     const fed = core.feedAll();
     if (fed) { startAction('feed'); actionEffect('feed', { x: SPOTS.cocho.at[0], z: SPOTS.cocho.at[1] }); }
@@ -820,7 +904,7 @@ function getContext() {
   }
   if (best) return best;
   for (const [key, s] of Object.entries(SPOTS)) {
-    if (dist2(player.pos, s.point[0], s.point[1]) < s.r) return { kind: 'spot', key };
+    if (spotActive(s) && dist2(player.pos, s.point[0], s.point[1]) < s.r) return { kind: 'spot', key };
   }
   const fx = player.pos.x + Math.sin(player.heading) * 0.7;
   const fz = player.pos.z + Math.cos(player.heading) * 0.7;
@@ -1299,6 +1383,7 @@ export function onReset() {
 // ================= Quadro =================
 export function worldFrame(dt) {
   clock += dt;
+  syncFields();
   syncPlots();
   syncAnimals();
   syncWorkers();

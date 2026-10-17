@@ -1,6 +1,6 @@
 /* FarmLife — estado e regras do jogo (independente da renderização) */
 import {
-  COLS, ROWS, DAY_LEN, MAX_OFFLINE, SAVE_KEY,
+  COLS, ROWS, DAY_LEN, MAX_OFFLINE, SAVE_KEY, FIELDS, TOTAL_PLOTS, fieldOf,
   CROPS, PRODUCTS, ANIMALS, WATER_TIME, GROW_SPEED, PEN_SIZE, UPGRADES, CUSTOMERS,
   WORKERS, WORK_TIME,
 } from './data.js';
@@ -75,6 +75,8 @@ function newState() {
       plots.push({ s: open ? (tilled ? 'tilled' : 'grass') : 'locked', crop: null, g: 0, w: 0 });
     }
   }
+  // Lotes dos outros campos (bloqueados até o campo ser comprado)
+  while (plots.length < TOTAL_PLOTS) plots.push({ s: 'locked', crop: null, g: 0, w: 0 });
   return {
     v: 2,
     coins: 60,
@@ -86,6 +88,7 @@ function newState() {
     inv: {},
     animals: [],
     nextId: 1,
+    fields: Object.fromEntries(FIELDS.map((f) => [f.id, f.cost === 0])),
     workers: { colhedor: false, plantador: false, tratador: false },
     up: { regador: 0, adubo: 0, curral: 0, alimentador: 0, aspersor: 0 },
     weather: 'sol',
@@ -121,11 +124,29 @@ export function darkness() {
   return 0;
 }
 
+export const fieldOwned = (id) => !!S.fields[id];
+export const plotVisible = (i) => fieldOwned(fieldOf(i).field.id);
+
+/** Lote bloqueado que pode ser comprado (vizinho de um lote já liberado, num campo seu). */
 export function isBuyable(i) {
   if (S.plots[i].s !== 'locked') return false;
-  const r = Math.floor(i / COLS), c = i % COLS;
+  const { field: f, r, c } = fieldOf(i);
+  if (!fieldOwned(f.id)) return false;
   const near = [[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]];
-  return near.some(([rr, cc]) => rr >= 0 && rr < ROWS && cc >= 0 && cc < COLS && S.plots[rr * COLS + cc].s !== 'locked');
+  return near.some(([rr, cc]) => rr >= 0 && rr < f.rows && cc >= 0 && cc < f.cols && S.plots[f.start + rr * f.cols + cc].s !== 'locked');
+}
+
+/** Compra um campo inteiro: todos os lotes viram grama pronta para arar. */
+export function buyField(id) {
+  const f = FIELDS.find((x) => x.id === id);
+  if (!f || fieldOwned(id) || f.level > S.level) return false;
+  if (!spend(f.cost)) return false;
+  S.fields[id] = true;
+  for (let i = f.start; i < f.start + f.count; i++) S.plots[i] = { s: 'grass', crop: null, g: 0, w: 0 };
+  toast(`${f.icon} ${f.name} é seu! ${f.count} novos lotes para plantar.`, 'good');
+  sfx('level');
+  markDirty('panel');
+  return true;
 }
 
 /** Estágio visual da planta: 0 broto, 1 crescendo, 2 quase, 3 pronta. */
@@ -271,6 +292,7 @@ function onLevelUp(silent) {
   for (const a of Object.values(ANIMALS)) if (a.level === S.level) unlocks.push(a.icon + ' ' + a.name);
   for (const u of Object.values(UPGRADES)) if (u.req.includes(S.level)) unlocks.push(u.icon + ' ' + u.name);
   for (const w of Object.values(WORKERS)) if (w.level === S.level) unlocks.push(w.icon + ' ' + w.name);
+  for (const f of FIELDS) if (f.cost && f.level === S.level) unlocks.push(f.icon + ' ' + f.name);
   notify(`⭐ Nível ${S.level}!${unlocks.length ? ' Desbloqueado: ' + unlocks.join(', ') : ''}`, 'level', silent);
   if (!silent) {
     sfx('level');
@@ -690,9 +712,17 @@ function load() {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return null;
     const d = JSON.parse(raw);
-    if (!d || !Array.isArray(d.plots) || d.plots.length !== COLS * ROWS) return null;
+    if (!d || !Array.isArray(d.plots) || d.plots.length < COLS * ROWS || d.plots.length > TOTAL_PLOTS) return null;
     const base = newState();
-    const st = { ...base, ...d, up: { ...base.up, ...d.up }, stats: { ...base.stats, ...d.stats }, workers: { ...base.workers, ...d.workers } };
+    const st = {
+      ...base, ...d,
+      up: { ...base.up, ...d.up },
+      stats: { ...base.stats, ...d.stats },
+      workers: { ...base.workers, ...d.workers },
+      fields: { ...base.fields, ...d.fields },
+    };
+    // Saves antigos têm só o campo principal: completa com os lotes dos campos novos
+    st.plots = base.plots.map((p, i) => d.plots[i] || p);
     for (const p of st.plots) if (p.s === 'planted' && !CROPS[p.crop]) { p.s = 'tilled'; p.crop = null; p.g = 0; }
     st.animals = (st.animals || []).filter((a) => ANIMALS[a.type]);
     st.nextId = st.nextId || 1;
