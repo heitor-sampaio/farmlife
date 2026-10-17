@@ -118,6 +118,7 @@ export const Sound = {
         case 'hammer': this.tone(900, 0.04, 'square', 0.05, 0, -500); this.tone(240, 0.08, 'triangle', 0.06, 0.01, -80); break;
         case 'neigh': [980, 900, 840, 780, 700].forEach((f, k) => this.tone(f, 0.09, 'sawtooth', 0.025, k * 0.065, -90)); this.tone(320, 0.18, 'triangle', 0.03, 0.36, -120); break;
         case 'hoof': this.tone(190, 0.035, 'square', 0.035, 0, -70); this.tone(150, 0.035, 'square', 0.028, 0.06, -50); break;
+        case 'squish': this.tone(120, 0.12, 'sawtooth', 0.035, 0, 60); this.tone(90, 0.1, 'triangle', 0.05, 0.05, -30); break;
         case 'sleep': [784, 659, 523, 392].forEach((f, k) => this.tone(f, 0.3, 'sine', 0.08, k * 0.18)); break;
       }
     } catch (e) { /* áudio indisponível */ }

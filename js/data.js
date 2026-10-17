@@ -30,12 +30,18 @@ export const PRODUCTS = {
 };
 
 // Animais comem 1 trigo por ciclo de produção
+// f/m/baby: nomes da fêmea, do macho e do filhote; colors: variações de pelagem [feminino, masculino] (o modelo usa o índice)
 export const ANIMALS = {
-  galinha: { name: 'Galinha', icon: '🐔', cost: 250,  product: 'ovo',   time: 60,  level: 2 },
-  ovelha:  { name: 'Ovelha',  icon: '🐑', cost: 700,  product: 'la',    time: 120, level: 4 },
-  vaca:    { name: 'Vaca',    icon: '🐄', cost: 1200, product: 'leite', time: 150, level: 5 },
-  porco:   { name: 'Porco',   icon: '🐖', cost: 2000, product: 'trufa', time: 200, level: 7 },
+  galinha: { name: 'Galinha', icon: '🐔', cost: 250,  product: 'ovo',   time: 60,  level: 2, f: 'Galinha', m: 'Galo',     baby: 'Pintinho', babyIcon: '🐣', colors: [['Branca', 'Branco'], ['Marrom', 'Marrom'], ['Preta', 'Preto'], ['Carijó', 'Carijó']] },
+  ovelha:  { name: 'Ovelha',  icon: '🐑', cost: 700,  product: 'la',    time: 120, level: 4, f: 'Ovelha',  m: 'Carneiro', baby: 'Cordeiro', babyIcon: '🐑', colors: [['Branca', 'Branco'], ['Creme', 'Creme'], ['Preta', 'Preto'], ['Cinza', 'Cinza']] },
+  vaca:    { name: 'Vaca',    icon: '🐄', cost: 1200, product: 'leite', time: 150, level: 5, f: 'Vaca',    m: 'Touro',    baby: 'Bezerro',  babyIcon: '🐮', colors: [['Malhada', 'Malhado'], ['Malhada marrom', 'Malhado marrom'], ['Marrom', 'Marrom'], ['Preta', 'Preto']] },
+  porco:   { name: 'Porco',   icon: '🐖', cost: 2000, product: 'trufa', time: 200, level: 7, f: 'Porca',   m: 'Cachaço',  baby: 'Leitão',   babyIcon: '🐷', colors: [['Rosa', 'Rosa'], ['Malhada', 'Malhado'], ['Preta', 'Preto'], ['Caramelo', 'Caramelo']] },
 };
+// Filhotes: só fêmeas produzem; com um macho adulto da mesma espécie, cada produção tem chance de nascer um filhote
+// Pasto: campo grande a leste do Campo de Trigo só para o gado (vacas, touros e bezerros), com muito mais vagas.
+// No pasto o gado come capim: não precisa de trigo.
+export const PASTURE = { name: 'Pasto', icon: '🌿', cost: 15000, level: 5, cols: 24, rows: 16, slots: 30 };
+export const BREED = { chance: 0.03, grow: 900 }; // 3% por produção; o filhote vira adulto em 5 dias de jogo
 
 // Campos de plantio. O principal se expande lote a lote; os outros são comprados inteiros na loja.
 export const FIELDS = [
@@ -93,6 +99,11 @@ export const HORSE = { name: 'Cavalo', icon: '🐴', cost: 1200, level: 3, desc:
 export const SADDLE = { name: 'Sela', icon: '🏇', cost: 350, level: 3, desc: 'Sela de couro para montar no cavalo: cavalgue quase duas vezes mais rápido (e galope com Shift).' };
 export const RIDE_MULT = 1.75; // velocidade a cavalo em relação a pé
 
+// Esterco das vacas → composteira → fertilizante, que pode deixar a planta gigante (vale o dobro)
+export const MANURE = { name: 'Esterco', icon: '💩', sell: 3, xp: 1, every: 70, max: 10 }; // cada vaca faz um a cada 70s
+export const COMPOST = { name: 'Composteira', icon: '♻️', time: 30, capacity: 12 };         // 1 esterco vira 1 fertilizante em 30s
+export const FERTILIZER = { name: 'Fertilizante', icon: '🧪', sell: 25, xp: 1, chance: 0.6 }; // 60% de chance de planta gigante
+
 // Mutações: plantas crescendo durante um evento climático podem ganhar a mutação dele.
 // O bônus de cada mutação soma: valor = base × (1 + Σ(mult − 1)).
 export const MUTATIONS = {
@@ -103,6 +114,8 @@ export const MUTATIONS = {
   eletrizada: { name: 'Eletrizada', icon: '⚡', rarity: 'Épica',    mult: 5,   color: 0xffee58 },
   arcoiris:   { name: 'Arco-íris',  icon: '🌈', rarity: 'Lendária', mult: 10,  color: 0xff4fa3 },
   eclipsada:  { name: 'Eclipsada',  icon: '🌑', rarity: 'Mítica',   mult: 20,  color: 0x7e57c2 },
+  // Não vem do clima: é a chance do fertilizante fazer a planta crescer gigante
+  gigante:    { name: 'Gigante',    icon: '💪', rarity: 'Rara',     mult: 2,   color: 0xd4a017, fert: true },
 };
 export const RARITY_COLOR = { Comum: '#78909c', Incomum: '#43a047', Rara: '#1e88e5', Épica: '#8e24aa', Lendária: '#f57c00', Mítica: '#d81b60' };
 

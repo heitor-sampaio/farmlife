@@ -5,6 +5,7 @@ import {
   WORKERS, WORK_TIME, BIG_FIELD, BIG_CELLS, MACHINES, FISH, RODS, PET,
   MUTATIONS, WEATHER_EVENTS, EVENT_ROUND, EVENT_CHANCE, EVENT_COOLDOWN,
   AXES, LOG, WOOD, CHOP_TREES, SAWMILL, PLANK, BEAM, RECIPES, BUILDINGS, CARPENTRY, HORSE, SADDLE,
+  MANURE, COMPOST, FERTILIZER, BREED, PASTURE,
 } from './data.js';
 
 // ================= Utilidades =================
@@ -38,6 +39,8 @@ for (const [id, f] of Object.entries(FISH)) ITEMS[id] = { name: f.name, icon: f.
 ITEMS.tronco = { ...LOG };
 ITEMS.madeira = { ...PLANK };
 ITEMS.viga = { ...BEAM };
+ITEMS.esterco = { name: MANURE.name, icon: MANURE.icon, sell: MANURE.sell, xp: MANURE.xp };
+ITEMS.fertilizante = { name: FERTILIZER.name, icon: FERTILIZER.icon, sell: FERTILIZER.sell, xp: FERTILIZER.xp };
 
 // ================= Ganchos para a interface/cena =================
 const hooks = { fx() {}, toast() {}, sfx() {}, dirty() {}, event() {} };
@@ -63,6 +66,7 @@ export const TOOLS = [
   { id: 'mao', icon: '🧺', name: 'Colher' },
   { id: 'vara', icon: '🎣', name: 'Pescar' },
   { id: 'machado', icon: '🪓', name: 'Machado' },
+  { id: 'fertilizante', icon: '🧪', name: 'Adubar' },
 ];
 
 export function setTool(id) {
@@ -72,7 +76,8 @@ export function setTool(id) {
 
 export function toolList() {
   const seeds = Object.keys(CROPS).filter((id) => CROPS[id].level <= S.level).map((id) => 'seed:' + id);
-  const owned = (t) => (t.id === 'vara' ? S.fishing.rod > 0 : t.id === 'machado' ? S.wood.axe > 0 : true);
+  const owned = (t) => (t.id === 'vara' ? S.fishing.rod > 0 : t.id === 'machado' ? S.wood.axe > 0
+    : t.id === 'fertilizante' ? (S.inv.fertilizante || 0) > 0 || (S.stats.fertMade || 0) > 0 : true);
   return TOOLS.filter(owned).map((t) => t.id).concat(seeds);
 }
 
@@ -124,7 +129,10 @@ function newState() {
     wood: { axe: 1, trees: CHOP_TREES.map(() => ({ hits: 0, t: 0 })) }, // t > 0: árvore cortada, crescendo de novo
     saw: { owned: false, queue: 0, t: 0, ready: 0 }, // serraria: troncos na fila, progresso do atual, tábuas prontas
     pet: { owned: false, name: PET.defaultName, day: 0 },
-    char: { chosen: false, gender: 'm', name: '' }, // personagem escolhido na primeira vez
+    char: { chosen: false, gender: 'm', name: '' },
+    pasture: false,                          // pasto do gado comprado?
+    manure: 0, poopT: 0,                     // montinhos de esterco no curral
+    compost: { queue: 0, t: 0, ready: 0 },   // composteira: esterco na fila, progresso, fertilizante pronto // personagem escolhido na primeira vez
     horse: { owned: false, saddle: false, x: null, z: null, h: 0 }, // onde o cavalo ficou da última vez
     bench: 'tabuas', // receita escolhida na mesa de carpintaria
     god: false,      // cheat de teste: moedas infinitas e nível máximo
@@ -164,6 +172,24 @@ export const price = (key) => {
 };
 export const plotCost = () => Math.round(80 * Math.pow(1.2, S.bought));
 export const penSize = () => PEN_SIZE[S.up.curral];
+/** O gado (vacas, touros e bezerros) vive no pasto quando ele existe. */
+export const inPasture = (a) => S.pasture && a.type === 'vaca';
+export const penCount = () => S.animals.filter((a) => !inPasture(a)).length;
+export const pastureCount = () => S.animals.filter(inPasture).length;
+/** Tem vaga para um animal deste tipo (no curral ou no pasto)? */
+export const hasRoom = (type) => (S.pasture && type === 'vaca' ? pastureCount() < PASTURE.slots : penCount() < penSize());
+
+export function buyPasture() {
+  if (S.pasture || PASTURE.level > S.level) return;
+  if (!needBuilt('curral', 'ter gado')) return;
+  if (!spend(PASTURE.cost)) return;
+  S.pasture = true;
+  const moved = pastureCount();
+  toast(`${PASTURE.icon} O ${PASTURE.name} é seu! ${PASTURE.slots} vagas para o gado, que come capim e não precisa de trigo.${moved ? ` Suas ${moved} cabeças de gado já foram para lá.` : ''}`, 'good');
+  sfx('level');
+  emit('pasture');
+  markDirty('panel');
+}
 export const isReady = (p) => p.s === 'planted' && p.g >= CROPS[p.crop].time;
 export const isWet = (p) => autoWater() || p.w > 0;
 export const canFulfill = (o) => o.req.every((r) => (S.inv[r.id] || 0) >= r.qty);
@@ -176,6 +202,44 @@ export function markOrdersSeen() {
 /** Pedido recém-chegado: ainda não lido ou lido há poucos segundos. */
 export const isNewOrder = (o) => !o.seen || (o.seenAt != null && S.time - o.seenAt < 10);
 export const findAnimal = (id) => S.animals.find((a) => a.id === id);
+/** Só fêmeas adultas produzem (e precisam comer). */
+export const producer = (a) => a.sex !== 'm' && !(a.age > 0);
+export const isBaby = (a) => a.age > 0;
+/** Nome do animal conforme sexo e idade (Galinha, Galo, Pintinho...). */
+export function animalName(a) {
+  const d = ANIMALS[a.type];
+  return isBaby(a) ? d.baby : a.sex === 'm' ? d.m : d.f;
+}
+/** Cor concordando com o nome (filhotes: pintinho, cordeiro, bezerro e leitão são masculinos). */
+export const animalColor = (a) => ANIMALS[a.type].colors[a.color || 0][a.sex === 'm' || isBaby(a) ? 1 : 0];
+const sexWord = (a) => (a.sex === 'm' ? 'macho' : 'fêmea');
+
+function newAnimal(type, sex, color, baby) {
+  const d = ANIMALS[type];
+  return {
+    id: S.nextId++, type, fed: false, p: 0, ready: false,
+    sex: sex === 'm' ? 'm' : 'f',
+    color: color ?? Math.floor(Math.random() * d.colors.length),
+    age: baby ? BREED.grow : 0,
+  };
+}
+
+/** Uma fêmea acabou de produzir: se houver macho adulto da mesma espécie e espaço, pode nascer um filhote. */
+function tryBreed(mom, quiet) {
+  if (!S.animals.some((a) => a.type === mom.type && a.sex === 'm' && !isBaby(a))) return;
+  if (!hasRoom(mom.type) || Math.random() >= BREED.chance) return;
+  const dad = S.animals.find((a) => a.type === mom.type && a.sex === 'm' && !isBaby(a));
+  const color = Math.random() < 0.85 ? (Math.random() < 0.5 ? mom.color : dad.color) : undefined; // às vezes nasce de outra cor
+  const baby = newAnimal(mom.type, Math.random() < 0.5 ? 'm' : 'f', color, true);
+  baby.born = S.time;
+  S.animals.push(baby);
+  S.stats.births = (S.stats.births || 0) + 1;
+  const d = ANIMALS[mom.type];
+  notify(`${d.babyIcon} Nasceu um ${d.baby.toLowerCase()} (${sexWord(baby)}, ${animalColor(baby).toLowerCase()})! Ele cresce em ~${Math.round(BREED.grow / 180)} dias.`, 'good', quiet);
+  if (!quiet) sfx('level');
+  emit('birth', baby.type);
+  markDirty('panel');
+}
 
 /** Hora do dia (o dia começa às 6h, então vai de 6 a 30). */
 export const dayHours = () => 6 + ((S.time % DAY_LEN) / DAY_LEN) * 24;
@@ -389,9 +453,9 @@ export function update(dt, quiet) {
   if (S.up.alimentador > 0) {
     let fed = 0;
     for (const a of S.animals) {
-      if (!a.fed && !a.ready && (S.inv.trigo || 0) > 0) { S.inv.trigo--; a.fed = true; fed++; }
+      if (producer(a) && !a.fed && !a.ready && (S.inv.trigo || 0) > 0) { S.inv.trigo--; a.fed = true; fed++; }
     }
-    const hungry = S.animals.some((a) => !a.fed && !a.ready);
+    const hungry = S.animals.some((a) => producer(a) && !a.fed && !a.ready);
     if (fed) markDirty('panel');
     if (hungry && !quiet && !feederWarned) {
       toast('⚙️ O alimentador automático ficou sem 🌾 trigo!', 'bad');
@@ -405,6 +469,27 @@ export function update(dt, quiet) {
     for (let k = 0; k < BIG_CELLS; k++) {
       if (b.s[k] === 2 && b.g[k] < BIG_FIELD.time) b.g[k] = Math.min(BIG_FIELD.time, b.g[k] + dt * speed);
     }
+  }
+
+  // Vacas fazem cocô no curral (até um limite de montinhos)
+  const cows = S.animals.filter((a) => a.type === 'vaca' && !isBaby(a)).length;
+  if (cows) {
+    S.poopT += dt * cows;
+    while (S.poopT >= MANURE.every) {
+      S.poopT -= MANURE.every;
+      if (S.manure < MANURE.max) S.manure++;
+    }
+  }
+  // Composteira: um esterco vira um fertilizante (também com o jogo fechado)
+  const cp = S.compost;
+  if (cp.queue > 0) {
+    cp.t += dt;
+    while (cp.t >= COMPOST.time && cp.queue > 0) {
+      cp.t -= COMPOST.time;
+      cp.queue--;
+      cp.ready++;
+    }
+    if (cp.queue === 0) cp.t = 0;
   }
 
   // Árvores cortadas voltam a crescer
@@ -425,9 +510,18 @@ export function update(dt, quiet) {
   if (quiet) workersOffline(dt);
 
   for (const a of S.animals) {
-    if (a.fed && !a.ready) {
+    if (inPasture(a) && !a.ready) a.fed = true; // pastando
+    if (a.age > 0) {
+      a.age = Math.max(0, a.age - dt);
+      if (a.age === 0) {
+        notify(`${ANIMALS[a.type].icon} O ${ANIMALS[a.type].baby.toLowerCase()} cresceu: agora é ${a.sex === 'm' ? 'um ' + ANIMALS[a.type].m.toLowerCase() : 'uma ' + ANIMALS[a.type].f.toLowerCase()} adulto!`, 'good', quiet);
+        markDirty('panel');
+      }
+      continue;
+    }
+    if (producer(a) && a.fed && !a.ready) {
       a.p += dt;
-      if (a.p >= ANIMALS[a.type].time) { a.ready = true; a.p = 0; }
+      if (a.p >= ANIMALS[a.type].time) { a.ready = true; a.p = 0; tryBreed(a, quiet); }
     }
   }
 }
@@ -511,7 +605,7 @@ function onLevelUp(silent) {
 // ================= Pedidos =================
 function availableItems() {
   const ids = Object.keys(CROPS).filter((id) => CROPS[id].level <= S.level);
-  for (const t of new Set(S.animals.map((a) => a.type))) ids.push(ANIMALS[t].product);
+  for (const t of new Set(S.animals.filter(producer).map((a) => a.type))) ids.push(ANIMALS[t].product);
   if (S.wood.axe > 0) ids.push('tronco');
   if (S.saw.owned || built('celeiro')) ids.push('madeira');
   if (built('celeiro')) ids.push('viga');
@@ -546,6 +640,10 @@ export function tileActionLabel(i) {
     const id = tool.slice(5);
     if (p.s !== 'tilled') return null;
     return S.seeds[id] ? `Plantar ${CROPS[id].name}` : `Sem sementes de ${CROPS[id].name}`;
+  }
+  if (tool === 'fertilizante') {
+    if (p.s !== 'planted' || p.f) return null;
+    return S.inv.fertilizante > 0 ? `Adubar ${CROPS[p.crop].name} (${FERTILIZER.icon}${S.inv.fertilizante})` : 'Sem fertilizante';
   }
   return null;
 }
@@ -616,14 +714,47 @@ function useTileInner(i, quiet) {
     p.crop = id;
     p.g = 0;
     p.m = [];
+    p.f = false;
     sfx('plant');
     fx(target, '🌱');
     markDirty('toolbar', 'panel');
     return 'plant';
   }
 
+  if (tool === 'fertilizante') return fertilize(i, quiet);
+
   if (!quiet && p.s === 'planted') toast(plotInfo(i));
   return null;
+}
+
+/** Aplica fertilizante numa planta crescendo: chance de ela crescer gigante (vale o dobro). */
+function fertilize(i, quiet) {
+  const p = S.plots[i];
+  if (p.s !== 'planted') {
+    if (!quiet) toast(`${FERTILIZER.icon} O fertilizante vai numa planta crescendo.`);
+    return null;
+  }
+  if (p.f) {
+    if (!quiet) toast('Essa planta já recebeu fertilizante.');
+    return null;
+  }
+  if (!(S.inv.fertilizante > 0)) {
+    if (!quiet) { toast(`${FERTILIZER.icon} Sem fertilizante. Faça na ${COMPOST.icon} composteira, com o esterco das vacas.`, 'bad'); sfx('error'); }
+    return null;
+  }
+  S.inv.fertilizante--;
+  p.f = true;
+  S.stats.fertilized = (S.stats.fertilized || 0) + 1;
+  if (Math.random() < FERTILIZER.chance) {
+    mutatePlot(i, 'gigante', quiet);
+    if (!quiet) sfx('level');
+  } else if (!quiet) {
+    fx({ tile: i }, `${FERTILIZER.icon} Não pegou desta vez`);
+    sfx('water');
+  }
+  emit('fertilize');
+  markDirty('toolbar', 'panel');
+  return 'fertilize';
 }
 
 function harvest(i, silent = false) {
@@ -639,6 +770,7 @@ function harvest(i, silent = false) {
     sfx(muts.length ? 'catch' : 'harvest');
   }
   p.m = []; // a planta recomeça sem mutações; elas ficam no item colhido
+  p.f = false;
   if (c.regrow) {
     p.g = c.time * (1 - c.regrow);
   } else {
@@ -685,17 +817,25 @@ function collectAnimal(a, silent = false) {
 
 export function animalActionLabel(a) {
   const def = ANIMALS[a.type];
+  if (!producer(a)) return `Fazer carinho (${animalName(a).toLowerCase()})`;
   if (a.ready) return `Coletar ${PRODUCTS[def.product].icon} ${PRODUCTS[def.product].name}`;
-  if (!a.fed) return `Alimentar ${def.name.toLowerCase()} (1 🌾)`;
+  if (!a.fed) return `Alimentar ${animalName(a).toLowerCase()} (1 🌾)`;
   return null;
 }
 
 export function animalInfo(a) {
   const def = ANIMALS[a.type];
   const prod = PRODUCTS[def.product];
-  if (a.ready) return `${def.icon} ${def.name}: ${prod.icon} ${prod.name} pronto para coletar!`;
-  if (!a.fed) return S.up.alimentador ? `${def.icon} ${def.name} com fome: o alimentador automático está sem 🌾 trigo!` : `${def.icon} ${def.name} com fome. Alimente com 🌾 trigo (você tem ${S.inv.trigo || 0}).`;
-  return `${def.icon} ${def.name} produzindo ${prod.icon}… faltam ${fmtDuration(Math.ceil(def.time - a.p))}.`;
+  const who = `${a.sex === 'm' ? '♂' : '♀'} ${animalName(a)} ${animalColor(a).toLowerCase()}`;
+  if (isBaby(a)) return `${def.babyIcon} ${who} (${sexWord(a)}): ainda é filhote, vira adulto em ${fmtDuration(a.age)}.`;
+  if (a.sex === 'm') {
+    const mates = S.animals.some((b) => b.type === a.type && producer(b));
+    return `${def.icon} ${who}: não produz ${prod.icon}, mas ${mates ? `com as ${def.f.toLowerCase()}s do curral pode nascer um ${def.baby.toLowerCase()}` : `compre uma ${def.f.toLowerCase()} para nascerem filhotes`}.`;
+  }
+  if (a.ready) return `${def.icon} ${who}: ${prod.icon} ${prod.name} pronto para coletar!`;
+  if (inPasture(a) && !a.ready) return `${def.icon} ${who} pastando: ${prod.icon} ${prod.name} em ${fmtDuration(Math.ceil(def.time - a.p))}. No pasto o gado come capim.`;
+  if (!a.fed) return S.up.alimentador ? `${def.icon} ${who} com fome: o alimentador automático está sem 🌾 trigo!` : `${def.icon} ${who} com fome. Alimente com 🌾 trigo (você tem ${S.inv.trigo || 0}).`;
+  return `${def.icon} ${who} produzindo ${prod.icon}… faltam ${fmtDuration(Math.ceil(def.time - a.p))}.`;
 }
 
 /** Interage com um animal: coleta, alimenta ou informa. */
@@ -703,6 +843,10 @@ export function interactAnimal(id, quiet = false) {
   const a = findAnimal(id);
   if (!a) return null;
   const def = ANIMALS[a.type];
+  if (!producer(a)) {
+    if (!quiet) { toast(animalInfo(a)); fx({ animal: id }, '❤️'); }
+    return null;
+  }
   if (a.ready) {
     const prod = collectAnimal(a);
     fx({ animal: id }, `+1 ${PRODUCTS[prod].icon}`, 'gold');
@@ -716,7 +860,7 @@ export function interactAnimal(id, quiet = false) {
       return 'feed';
     }
     if (!quiet) {
-      toast(`A ${def.name.toLowerCase()} precisa de 1 🌾 trigo. Plante e colha trigo!`, 'bad');
+      toast(`A ${animalName(a).toLowerCase()} precisa de 1 🌾 trigo. Plante e colha trigo!`, 'bad');
       sfx('error');
     }
     return null;
@@ -727,7 +871,7 @@ export function interactAnimal(id, quiet = false) {
 
 /** Cocho: alimenta todos os animais com fome. */
 export function feedAll() {
-  const hungry = S.animals.filter((a) => !a.fed && !a.ready);
+  const hungry = S.animals.filter((a) => producer(a) && !a.fed && !a.ready);
   if (!S.animals.length) { toast('🐾 Ainda não há animais. Compre na loja!'); return 0; }
   if (!hungry.length) { toast('Todos os animais já estão alimentados. 🐾'); return 0; }
   let fed = 0;
@@ -1064,6 +1208,68 @@ export function cheat(code) {
   return false;
 }
 
+// ================= Esterco e composteira =================
+/** Recolhe um montinho de esterco do curral. */
+export function collectManure() {
+  if (S.manure <= 0) return false;
+  S.manure--;
+  addItem('esterco', 1);
+  gainXp(MANURE.xp);
+  S.stats.manure = (S.stats.manure || 0) + 1;
+  sfx('squish');
+  emit('manure');
+  markDirty('panel');
+  return true;
+}
+
+/** Usar a composteira: coleta o fertilizante pronto e coloca o esterco do celeiro para curtir. */
+export function compostUse() {
+  const cp = S.compost;
+  const collected = cp.ready;
+  if (collected) {
+    addItem('fertilizante', collected);
+    S.stats.fertMade = (S.stats.fertMade || 0) + collected;
+    cp.ready = 0;
+    if (!tool.startsWith('fertilizante')) markDirty('toolbar');
+    emit('fertilizer', collected);
+  }
+  const loaded = Math.min(S.inv.esterco || 0, COMPOST.capacity - cp.queue);
+  if (loaded > 0) {
+    S.inv.esterco -= loaded;
+    cp.queue += loaded;
+  }
+  if (collected || loaded) {
+    const parts = [];
+    if (collected) parts.push(`coletou ${collected} ${FERTILIZER.icon}`);
+    if (loaded) parts.push(`colocou ${loaded} ${MANURE.icon} para curtir`);
+    toast(`${COMPOST.icon} Composteira: ${parts.join(' e ')}.`, 'good');
+    sfx(collected ? 'harvest' : 'squish');
+    markDirty('panel', 'toolbar');
+  } else if (cp.queue >= COMPOST.capacity) {
+    toast(`${COMPOST.icon} A composteira está cheia (${COMPOST.capacity} ${MANURE.icon}).`);
+  } else {
+    toast(`${COMPOST.icon} Traga ${MANURE.icon} esterco: as vacas fazem no curral. Recolha e coloque aqui.`);
+  }
+  return { collected, loaded };
+}
+
+export function compostLabel() {
+  const cp = S.compost;
+  const canLoad = Math.min(S.inv.esterco || 0, COMPOST.capacity - cp.queue);
+  const parts = [];
+  if (cp.ready) parts.push(`Coletar ${cp.ready} ${FERTILIZER.icon}`);
+  if (canLoad) parts.push(`pôr ${canLoad} ${MANURE.icon}`);
+  if (!parts.length) return null;
+  const txt = parts.join(' e ');
+  return txt[0].toUpperCase() + txt.slice(1);
+}
+
+export function compostInfo() {
+  const cp = S.compost;
+  const next = cp.queue ? ` · próximo em ${Math.ceil(COMPOST.time - cp.t)}s` : '';
+  return `${COMPOST.icon} Composteira: ${cp.queue} ${MANURE.icon} curtindo · ${cp.ready} ${FERTILIZER.icon} pronto${next}. Cada esterco vira um fertilizante.`;
+}
+
 // ================= Serraria =================
 export function buySawmill() {
   if (S.saw.owned || SAWMILL.level > S.level) return;
@@ -1216,6 +1422,7 @@ export function workerAct(id, target, silent = false) {
       p.crop = seed;
       p.g = 0;
       p.m = [];
+      p.f = false;
       if (!silent) { sfx('plant'); fx({ tile: target }, CROPS[seed].icon); }
       markDirty('toolbar', 'panel');
       return 'plant';
@@ -1276,15 +1483,23 @@ export function buySeed(id, qty) {
   markDirty('toolbar');
 }
 
-export function buyAnimal(type) {
+export function buyAnimal(type, sex = 'f') {
   const def = ANIMALS[type];
   if (def.level > S.level) return;
   if (!needBuilt('curral', 'comprar animais')) return;
-  if (S.animals.length >= penSize()) { toast('🏡 Curral cheio! Compre a melhoria "Curral maior".', 'bad'); sfx('error'); return; }
+  if (!hasRoom(type)) {
+    toast(S.pasture && type === 'vaca' ? `${PASTURE.icon} O pasto está cheio (${PASTURE.slots} cabeças).` : `🏡 Curral cheio! Compre a melhoria "Curral maior"${type === 'vaca' && !S.pasture ? ` ou o ${PASTURE.icon} Pasto` : ''}.`, 'bad');
+    sfx('error');
+    return;
+  }
   if (!spend(def.cost)) return;
-  S.animals.push({ id: S.nextId++, type, fed: false, p: 0, ready: false });
+  const a = newAnimal(type, sex);
+  S.animals.push(a);
   emit('animal', type);
-  toast(`${def.icon} Uma ${def.name.toLowerCase()} chegou ao curral! Alimente-a com 🌾 trigo.`, 'good');
+  if (a.sex === 'm') emit('male', type);
+  toast(a.sex === 'm'
+    ? `${def.icon} Um ${def.m.toLowerCase()} ${animalColor(a).toLowerCase()} chegou ao curral! Com uma ${def.f.toLowerCase()}, podem nascer filhotes.`
+    : `${def.icon} Uma ${def.f.toLowerCase()} ${animalColor(a).toLowerCase()} chegou ao curral! Alimente-a com 🌾 trigo.`, 'good');
   sfx('coin');
 }
 
@@ -1311,7 +1526,7 @@ export function sell(id, qty) {
 
 export function sellAll() {
   if (!needBuilt('celeiro', 'vender')) return;
-  const reserve = S.animals.length;
+  const reserve = S.animals.filter(producer).length;
   let total = 0;
   for (const id of Object.keys(S.inv)) {
     if (!itemInfo(id)) continue;
@@ -1372,6 +1587,7 @@ export function toolHint() {
   if (tool === 'regador') return `💧 Regador: molhe a terra — a água dura ${WATER_TIME[S.up.regador]}s.`;
   if (tool === 'mao') return '🧺 Colher: chegue perto das plantas prontas ✨ e colha.';
   if (tool === 'machado') return '🪓 Machado: chegue perto de uma árvore do bosque e corte para ganhar troncos 🪵.';
+  if (tool === 'fertilizante') return `${FERTILIZER.icon} Fertilizante (${S.inv.fertilizante || 0}): use numa planta crescendo. ${Math.round(FERTILIZER.chance * 100)}% de chance de ela ficar 💪 gigante (vale o dobro).`;
   if (tool === 'vara') return '🎣 Vara de pesca: vá até a beira do lago e aperte Espaço para lançar a linha.';
   const id = tool.slice(5);
   return `${CROPS[id].icon} Plantando ${CROPS[id].name}: ${S.seeds[id] || 0} sementes.`;
@@ -1410,6 +1626,7 @@ function load() {
       pet: { ...base.pet, ...d.pet },
       horse: { ...base.horse, ...d.horse },
       char: { ...base.char, ...d.char },
+      compost: { ...base.compost, ...d.compost },
       tutorial: d.tutorial ? { ...base.tutorial, ...d.tutorial, tips: { ...(d.tutorial.tips || {}) } } : { ...base.tutorial, done: true },
       big: d.big && Array.isArray(d.big.s) && d.big.s.length === BIG_CELLS ? d.big : base.big,
     };
@@ -1422,7 +1639,12 @@ function load() {
     for (const p of st.plots) if (p.s === 'planted' && !CROPS[p.crop]) { p.s = 'tilled'; p.crop = null; p.g = 0; }
     st.animals = (st.animals || []).filter((a) => ANIMALS[a.type]);
     st.nextId = st.nextId || 1;
-    for (const a of st.animals) if (!a.id) a.id = st.nextId++;
+    for (const a of st.animals) {
+      if (!a.id) a.id = st.nextId++;
+      if (!a.sex) a.sex = 'f';
+      if (a.color == null) a.color = a.id % ANIMALS[a.type].colors.length;
+      if (!(a.age > 0)) a.age = 0;
+    }
     st.orders = (st.orders || []).filter((o) => o.req && o.req.every((r) => ITEMS[r.id]));
     for (const o of st.orders) if (o.seen === undefined) o.seen = true;
     return st;

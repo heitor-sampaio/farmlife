@@ -1,5 +1,5 @@
 {
-  "version": "3.4.0",
+  "version": "3.7.0",
   "date": "2026-10-17",
   "files": [
     "index.html",
@@ -10,6 +10,7 @@
     "js/core.js",
     "js/data.js",
     "js/main.js",
+    "js/prefs.js",
     "js/tutorial.js",
     "js/ui.js",
     "js/updates.js",

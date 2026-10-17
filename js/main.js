@@ -7,6 +7,9 @@ import { sfx, setMusicMood } from './audio.js';
 import * as tutorial from './tutorial.js';
 import * as updates from './updates.js';
 import * as character from './character.js';
+import { applyPrefs } from './prefs.js';
+
+applyPrefs();
 
 core.setHooks({
   toast: ui.toast,

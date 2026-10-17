@@ -19,14 +19,14 @@ Depois acesse http://localhost:5173. Na primeira vez, precisa de internet para b
 
 | Ação | Teclado / mouse | Celular |
 |---|---|---|
-| Andar | `W` `A` `S` `D` ou setas (`Shift` corre) | Arrastar o dedo na metade esquerda (joystick; mais longe = mais rápido) |
+| Andar | `W` `A` `S` `D` ou setas (`Shift` corre) | Arrastar o dedo no lado do joystick (direita por padrão; troca no menu 🔊) |
 | Usar ferramenta no lote à frente | `Espaço` ou `E` (segure e ande para repetir) | Botão ✋ (segure e ande para repetir) |
 | Ir até um lote e agir | Clique no lote (arraste para enfileirar vários) | Tocar no lote |
 | Escolher ferramenta | `1`–`5` | Barra inferior |
 | Escolher semente | `6` (de novo troca de semente) ou a ▲ do botão de sementes | Botão de sementes (toque de novo para ver todas) |
 | Zoom | Roda do mouse ou `+` / `-` | Botões ＋ / － |
-| Girar a câmera | Botão direito + arrastar, ou `Q` / `R` (`C` ou 🧭 volta ao normal) | Arrastar na metade direita (ou com um 2º dedo); 🧭 volta ao normal |
-| Som e música | Botão 🔊: volume geral, música e efeitos | Botão 🔊 |
+| Girar a câmera | Botão direito + arrastar, ou `Q` / `R` (`C` ou 🧭 volta ao normal) | Arrastar no outro lado da tela (ou com um 2º dedo); 🧭 volta ao normal |
+| Som, música e controles | Botão 🔊: volume geral, música e efeitos | Botão 🔊 (também o lado do joystick) |
 | Fechar painel | `Esc` | ✕ |
 
 ## Tutorial e Guia
@@ -48,6 +48,9 @@ Depois acesse http://localhost:5173. Na primeira vez, precisa de internet para b
 - **Pescaria**: com uma vara (bambu ou fibra) você pesca no lago: lance, espere a mordida (❗) e segure a ação no minigame para manter o peixe na faixa verde. Seis tipos de pesca, com bagres à noite, lagostins na chuva e uma rara carpa dourada.
 - **Clima e mutações**: eventos climáticos (chuva, ventania, neve, sol escaldante, tempestade de raios, arco-íris e eclipse) dão mutações às plantas que estão crescendo. As mutações se acumulam até a planta amadurecer, vão para o item colhido e aumentam o preço de venda conforme a raridade (cada uma soma o seu bônus, de ×1,5 a ×20). Vale também para o Campo de Trigo e para os funcionários.
 - **Cavalo**: no nível 3, com o curral construído, compre um cavalo que pasta perto do portão do curral. Com a sela, monte e cavalgue 1,75× mais rápido (galope com Shift ou com o joystick na borda); use a ação para descer.
+- **Famílias no curral**: cada animal tem uma cor sorteada e você escolhe fêmea ou macho. Só as fêmeas produzem; com um macho adulto da mesma espécie, cada produção tem 3% de chance de nascer um filhote, que vira adulto em 5 dias de jogo.
+- **Pasto**: campo grande a leste do Campo de Trigo, com 30 vagas só para o gado (vacas, touros e bezerros), que come capim e não precisa de trigo.
+- **Esterco e fertilizante**: as vacas fazem cocô no curral; recolha o esterco e leve à composteira, que o transforma em fertilizante. Com a ferramenta Adubar, uma planta crescendo tem 60% de chance de ficar gigante (maior e vale o dobro).
 - **Pet**: uma border collie (nível 2) que segue o jogador, senta quando ele para, corre atrás dos passarinhos e ganha carinho (+10 XP por dia). Dá para trocar o nome.
 - **Fauna de cenário**: sapos na beira do lago (pulam na água se você chega perto), passarinhos que bicam o chão e voam quando alguém se aproxima, bandos no céu, joaninhas, borboletas de dia, coelhos, patos no lago e vaga-lumes à noite.
 - **Lavoura mecanizada**: um Campo de Trigo de 384 lotes trabalhado com máquinas que você dirige (trator com arado de 3 faixas, trator com plantadeira de 4 e colheitadeira de 5), guardadas num galpão. Entre e saia com `Espaço`/`E` ou ✋; dirija com `WASD` ou o joystick.

@@ -3,6 +3,33 @@
 
 export const CHANGELOG = [
   {
+    version: '3.7.0', date: '2026-10-17', title: 'Joystick do seu lado',
+    items: [
+      '🕹️ No celular, escolha de que lado fica o joystick de andar: agora ele começa à direita.',
+      '🎥 O outro lado da tela gira a câmera, e o botão ✋ muda de lado junto para não atrapalhar o polegar.',
+      '⚙️ A escolha aparece na criação do personagem e pode ser trocada a qualquer momento no menu 🔊.',
+    ],
+  },
+  {
+    version: '3.6.0', date: '2026-10-17', title: 'Famílias no curral e pasto',
+    items: [
+      '🎨 Os animais agora têm cores diferentes: galinhas brancas, marrons, pretas e carijós, ovelhas cinzas e pretas, vacas malhadas e marrons, porcos malhados e caramelo.',
+      '♀♂ Na loja você escolhe fêmea ou macho. Galo, carneiro, touro e cachaço têm visual próprio (rabo, chifres, presas).',
+      '🐣 Com macho e fêmea da mesma espécie, cada produção dela tem 3% de chance de nascer um filhote, que cresce e vira adulto em 5 dias de jogo.',
+      '🌿 Pasto à venda (nível 5): um campo enorme a leste do Campo de Trigo com 30 vagas só para o gado, que come capim e não precisa de trigo.',
+      '🥚 Só as fêmeas adultas produzem e comem; machos e filhotes ganham carinho. Animais antigos viraram fêmeas.',
+    ],
+  },
+  {
+    version: '3.5.0', date: '2026-10-17', title: 'Esterco e fertilizante',
+    items: [
+      '💩 As vacas fazem cocô pelo curral: recolha o esterco com a ação ou tocando nele.',
+      '♻️ Composteira ao lado do curral: cada esterco vira um 🧪 fertilizante em 30s, até com o jogo fechado.',
+      '🧪 Nova ferramenta Adubar: use o fertilizante numa planta crescendo para ter 60% de chance de ela ficar 💪 gigante.',
+      '💪 Plantas gigantes crescem bem maiores e valem o dobro; o bônus soma com as mutações do clima.',
+    ],
+  },
+  {
     version: '3.4.0', date: '2026-10-17', title: 'Música e volumes',
     items: [
       '🎵 Música de fundo tocada na hora pelo próprio jogo: acordes suaves, baixo e uma melodia que vai mudando.',

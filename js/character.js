@@ -1,6 +1,7 @@
 /* FarmLife — criação do personagem (fazendeiro ou fazendeira, e o nome) */
 import * as core from './core.js';
 import { sfx } from './audio.js';
+import { renderJoyPick, bindJoyPick } from './ui.js';
 
 const $ = (sel) => document.querySelector(sel);
 let api = null; // { setCharacter(gender), setFocus(on), toast(msg, type) }
@@ -19,6 +20,7 @@ export function initCharacter(a) {
   el.root.querySelectorAll('[data-g]').forEach((b) => b.addEventListener('click', () => choose(b.dataset.g)));
   el.ok.addEventListener('click', confirm);
   el.cancel.addEventListener('click', cancel);
+  bindJoyPick(el.root);
   el.name.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { e.preventDefault(); confirm(); }
     e.stopPropagation(); // o personagem não anda enquanto você digita
@@ -33,6 +35,7 @@ export function openCharacter() {
   el.cancel.hidden = !C.chosen;
   el.name.value = C.chosen ? C.name : '';
   el.root.hidden = false;
+  renderJoyPick(el.root);
   api.setFocus(true);
   choose(C.gender, true);
 }

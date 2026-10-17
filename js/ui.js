@@ -1,6 +1,7 @@
 /* FarmLife — interface em HTML sobre a cena 3D (HUD, hotbar, painel, avisos) */
-import { CROPS, ANIMALS, PRODUCTS, UPGRADES, WORKERS, FIELDS, BIG_FIELD, BIG_CELLS, MACHINES, FISH, RODS, PET, MUTATIONS, RARITY_COLOR, WEATHER_EVENTS, AXES, LOG, WOOD, SAWMILL, PLANK, RECIPES, BUILDINGS, CARPENTRY, HORSE, SADDLE } from './data.js';
+import { CROPS, ANIMALS, PRODUCTS, UPGRADES, WORKERS, FIELDS, BIG_FIELD, BIG_CELLS, MACHINES, FISH, RODS, PET, MUTATIONS, RARITY_COLOR, WEATHER_EVENTS, AXES, LOG, WOOD, SAWMILL, PLANK, RECIPES, BUILDINGS, CARPENTRY, HORSE, SADDLE, PASTURE } from './data.js';
 import * as core from './core.js';
+import { joySide, setJoySide } from './prefs.js';
 import { sfx, settings as audioSettings, setVolume, setMuted, unlockAudio } from './audio.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -154,6 +155,22 @@ function shopHtml() {
           : `<button class="btn alt" data-act="field" data-id="${f.id}" ${S.coins < f.cost ? 'disabled' : ''}>🪙${fmt(f.cost)}</button>`}
       </div></div>`;
   }
+  {
+    const owned = S.pasture;
+    const locked = !owned && PASTURE.level > S.level;
+    h += `<div class="card${locked ? ' locked' : ''}${owned ? ' hired' : ''}">
+      <div class="ico">${PASTURE.icon}</div>
+      <div class="info"><b>${PASTURE.name}${owned ? ` <small>✔ seu · ${core.pastureCount()}/${PASTURE.slots} cabeças</small>` : ''}</b>
+        <small>Campo enorme a leste do Campo de Trigo, só para o gado: ${PASTURE.slots} vagas para vacas, touros e bezerros, que comem capim e não precisam de 🌾 trigo. Libera o curral para os outros animais.</small></div>
+      <div class="btns">${owned
+        ? '<span class="req">✔ Comprado</span>'
+        : locked
+          ? `<span class="req">🔒 Nível ${PASTURE.level}</span>`
+          : !core.built('curral')
+            ? '<span class="req">🏗️ Construa o curral</span>'
+            : `<button class="btn alt" data-act="pasture" ${S.coins < PASTURE.cost ? 'disabled' : ''}>🪙${fmt(PASTURE.cost)}</button>`}
+      </div></div>`;
+  }
   h += '</div>';
 
   h += '<h3 id="sec-pesca">🎣 Pescaria</h3><div class="cards">';
@@ -288,23 +305,29 @@ function shopHtml() {
   h += '</div>';
 
   const size = core.penSize();
-  const full = S.animals.length >= size;
+  const full = core.penCount() >= size;
   const penBuilt = core.built('curral');
-  h += `<h3>🐾 Animais <small>(${penBuilt ? `${S.animals.length}/${size} no curral` : 'construa o curral primeiro'})</small></h3><div class="cards">`;
+  h += `<h3>🐾 Animais <small>(${penBuilt ? `${core.penCount()}/${size} no curral${S.pasture ? ` · ${core.pastureCount()}/${PASTURE.slots} no pasto` : ''}` : 'construa o curral primeiro'})</small></h3><div class="cards">`;
   for (const [id, a] of Object.entries(ANIMALS)) {
     const locked = a.level > S.level;
     const prod = PRODUCTS[a.product];
+    const mine = S.animals.filter((x) => x.type === id);
+    const count = (f) => mine.filter(f).length;
+    const herd = mine.length
+      ? `<small>No ${S.pasture && id === 'vaca' ? 'pasto' : 'curral'}: ♀ ${count((x) => x.sex !== 'm' && !core.isBaby(x))} · ♂ ${count((x) => x.sex === 'm' && !core.isBaby(x))}${count(core.isBaby) ? ` · ${a.babyIcon} ${count(core.isBaby)}` : ''}</small>`
+      : '';
     h += `<div class="card${locked ? ' locked' : ''}">
       <div class="ico">${a.icon}</div>
-      <div class="info"><b>${a.name}</b>
-        <small>Produz ${prod.icon} ${prod.name} (🪙${prod.sell}) a cada ${core.fmtDuration(a.time)} · come 🌾</small></div>
+      <div class="info"><b>${a.f} / ${a.m}</b>
+        <small>A ${a.f.toLowerCase()} produz ${prod.icon} ${prod.name} (🪙${prod.sell}) a cada ${core.fmtDuration(a.time)} · come 🌾. O ${a.m.toLowerCase()} não produz, mas com ela nascem ${a.baby.toLowerCase()}s. Cor sorteada.</small>${herd}</div>
       <div class="btns">${locked
         ? `<span class="req">🔒 Nível ${a.level}</span>`
         : !penBuilt
           ? '<span class="req">🏗️ Construa o curral</span>'
-          : full
-          ? '<span class="req">Curral cheio</span>'
-          : `<button class="btn" data-act="animal" data-id="${id}" ${S.coins < a.cost ? 'disabled' : ''}>🪙${fmt(a.cost)}</button>`}
+          : !core.hasRoom(id)
+          ? `<span class="req">${S.pasture && id === 'vaca' ? 'Pasto cheio' : 'Curral cheio'}</span>`
+          : `<button class="btn" data-act="animal" data-id="${id}" data-sex="f" title="Comprar ${a.f.toLowerCase()} (fêmea)" ${S.coins < a.cost ? 'disabled' : ''}>♀ 🪙${fmt(a.cost)}</button>
+             <button class="btn alt" data-act="animal" data-id="${id}" data-sex="m" title="Comprar ${a.m.toLowerCase()} (macho)" ${S.coins < a.cost ? 'disabled' : ''}>♂ 🪙${fmt(a.cost)}</button>`}
       </div></div>`;
   }
   h += '</div>';
@@ -415,7 +438,8 @@ function barnHtml() {
     <div><b>${fmt(S.stats.mutated || 0)}</b>mutadas</div>
     <div><b>${fmt(S.stats.logs || 0)}</b>troncos</div>
     <div><b>${fmt(S.stats.planks || 0)}</b>tábuas</div>
-    <div><b>${fmt(S.stats.crafted || 0)}</b>peças feitas</div></div>`;
+    <div><b>${fmt(S.stats.crafted || 0)}</b>peças feitas</div>
+    <div><b>${fmt(S.stats.births || 0)}</b>filhotes</div></div>`;
   return h;
 }
 
@@ -602,6 +626,20 @@ function renderHud() {
   }
 }
 
+// ================= Lado do joystick =================
+export function renderJoyPick(root) {
+  root.querySelectorAll('[data-joy]').forEach((b) => b.classList.toggle('active', b.dataset.joy === joySide()));
+}
+export function bindJoyPick(root) {
+  root.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-joy]');
+    if (!b) return;
+    setJoySide(b.dataset.joy);
+    renderJoyPick(root);
+    sfx('open');
+  });
+}
+
 // ================= Menu de som =================
 const soundIcon = () => (audioSettings.muted || audioSettings.master === 0 ? '🔇' : audioSettings.master < 0.4 ? '🔉' : '🔊');
 
@@ -613,6 +651,7 @@ function renderSoundMenu() {
     inp.nextElementSibling.textContent = v + '%';
   });
   box.querySelector('#set-mute').checked = audioSettings.muted;
+  renderJoyPick(box);
   box.classList.toggle('muted', audioSettings.muted);
   setText(el.btnSound, soundIcon());
 }
@@ -638,6 +677,7 @@ function initSoundMenu() {
     el.btnSound.blur();
   });
   $('#settings-close').addEventListener('click', () => setSoundMenu(false));
+  bindJoyPick(box);
   let previewT = 0;
   box.addEventListener('input', (e) => {
     const inp = e.target.closest('[data-vol]');
@@ -733,7 +773,7 @@ export function initUI(h) {
     if (!b || b.disabled) return;
     const { act, id } = b.dataset;
     if (act === 'seed') core.buySeed(id, +b.dataset.q);
-    else if (act === 'animal') core.buyAnimal(id);
+    else if (act === 'animal') core.buyAnimal(id, b.dataset.sex);
     else if (act === 'upgrade') core.buyUpgrade(id);
     else if (act === 'hire') core.hireWorker(id);
     else if (act === 'fire') core.fireWorker(id);
@@ -746,6 +786,7 @@ export function initUI(h) {
     else if (act === 'tab') { openPanel(id); return; }
     else if (act === 'pet') core.buyPet();
     else if (act === 'horse') core.buyHorse();
+    else if (act === 'pasture') core.buyPasture();
     else if (act === 'saddle') core.buySaddle();
     else if (act === 'petname') {
       const name = prompt('Qual o nome da sua border collie?', core.S.pet.name);

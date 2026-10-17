@@ -2,6 +2,27 @@
 
 Todas as mudanças do jogo, da mais nova para a mais antiga. Este arquivo é gerado a partir de `js/changelog.js` por `node tools/gerar-versao.mjs`.
 
+## v3.7.0 — Joystick do seu lado (17/10/2026)
+
+- 🕹️ No celular, escolha de que lado fica o joystick de andar: agora ele começa à direita.
+- 🎥 O outro lado da tela gira a câmera, e o botão ✋ muda de lado junto para não atrapalhar o polegar.
+- ⚙️ A escolha aparece na criação do personagem e pode ser trocada a qualquer momento no menu 🔊.
+
+## v3.6.0 — Famílias no curral e pasto (17/10/2026)
+
+- 🎨 Os animais agora têm cores diferentes: galinhas brancas, marrons, pretas e carijós, ovelhas cinzas e pretas, vacas malhadas e marrons, porcos malhados e caramelo.
+- ♀♂ Na loja você escolhe fêmea ou macho. Galo, carneiro, touro e cachaço têm visual próprio (rabo, chifres, presas).
+- 🐣 Com macho e fêmea da mesma espécie, cada produção dela tem 3% de chance de nascer um filhote, que cresce e vira adulto em 5 dias de jogo.
+- 🌿 Pasto à venda (nível 5): um campo enorme a leste do Campo de Trigo com 30 vagas só para o gado, que come capim e não precisa de trigo.
+- 🥚 Só as fêmeas adultas produzem e comem; machos e filhotes ganham carinho. Animais antigos viraram fêmeas.
+
+## v3.5.0 — Esterco e fertilizante (17/10/2026)
+
+- 💩 As vacas fazem cocô pelo curral: recolha o esterco com a ação ou tocando nele.
+- ♻️ Composteira ao lado do curral: cada esterco vira um 🧪 fertilizante em 30s, até com o jogo fechado.
+- 🧪 Nova ferramenta Adubar: use o fertilizante numa planta crescendo para ter 60% de chance de ela ficar 💪 gigante.
+- 💪 Plantas gigantes crescem bem maiores e valem o dobro; o bônus soma com as mutações do clima.
+
 ## v3.4.0 — Música e volumes (17/10/2026)
 
 - 🎵 Música de fundo tocada na hora pelo próprio jogo: acordes suaves, baixo e uma melodia que vai mudando.

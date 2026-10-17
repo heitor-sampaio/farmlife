@@ -38,7 +38,7 @@
       <button class="menu-btn" data-open="oficina" title="Oficina: carpintaria e obras">🪚<span>Oficina</span></button>
     </nav>
     <div class="hud-btns">
-      <button class="icon-btn" id="btn-sound" title="Som e música">🔊</button>
+      <button class="icon-btn" id="btn-sound" title="Som, música e controles">🔊</button>
       <button class="icon-btn" id="btn-help" title="Guia da Fazenda">❓</button>
       <button class="icon-btn" id="btn-reset" title="Recomeçar fazenda">🔄</button>
     </div>
@@ -75,6 +75,10 @@
     <label class="set-row"><span>🎵 Música</span><input type="range" min="0" max="100" step="1" data-vol="music"><output></output></label>
     <label class="set-row"><span>🔔 Efeitos</span><input type="range" min="0" max="100" step="1" data-vol="sfx"><output></output></label>
     <label class="set-check"><input type="checkbox" id="set-mute"> 🔇 Silenciar tudo</label>
+    <div class="joy-pick touch-only">
+      <span>🕹️ Joystick de andar</span>
+      <div class="seg"><button data-joy="left">◀ Esquerda</button><button data-joy="right">Direita ▶</button></div>
+    </div>
     <p class="set-hint">A música fica mais calma à noite. As configurações ficam salvas neste aparelho.</p>
   </div>
 
@@ -88,6 +92,10 @@
       </div>
       <label class="char-name"><span id="char-label">Como você quer ser chamado?</span>
         <input id="char-name" maxlength="16" autocomplete="off" autocapitalize="words" spellcheck="false"></label>
+      <div class="joy-pick touch-only">
+        <span>🕹️ Joystick de andar</span>
+        <div class="seg"><button data-joy="left">◀ Esquerda</button><button data-joy="right">Direita ▶</button></div>
+      </div>
       <div class="char-btns">
         <button class="btn ghost" id="char-cancel" hidden>Cancelar</button>
         <button class="btn" id="char-ok">Começar a jogar ▶</button>

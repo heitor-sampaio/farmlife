@@ -3,10 +3,12 @@ import {
   CROPS, ANIMALS, PRODUCTS, UPGRADES, WORKERS, FIELDS, BIG_FIELD, BIG_CELLS, MACHINES, FISH, RODS, PET, WATER_TIME, PEN_SIZE,
   WEATHER_EVENTS, MUTATIONS, RARITY_COLOR, EVENT_ROUND, EVENT_CHANCE, AXES, LOG, WOOD, SAWMILL, PLANK,
   BEAM, RECIPES, BUILDINGS, CARPENTRY, CHOP_TREES, HORSE, SADDLE, RIDE_MULT,
+  MANURE, COMPOST, FERTILIZER, BREED, PASTURE,
 } from './data.js';
 import * as core from './core.js';
 import { CHANGELOG, VERSION, compareVersions } from './changelog.js';
 import { sfx } from './audio.js';
+import { sideWord } from './prefs.js';
 
 const $ = (sel) => document.querySelector(sel);
 let api = null; // funções do mundo e da interface (entregues pelo main.js)
@@ -36,7 +38,7 @@ const STEPS = [
   {
     id: 'andar', icon: '🚶', title: 'Ande pela fazenda', goal: 6, unit: 'm', reward: 0,
     body: () => (isTouch()
-      ? 'Arraste o dedo na <b>metade esquerda</b> da tela para andar: aparece um <b>joystick</b> embaixo do dedo. Arrastar na metade direita gira a câmera, e um toque rápido no chão leva o fazendeiro até lá.'
+      ? `Arraste o dedo na <b>metade ${sideWord()}</b> da tela para andar: aparece um <b>joystick</b> embaixo do dedo. Arrastar na metade ${sideWord(true)} gira a câmera (dá para trocar o lado no menu 🔊), e um toque rápido no chão leva o fazendeiro até lá.`
       : 'Use <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> ou as setas para andar (<kbd>Shift</kbd> corre). Você também pode clicar no chão para ir até lá, e girar a câmera arrastando com o <b>botão direito</b>.'),
   },
   {
@@ -168,6 +170,31 @@ const TIPS = {
     title: 'Hora de cortar lenha', target: () => nearestTree(),
     body: () => `Você tem um 🪓 <b>machado</b>! O <b>bosque</b> fica a oeste (siga a seta). Com a 🪓 <b>Machado</b> selecionado, chegue perto de uma árvore e use ${ACT()}, ou ${TAP()} na árvore para o fazendeiro cortar até ela cair.
       Os 🪵 <b>troncos</b> viram tábuas e vigas na ${CARPENTRY.icon} mesa de carpintaria, para construir. A árvore volta a crescer depois de um tempo.`,
+  },
+  pasture: {
+    title: 'Pasto comprado!', target: { pasture: true },
+    body: () => `O ${PASTURE.icon} <b>${PASTURE.name}</b> fica a leste, depois do Campo de Trigo (siga a seta). Todo o gado mora lá agora: até ${PASTURE.slots} cabeças,
+      comendo capim, sem precisar de 🌾 trigo. As vacas fazem o ${MANURE.icon} esterco no pasto. O curral fica livre para os outros animais.`,
+  },
+  birth: {
+    title: 'Nasceu um filhote!', target: null,
+    body: () => `Com um <b>macho</b> e uma <b>fêmea</b> da mesma espécie no curral, cada vez que a fêmea produz há ${Math.round(BREED.chance * 100)}% de chance de nascer um filhote, se houver vaga.
+      Ele nasce pequeno, com a cor de um dos pais (às vezes outra) e vira adulto em ~${Math.round(BREED.grow / 180)} dias de jogo. Filhotes e machos não comem nem produzem.`,
+  },
+  male: {
+    title: 'Um macho no curral', target: { spot: 'cocho' },
+    body: () => `Machos não produzem nem precisam de 🌾, mas com uma <b>fêmea da mesma espécie</b> podem nascer <b>filhotes</b>: ${Math.round(BREED.chance * 100)}% de chance a cada produção dela.
+      Fique de olho nas vagas do curral: a melhoria <b>Curral maior</b> dá espaço para a família crescer.`,
+  },
+  manure: {
+    title: 'A vaca fez cocô! 💩', target: { spot: 'compost' },
+    body: () => `As vacas deixam ${MANURE.icon} <b>esterco</b> pelo curral. Chegue perto e use ${ACT()} (ou ${TAP()} nele) para recolher.
+      Depois leve até a ${COMPOST.icon} <b>composteira</b> (a seta, ao lado do curral): cada esterco vira um ${FERTILIZER.icon} <b>fertilizante</b> em ${COMPOST.time}s.`,
+  },
+  fertilizer: {
+    title: 'Fertilizante pronto!', target: null,
+    body: () => `Escolha o ${FERTILIZER.icon} <b>Adubar</b> na barra e use numa planta que ainda está <b>crescendo</b>.
+      Ela tem ${Math.round(FERTILIZER.chance * 100)}% de chance de ficar 💪 <b>gigante</b>: cresce maior e vale o <b>dobro</b>. Cada planta recebe fertilizante uma vez por colheita.`,
   },
   horse: {
     title: 'Seu cavalo chegou!', target: { horse: true },
@@ -401,6 +428,11 @@ export function onEvent(name, data) {
   else if (name === 'axe') queueTip('axe');
   else if (name === 'sawmill') queueTip('sawmill');
   else if (name === 'horse') queueTip('horse');
+  else if (name === 'manure') queueTip('manure');
+  else if (name === 'birth') queueTip('birth');
+  else if (name === 'pasture') queueTip('pasture');
+  else if (name === 'male') queueTip('male');
+  else if (name === 'fertilizer') queueTip('fertilizer');
   else if (name === 'saddle') queueTip('saddle');
   else if (name === 'build' && !(data === 'celeiro' && active())) queueTip('built-' + data);
   else if (name === 'level') {
@@ -458,6 +490,7 @@ export function tutorialFrame(dt) {
     condTimer = 1;
     const S = core.S;
     if (core.darkness() > 0.6) queueTip('night');
+    if (S.manure > 0 && core.built('curral')) queueTip('manure');
     if (!(S.stats.logs > 0)) queueTip('axe');
     else if (!(S.stats.crafted > 0)) queueTip('bench');
     if (S.level >= 2 && !(S.stats.fish > 0)) queueTip('rod');
@@ -564,7 +597,7 @@ const TOPICS = [
           ['Escolher ferramenta', 'Teclas <kbd>1</kbd> a <kbd>5</kbd>', 'Barra de baixo'],
           ['Escolher semente', '<kbd>6</kbd> pega a semente; <kbd>6</kbd> de novo troca para a próxima · clique na ▲ para ver todas', 'Botão de sementes: toque de novo (ou na ▲) para ver todas'],
           ['Zoom', 'Roda do mouse · <kbd>+</kbd> <kbd>−</kbd>', 'Botões ＋ e －'],
-          ['Girar a câmera', 'Botão direito + arrastar · <kbd>Q</kbd> <kbd>R</kbd> · <kbd>C</kbd> ou 🧭 volta ao normal', 'Arrastar na metade direita da tela (ou com um 2º dedo) · 🧭 volta ao normal'],
+          ['Girar a câmera', 'Botão direito + arrastar · <kbd>Q</kbd> <kbd>R</kbd> · <kbd>C</kbd> ou 🧭 volta ao normal', `Arrastar na metade ${sideWord(true)} da tela (ou com um 2º dedo) · 🧭 volta ao normal`],
           ['Som e música', 'Botão 🔊 no topo: volume geral, música e efeitos', 'Botão 🔊 no topo'],
           ['Fechar janelas', '<kbd>Esc</kbd>', '✕'],
         ],
@@ -578,7 +611,9 @@ const TOPICS = [
       Culturas com 🔁 <b>rebrotam</b> depois da colheita.</p>` + table(
       ['', 'Cultura', 'Cresce em', 'Semente', 'Vende', 'Nível'],
       Object.values(CROPS).map((c) => [c.icon, `${c.name}${c.regrow ? ' 🔁' : ''}`, dur(c.time), `🪙${c.seed}`, `🪙${c.sell}`, `${c.level}${lock(c.level)}`]),
-    ) + `<p>💡 Melhorias da loja: <b>regador reforçado</b> (água dura mais), <b>adubo</b> (cresce mais rápido) e <b>aspersores</b> (rega tudo sozinho).</p>`,
+    ) + `<p>${FERTILIZER.icon} <b>Fertilizante:</b> com a ferramenta <b>Adubar</b>, use numa planta crescendo. Ela tem ${Math.round(FERTILIZER.chance * 100)}% de chance de ficar 💪 <b>gigante</b>: cresce maior e vale o <b>dobro</b>
+      (soma com as mutações do clima). Cada planta recebe fertilizante uma vez por colheita. O fertilizante sai do esterco das vacas (veja <b>Animais</b>).</p>
+      <p>💡 Melhorias da loja: <b>regador reforçado</b> (água dura mais), <b>adubo</b> (cresce mais rápido) e <b>aspersores</b> (rega tudo sozinho).</p>`,
   },
   {
     id: 'dinheiro', icon: '💰', title: 'Vender e comprar',
@@ -594,8 +629,15 @@ const TOPICS = [
     html: () => `<p>Os animais vivem no <b>Curral</b>, a oeste, que precisa ser construído com madeira (${costTxt('curral')}). Cada um come <b>1 🌾 trigo</b> por ciclo: alimente chegando perto (${ACT()}) ou use o <b>cocho</b> para todos.
       Quando o produto aparece em cima dele, colete e venda. O <b>⚙️ alimentador automático</b> (melhoria) alimenta sozinho com o trigo do celeiro.</p>` + table(
       ['', 'Animal', 'Custa', 'Produz', 'A cada', 'Nível'],
-      Object.values(ANIMALS).map((a) => [a.icon, a.name, `🪙${core.fmt(a.cost)}`, `${PRODUCTS[a.product].icon} ${PRODUCTS[a.product].name} (🪙${PRODUCTS[a.product].sell})`, dur(a.time), `${a.level}${lock(a.level)}`]),
-    ) + `<p>💡 O curral começa com ${PEN_SIZE[0]} vagas; a melhoria <b>Curral maior</b> aumenta.</p>`,
+      Object.values(ANIMALS).map((a) => [a.icon, `${a.f} / ${a.m}`, `🪙${core.fmt(a.cost)}`, `${PRODUCTS[a.product].icon} ${PRODUCTS[a.product].name} (🪙${PRODUCTS[a.product].sell})`, dur(a.time), `${a.level}${lock(a.level)}`]),
+    ) + `<p>💡 O curral começa com ${PEN_SIZE[0]} vagas; a melhoria <b>Curral maior</b> aumenta.</p>
+      <p>♀♂ <b>Macho e fêmea:</b> na loja você escolhe o sexo; a cor é sorteada (${Object.values(ANIMALS).map((a) => `${a.icon} ${a.colors.map((c) => c[0].toLowerCase()).join(', ')}`).join(' · ')}).
+        Só as fêmeas produzem e comem. Com um macho adulto da mesma espécie, cada produção tem ${Math.round(BREED.chance * 100)}% de chance de nascer um filhote (${Object.values(ANIMALS).map((a) => `${a.babyIcon} ${a.baby.toLowerCase()}`).join(', ')}),
+        se houver vaga no curral. O filhote herda a cor de um dos pais e vira adulto em ~${Math.round(BREED.grow / 180)} dias.</p>
+      <p>${PASTURE.icon} <b>Pasto</b> (🪙${core.fmt(PASTURE.cost)}, nível ${PASTURE.level}${lock(PASTURE.level)}): campo enorme a leste do Campo de Trigo com ${PASTURE.slots} vagas só para o gado.
+        Lá vacas, touros e bezerros comem capim e não precisam de trigo, e o curral fica livre para os outros animais.</p>
+      <p>${MANURE.icon} <b>Esterco:</b> cada vaca faz um montinho a cada ~${Math.round(MANURE.every)}s (até ${MANURE.max} no curral). Recolha com ${ACT()} e leve à ${COMPOST.icon} <b>composteira</b>, ao lado do curral:
+        cada esterco vira um ${FERTILIZER.icon} fertilizante em ${COMPOST.time}s, até com o jogo fechado. Volte para coletar.</p>`,
   },
   {
     id: 'pesca', icon: '🎣', title: 'Pescaria',
@@ -661,7 +703,8 @@ const TOPICS = [
     html: () => `<p>Além do campo principal, compre <b>campos inteiros</b> na loja. Eles aparecem no mapa com placas 🪧 de "à venda".</p>` + table(
       ['', 'Campo', 'Lotes', 'Custa', 'Nível'],
       FIELDS.filter((f) => f.cost).map((f) => [f.icon, f.name, f.count, `🪙${core.fmt(f.cost)}`, `${f.level}${lock(f.level)}`])
-        .concat([[BIG_FIELD.icon, `${BIG_FIELD.name} (só trigo, sem rega)`, BIG_CELLS, `🪙${core.fmt(BIG_FIELD.cost)}`, `${BIG_FIELD.level}${lock(BIG_FIELD.level)}`]]),
+        .concat([[BIG_FIELD.icon, `${BIG_FIELD.name} (só trigo, sem rega)`, BIG_CELLS, `🪙${core.fmt(BIG_FIELD.cost)}`, `${BIG_FIELD.level}${lock(BIG_FIELD.level)}`],
+          [PASTURE.icon, `${PASTURE.name} (gado, come capim)`, `${PASTURE.slots} vagas`, `🪙${core.fmt(PASTURE.cost)}`, `${PASTURE.level}${lock(PASTURE.level)}`]]),
     ) + `<p>O <b>${BIG_FIELD.name}</b> é trabalhado com <b>máquinas que você dirige</b>. Elas ficam no 🚜 Galpão (construído com madeira: ${costTxt('galpao')}) e ligam os faróis à noite. Para dirigir: chegue perto e use ${ACT()} para entrar,
       dirija com ${isTouch() ? 'o joystick' : '<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>'} e use ${ACT()} de novo para sair.</p>` + table(
       ['Máquina', 'O que faz', 'Custa', 'Nível'],

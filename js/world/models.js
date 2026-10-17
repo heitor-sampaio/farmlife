@@ -37,7 +37,7 @@ export const cyl = (r, h, c, x = 0, y = 0, z = 0) => mesh(GEO.cyl, c, r, h, r, x
 /** Cone: raio r, altura h (centrado, ponta para cima). */
 export const cone = (r, h, c, x = 0, y = 0, z = 0) => mesh(GEO.cone, c, r, h, r, x, y, z);
 
-function rot(m, x = 0, y = 0, z = 0) { m.rotation.set(x, y, z); return m; }
+export function rot(m, x = 0, y = 0, z = 0) { m.rotation.set(x, y, z); return m; }
 
 /** Telhado de duas águas (prisma triangular) com cumeeira ao longo de z. */
 function gableRoof(width, height, depth, capColor, roofColor) {
@@ -423,6 +423,11 @@ export function makeFarmer(colors, female = false) {
   rodPivot.add(rodTip);
   tools.vara.add(rodPivot);
 
+  // Saco de fertilizante
+  tools.fertilizante = new THREE.Group();
+  tools.fertilizante.add(box(0.14, 0.18, 0.1, 0xe8dcc0, 0, -0.1, 0.03));
+  tools.fertilizante.add(box(0.145, 0.05, 0.105, 0x43a047, 0, -0.08, 0.03));
+
   for (const t of Object.values(tools)) { t.visible = false; hand.add(t); }
 
   // Lanterna na mão esquerda (acende à noite)
@@ -448,7 +453,41 @@ function legPivot(parent, x, y, z, legMesh) {
   return p;
 }
 
-export function makeAnimal(type) {
+// Pelagens de cada espécie (mesma ordem de ANIMALS[type].colors)
+const ANIMAL_PALETTE = {
+  galinha: [
+    { body: 0xfafafa, wing: 0xe8e8e8 },
+    { body: 0xa0522d, wing: 0x7a3d1e },
+    { body: 0x2e2e2e, wing: 0x1c1c1c },
+    { body: 0xd9cfc0, wing: 0x6d5d4e },
+  ],
+  ovelha: [
+    { wool: 0xf5f3ea, face: 0x3a3a3a },
+    { wool: 0xe6cfa0, face: 0x5a4532 },
+    { wool: 0x3d3836, face: 0x1c1a19 },
+    { wool: 0xa9a9a9, face: 0x333333 },
+  ],
+  vaca: [
+    { base: 0xf7f6f0, spot: 0x262626 },
+    { base: 0xf7f6f0, spot: 0x7a4426 },
+    { base: 0x9a5b2c, spot: 0x6d3b1f },
+    { base: 0x2c2c2c, spot: 0x181818 },
+  ],
+  porco: [
+    { skin: 0xf5a3b5, dark: 0xe0849b, spot: null },
+    { skin: 0xf5c2cc, dark: 0xe0849b, spot: 0x3a3335 },
+    { skin: 0x3d3537, dark: 0x2a2426, spot: null },
+    { skin: 0xc98a4b, dark: 0xa86d34, spot: null },
+  ],
+};
+
+/**
+ * Animal do curral. opts: { color: índice da pelagem, male: macho, baby: filhote }.
+ * Machos têm detalhes próprios (crista e rabo do galo, chifres do carneiro e do touro, presas do cachaço).
+ */
+export function makeAnimal(type, opts = {}) {
+  const { color = 0, male = false } = opts;
+  const pal = (ANIMAL_PALETTE[type] || [])[color] || (ANIMAL_PALETTE[type] || [])[0];
   const root = new THREE.Group();
   const body = new THREE.Group();
   root.add(body);
@@ -457,18 +496,25 @@ export function makeAnimal(type) {
   body.add(head);
 
   if (type === 'galinha') {
-    const white = 0xfafafa;
-    body.add(ball(0.15, 0.14, 0.19, white, 0, 0.24, 0));
-    body.add(ball(0.04, 0.09, 0.13, 0xeeeeee, -0.15, 0.25, -0.01));
-    body.add(ball(0.04, 0.09, 0.13, 0xeeeeee, 0.15, 0.25, -0.01));
-    body.add(rot(cone(0.07, 0.15, white, 0, 0.33, -0.17), -0.7, 0, 0));
-    head.position.set(0, 0.38, 0.13);
-    head.add(ball(0.085, 0.085, 0.085, white, 0, 0, 0));
-    head.add(box(0.025, 0.07, 0.09, 0xe53935, 0, 0.09, 0));
+    const c = pal.body, w = pal.wing;
+    body.add(ball(0.15, 0.14, 0.19, c, 0, 0.24, 0));
+    body.add(ball(0.04, 0.09, 0.13, w, -0.15, 0.25, -0.01));
+    body.add(ball(0.04, 0.09, 0.13, w, 0.15, 0.25, -0.01));
+    if (male) {
+      // Galo: rabo comprido e arqueado, crista e barbela maiores
+      const tail = [0x1b5e20, 0x2e7d32, 0x8b2500];
+      tail.forEach((tc, k) => body.add(rot(box(0.035, 0.32, 0.07, tc, (k - 1) * 0.045, 0.42, -0.2), -0.55 - k * 0.12, 0, (k - 1) * 0.2)));
+      body.add(ball(0.13, 0.1, 0.1, 0xd87b2b, 0, 0.33, 0.08)); // peito/colar dourado
+    } else {
+      body.add(rot(cone(0.07, 0.15, c, 0, 0.33, -0.17), -0.7, 0, 0));
+    }
+    head.position.set(0, male ? 0.41 : 0.38, 0.13);
+    head.add(ball(0.085, 0.085, 0.085, c, 0, 0, 0));
+    head.add(box(0.025, male ? 0.12 : 0.07, male ? 0.13 : 0.09, 0xe53935, 0, male ? 0.11 : 0.09, 0));
     head.add(rot(cone(0.028, 0.07, 0xffa726, 0, -0.01, 0.1), Math.PI / 2, 0, 0));
-    head.add(ball(0.018, 0.03, 0.015, 0xe53935, 0, -0.06, 0.07));
-    head.add(box(0.02, 0.02, 0.01, 0x222222, -0.05, 0.02, 0.07));
-    head.add(box(0.02, 0.02, 0.01, 0x222222, 0.05, 0.02, 0.07));
+    head.add(ball(0.018, male ? 0.05 : 0.03, 0.015, 0xe53935, 0, male ? -0.075 : -0.06, 0.07));
+    head.add(box(0.02, 0.02, 0.01, 0x111111, -0.05, 0.02, 0.07));
+    head.add(box(0.02, 0.02, 0.01, 0x111111, 0.05, 0.02, 0.07));
     for (const x of [-0.05, 0.05]) {
       const lg = new THREE.Group();
       lg.add(cyl(0.012, 0.12, 0xffa726, 0, -0.06, 0));
@@ -476,7 +522,7 @@ export function makeAnimal(type) {
       legs.push(legPivot(body, x, 0.12, 0, lg));
     }
   } else if (type === 'ovelha') {
-    const wool = 0xf5f3ea, dark = 0x3a3a3a;
+    const wool = pal.wool, dark = pal.face;
     body.add(ball(0.3, 0.24, 0.38, wool, 0, 0.45, 0));
     for (const [x, y, z] of [[0.15, 0.6, 0.12], [-0.15, 0.6, -0.1], [0, 0.65, -0.05], [0.18, 0.48, -0.2], [-0.2, 0.5, 0.15]]) {
       body.add(ball(0.16, 0.14, 0.16, wool, x, y, z));
@@ -489,36 +535,49 @@ export function makeAnimal(type) {
     head.add(rot(box(0.12, 0.03, 0.06, dark, -0.13, 0.03, -0.02), 0, 0, 0.4));
     head.add(box(0.03, 0.03, 0.01, 0xffffff, -0.05, 0.03, 0.135));
     head.add(box(0.03, 0.03, 0.01, 0xffffff, 0.05, 0.03, 0.135));
+    if (male) {
+      // Carneiro: chifres enrolados dos lados da cabeça
+      for (const s of [-1, 1]) {
+        const horn = mesh(new THREE.TorusGeometry(0.075, 0.03, 6, 10, Math.PI * 1.6), 0xc9b48a, 1, 1, 1, s * 0.12, 0.06, -0.04);
+        horn.rotation.set(0, Math.PI / 2, s > 0 ? 0.3 : Math.PI - 0.3);
+        head.add(horn);
+      }
+    }
     for (const [x, z] of [[-0.14, 0.18], [0.14, 0.18], [-0.14, -0.18], [0.14, -0.18]]) {
       legs.push(legPivot(body, x, 0.28, z, box(0.07, 0.28, 0.07, dark, 0, -0.14, 0)));
     }
   } else if (type === 'vaca') {
-    const white = 0xf7f6f0, black = 0x262626, pink = 0xf2a7a7;
-    body.add(box(0.46, 0.4, 0.85, white, 0, 0.62, 0));
-    body.add(box(0.475, 0.18, 0.24, black, 0, 0.66, 0.12));
-    body.add(box(0.24, 0.03, 0.3, black, 0.09, 0.835, -0.2));
-    body.add(box(0.475, 0.14, 0.18, black, 0, 0.56, -0.28));
-    body.add(ball(0.11, 0.07, 0.11, pink, 0, 0.4, -0.15));
-    body.add(rot(cyl(0.015, 0.36, black, 0, 0.6, -0.45), 0.3, 0, 0));
+    const base = pal.base, spot = pal.spot, pink = 0xf2a7a7;
+    body.add(box(0.46, 0.4, 0.85, base, 0, 0.62, 0));
+    body.add(box(0.475, 0.18, 0.24, spot, 0, 0.66, 0.12));
+    body.add(box(0.24, 0.03, 0.3, spot, 0.09, 0.835, -0.2));
+    body.add(box(0.475, 0.14, 0.18, spot, 0, 0.56, -0.28));
+    if (!male) body.add(ball(0.11, 0.07, 0.11, pink, 0, 0.4, -0.15)); // úbere
+    else body.add(box(0.5, 0.16, 0.3, base, 0, 0.86, 0.24));          // cupim do touro
+    body.add(rot(cyl(0.015, 0.36, spot, 0, 0.6, -0.45), 0.3, 0, 0));
     head.position.set(0, 0.8, 0.5);
-    head.add(box(0.3, 0.3, 0.3, white, 0, 0, 0));
-    head.add(box(0.31, 0.12, 0.12, black, 0, 0.1, 0.05));
+    head.add(box(0.3, 0.3, 0.3, base, 0, 0, 0));
+    head.add(box(0.31, 0.12, 0.12, spot, 0, 0.1, 0.05));
     head.add(box(0.26, 0.14, 0.08, pink, 0, -0.08, 0.18));
-    head.add(rot(cone(0.03, 0.12, 0xf3e5c0, 0.12, 0.2, -0.02), 0, 0, -0.4));
-    head.add(rot(cone(0.03, 0.12, 0xf3e5c0, -0.12, 0.2, -0.02), 0, 0, 0.4));
-    head.add(box(0.12, 0.05, 0.06, white, 0.2, 0.06, -0.04));
-    head.add(box(0.12, 0.05, 0.06, white, -0.2, 0.06, -0.04));
+    const hornL = male ? 0.22 : 0.12, hornR = male ? 0.045 : 0.03;
+    head.add(rot(cone(hornR, hornL, 0xf3e5c0, 0.13 + (male ? 0.04 : 0), 0.2, -0.02), 0, 0, male ? -0.9 : -0.4));
+    head.add(rot(cone(hornR, hornL, 0xf3e5c0, -0.13 - (male ? 0.04 : 0), 0.2, -0.02), 0, 0, male ? 0.9 : 0.4));
+    head.add(box(0.12, 0.05, 0.06, base, 0.2, 0.06, -0.04));
+    head.add(box(0.12, 0.05, 0.06, base, -0.2, 0.06, -0.04));
     head.add(box(0.035, 0.035, 0.01, 0x111111, -0.08, 0.03, 0.152));
     head.add(box(0.035, 0.035, 0.01, 0x111111, 0.08, 0.03, 0.152));
+    if (male) head.add(rot(mesh(new THREE.TorusGeometry(0.04, 0.008, 5, 10), 0xd4af37, 1, 1, 1, 0, -0.14, 0.22), Math.PI / 2, 0, 0)); // argola
     for (const [x, z] of [[-0.15, 0.3], [0.15, 0.3], [-0.15, -0.3], [0.15, -0.3]]) {
       const lg = new THREE.Group();
-      lg.add(box(0.1, 0.36, 0.1, white, 0, -0.18, 0));
+      lg.add(box(0.1, 0.36, 0.1, base, 0, -0.18, 0));
       lg.add(box(0.105, 0.06, 0.105, 0x3b2a1f, 0, -0.39, 0));
       legs.push(legPivot(body, x, 0.42, z, lg));
     }
   } else if (type === 'porco') {
-    const pink = 0xf5a3b5, dark = 0xe0849b;
+    const pink = pal.skin, dark = pal.dark;
     body.add(ball(0.25, 0.22, 0.36, pink, 0, 0.36, 0));
+    if (pal.spot) for (const [x, y, z, r] of [[0.16, 0.45, 0.05, 0.1], [-0.12, 0.5, -0.15, 0.12], [0.05, 0.42, -0.28, 0.08]]) body.add(ball(r, r * 0.6, r, pal.spot, x, y, z));
+    if (male) body.add(ball(0.22, 0.1, 0.28, dark, 0, 0.55, 0.02)); // crina/lombo do cachaço
     body.add(rot(mesh(new THREE.TorusGeometry(0.04, 0.012, 5, 8), pink, 1, 1, 1, 0, 0.42, -0.37), 0, Math.PI / 2, 0));
     head.position.set(0, 0.42, 0.32);
     head.add(ball(0.17, 0.16, 0.15, pink, 0, 0, 0));
@@ -529,10 +588,12 @@ export function makeAnimal(type) {
     head.add(rot(cone(0.06, 0.1, dark, -0.1, 0.15, -0.02), -0.3, 0, 0.5));
     head.add(box(0.03, 0.03, 0.01, 0x222222, -0.07, 0.05, 0.14));
     head.add(box(0.03, 0.03, 0.01, 0x222222, 0.07, 0.05, 0.14));
+    if (male) for (const s of [-1, 1]) head.add(rot(cone(0.018, 0.08, 0xfffbe8, s * 0.07, -0.05, 0.16), -0.4, 0, s * 0.3)); // presas
     for (const [x, z] of [[-0.12, 0.18], [0.12, 0.18], [-0.12, -0.18], [0.12, -0.18]]) {
       legs.push(legPivot(body, x, 0.18, z, cyl(0.05, 0.18, dark, 0, -0.09, 0)));
     }
   }
+  if (male) body.scale.setScalar(1.08); // machos um pouco maiores
   return { root, body, head, legs };
 }
 
@@ -1383,4 +1444,49 @@ export function makeHorse() {
   saddle.visible = false;
   body.add(saddle);
   return { root, body, legs, neck, head, tail, saddle };
+}
+
+/** Montinho de esterco (três bolinhas empilhadas). */
+export function makePoop() {
+  const g = new THREE.Group();
+  const c = mat(0x5b3a1e, { roughness: 0.5 });
+  g.add(ball(0.13, 0.07, 0.13, c, 0, 0.05, 0));
+  g.add(ball(0.09, 0.06, 0.09, c, 0.01, 0.12, 0));
+  g.add(ball(0.05, 0.045, 0.05, c, 0.015, 0.18, 0));
+  return g;
+}
+
+/** Composteira de ripas com esterco curtindo e sacos de fertilizante prontos ao lado. */
+export function makeCompost() {
+  const g = new THREE.Group();
+  const wood = 0x8d6334, dark = 0x6f4825;
+  for (const [x, z] of [[-0.55, -0.4], [0.55, -0.4], [-0.55, 0.4], [0.55, 0.4]]) g.add(box(0.09, 0.75, 0.09, dark, x, 0.375, z));
+  for (let k = 0; k < 3; k++) {
+    const y = 0.15 + k * 0.22;
+    g.add(box(1.16, 0.12, 0.05, wood, 0, y, -0.42));
+    g.add(box(1.16, 0.12, 0.05, wood, 0, y, 0.42));
+    g.add(box(0.05, 0.12, 0.8, wood, -0.57, y, 0));
+    g.add(box(0.05, 0.12, 0.8, wood, 0.57, y, 0));
+  }
+  // Monte de composto (sobe conforme a fila)
+  const heap = box(1.04, 1, 0.76, mat(0x4a3220, { roughness: 1 }), 0, 0, 0);
+  heap.position.y = 0.05;
+  g.add(heap);
+  // Sacos de fertilizante prontos
+  const bags = [];
+  for (let k = 0; k < 4; k++) {
+    const bag = new THREE.Group();
+    bag.add(box(0.24, 0.3, 0.16, 0xe8dcc0, 0, 0.15, 0));
+    bag.add(box(0.25, 0.08, 0.17, 0x43a047, 0, 0.17, 0));
+    bag.position.set(0.85 + (k % 2) * 0.28, 0, -0.2 + Math.floor(k / 2) * 0.3);
+    bag.rotation.y = (k % 3) * 0.3;
+    bag.visible = false;
+    g.add(bag);
+    bags.push(bag);
+  }
+  // Plaquinha
+  g.add(cyl(0.03, 0.9, dark, -0.75, 0.45, 0.45));
+  g.add(box(0.36, 0.24, 0.04, 0xc49a63, -0.75, 0.85, 0.47));
+  g.add(box(0.2, 0.06, 0.02, 0x43a047, -0.75, 0.87, 0.495));
+  return { group: g, heap, bags };
 }

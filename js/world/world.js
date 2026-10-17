@@ -1,16 +1,17 @@
 /* FarmLife — mundo 3D: cena, câmera isométrica, personagem, animais e interações */
 import * as THREE from 'three';
-import { ANIMALS, PRODUCTS, CROPS, WORKERS, FIELDS, TOTAL_PLOTS, fieldOf, BIG_FIELD, BIG_CELLS, MACHINES, FISH, MUTATIONS, CHOP_TREES, SAWMILL, BUILDINGS, RECIPES, CARPENTRY, HORSE, SADDLE, RIDE_MULT } from '../data.js';
+import { ANIMALS, PRODUCTS, CROPS, WORKERS, FIELDS, TOTAL_PLOTS, fieldOf, BIG_FIELD, BIG_CELLS, MACHINES, FISH, MUTATIONS, CHOP_TREES, SAWMILL, BUILDINGS, RECIPES, CARPENTRY, HORSE, SADDLE, RIDE_MULT, MANURE, COMPOST, FERTILIZER, BREED, PASTURE } from '../data.js';
 import { sfx } from '../audio.js';
 import * as core from '../core.js';
 import * as ui from '../ui.js';
 import * as M from './models.js';
 import { NavGrid } from './nav.js';
+import { joySide } from '../prefs.js';
 import { initCritters, updateCritters, syncPet, updatePet, pet, petInteract, petPettedToday, fauna } from './critters.js';
 
 // ================= Layout do mundo =================
 const TILE = 1.08;
-const BOUNDS = { minX: -15, maxX: 50, minZ: -10.3, maxZ: 14.5 };
+const BOUNDS = { minX: -15, maxX: 79.5, minZ: -10.3, maxZ: 14.5 };
 const PLAYER_R = 0.28;
 const WALK = 3.4;
 const RUN = 5.6;
@@ -31,6 +32,7 @@ const SPOTS = {
   serraria: { label: null, at: [-5.4, 7.0], labelY: 3.1, point: [-4.34, 8.06], r: 1.3, text: '', info: '' },
   mesa:    { label: '🪚 Carpintaria', at: [-5.6, -8.0], labelY: 2.0, point: [-4.93, -7.33], r: 1.15, text: '', info: '' },
   'obra:curral': { label: null, at: [-7.2, -0.2], labelY: 1.6, point: [-6.6, -0.2], r: 1.3, build: 'curral', text: '', info: '' },
+  compost: { label: null, needs: 'curral', at: [-6.6, -5.0], labelY: 1.5, point: [-6.0, -4.4], r: 1.1, text: '', info: '' },
   cocho:   { label: null, needs: 'curral', at: [-13.5, -0.5], point: [-12.8, -0.5], r: 1.1, text: 'Alimentar todos no cocho', info: '🪵 Cocho: alimenta de uma vez todos os animais com fome (1 🌾 cada).' },
 };
 for (const f of FIELDS) {
@@ -47,13 +49,20 @@ const BIG = { cx: 36, cz: 4.5 };
 const BIG_X0 = BIG.cx - BIG_FIELD.cols / 2;
 const BIG_Z0 = BIG.cz - BIG_FIELD.rows / 2;
 const SHED = [21, -8.3];
+const PAST = { x0: 52, z0: -3.5, x1: 52 + PASTURE.cols, z1: -3.5 + PASTURE.rows, gate: [-2.4, -0.4] };
+SPOTS.pasto = {
+  label: null, at: [50.0, -1.6], point: [50.4, -0.9], r: 1.3, pasture: true,
+  text: `Ver o ${PASTURE.name}`,
+  info: `${PASTURE.icon} ${PASTURE.name} à venda: ${PASTURE.slots} vagas para o gado (que come capim) por 🪙${PASTURE.cost.toLocaleString('pt-BR')} (nível ${PASTURE.level}). Compre na loja.`,
+};
 SPOTS['obra:galpao'] = { label: null, at: SHED, labelY: 2.6, point: [SHED[0], SHED[1] + 2.4], r: 1.6, build: 'galpao', text: '', info: '' };
 SPOTS['campo:trigo'] = {
   label: null, at: [BIG_X0 + 1.6, BIG.cz], point: [BIG_X0 + 1.6, BIG.cz + 0.9], r: 1.4, big: true,
   text: `Ver o ${BIG_FIELD.name}`,
   info: `${BIG_FIELD.icon} ${BIG_FIELD.name} à venda: ${BIG_CELLS} lotes por 🪙${BIG_FIELD.cost.toLocaleString('pt-BR')} (nível ${BIG_FIELD.level}). Compre na loja.`,
 };
-const spotActive = (s) => (s.build ? !core.built(s.build)
+const spotActive = (s) => (s.pasture ? !core.S.pasture
+  : s.build ? !core.built(s.build)
   : s.needs ? core.built(s.needs)
   : s.big ? !core.S.big.owned : !s.field || !core.fieldOwned(s.field));
 /** Construção de madeira associada a um ponto (só enquanto está em obra). */
@@ -245,10 +254,12 @@ export async function initWorld(cv) {
   buildBuildings();
   buildPen();
   buildBigField();
+  buildPasture();
   buildNature();
   buildGrove();
   buildSawmill();
   buildSites();
+  buildCompost();
   buildBench();
   buildLights();
   buildRain();
@@ -279,8 +290,9 @@ export async function initWorld(cv) {
 }
 
 function buildGround() {
-  const geo = new THREE.PlaneGeometry(140, 140, 70, 70).toNonIndexed();
+  const geo = new THREE.PlaneGeometry(200, 140, 100, 70).toNonIndexed();
   geo.rotateX(-Math.PI / 2);
+  geo.translate(20, 0, 0); // o mapa cresceu para o leste (pasto)
   const colors = [];
   const base = new THREE.Color(0x7cc35a);
   const tmp = new THREE.Color();
@@ -313,6 +325,8 @@ function buildGround() {
   strip(4.3, 10.2, 10.4, 11.4);   // do Sul até o Campo do Lago
   strip(16.8, -1.6, 24, -0.4);    // do Leste até o Campo de Trigo
   strip(16.8, -6.6, 30, -3.4);    // pátio do galpão das máquinas
+  strip(30, -5.9, 50.2, -4.7);    // do galpão até o pasto
+  strip(48.9, -4.7, 51.1, -0.6);  // corredor até o portão do pasto
 
   // Borda de terra em volta de cada campo
   const borderMat = new THREE.MeshStandardMaterial({ color: 0x8a6a45, roughness: 1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
@@ -464,6 +478,118 @@ function buildBuildings() {
   scene.add(lampBarn, lampHouse, lampShop);
   lamps.push(lampBarn, lampHouse, lampShop);
 }
+
+// ================= Pasto do gado =================
+let pasture = null;
+
+function buildPasture() {
+  const { x0, z0, x1, z1, gate } = PAST;
+  const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+  // Capim mais verdinho, com tufos e flores
+  const grass = new THREE.Mesh(
+    new THREE.PlaneGeometry(x1 - x0, z1 - z0),
+    new THREE.MeshStandardMaterial({ color: 0x93d36b, roughness: 1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }),
+  );
+  grass.rotation.x = -Math.PI / 2;
+  grass.position.set(cx, 0.011, cz);
+  grass.receiveShadow = true;
+  scene.add(grass);
+  const flowerColors = [0xffffff, 0xffd54f, 0xff8fb1, 0xba68c8];
+  for (let k = 0; k < 140; k++) {
+    const x = rand(x0 + 0.4, x1 - 0.4), z = rand(z0 + 0.4, z1 - 0.4);
+    const o = Math.random() < 0.7 ? M.makeGrassTuft() : M.makeFlower(flowerColors[k % flowerColors.length]);
+    o.position.set(x, 0, z);
+    o.rotation.y = Math.random() * Math.PI * 2;
+    o.scale.setScalar(Math.random() < 0.7 ? 1.6 : 1);
+    scene.add(o);
+  }
+  // Cerca (com portão no lado oeste) ou, enquanto não é comprado, cordinha e estacas
+  const m = 0.4;
+  const lines = [[x0 - m, z0 - m, x1 + m, z0 - m], [x1 + m, z0 - m, x1 + m, z1 + m], [x0 - m, z1 + m, x1 + m, z1 + m],
+    [x0 - m, z0 - m, x0 - m, gate[0]], [x0 - m, gate[1], x0 - m, z1 + m]];
+  const fence = new THREE.Group();
+  const rope = new THREE.Group();
+  for (const [a, b, c, d] of lines) {
+    fence.add(M.makeFence(a, b, c, d));
+    nav.blockLine(a, b, c, d, 0.08 + PLAYER_R);
+    const len = Math.hypot(c - a, d - b);
+    const n = Math.max(1, Math.round(len / 3));
+    for (let k = 0; k <= n; k++) {
+      const st = M.makeStake();
+      st.position.set(a + ((c - a) * k) / n, 0, b + ((d - b) * k) / n);
+      rope.add(st);
+    }
+    const line = M.box(Math.abs(c - a) || 0.02, 0.02, Math.abs(d - b) || 0.02, 0xf2f2f2, (a + c) / 2, 0.4, (b + d) / 2);
+    line.castShadow = false;
+    rope.add(line);
+  }
+  scene.add(fence, rope);
+  // Bebedouro, fardos de feno e árvores de sombra
+  const extras = new THREE.Group();
+  const water = new THREE.Group();
+  water.add(M.box(0.6, 0.4, 2.2, 0x8a8f96, 0, 0.2, 0));
+  water.add(M.box(0.46, 0.04, 2.06, 0x5fb4e6, 0, 0.39, 0));
+  water.position.set(x0 + 2.2, 0, gate[1] + 2.4);
+  extras.add(water);
+  nav.blockRect(x0 + 1.9, gate[1] + 1.3, x0 + 2.5, gate[1] + 3.5, PLAYER_R);
+  for (const [hx, hz, ry] of [[x0 + 3.2, z0 + 1.6, 0.3], [x0 + 4.4, z0 + 1.4, 1.2], [x0 + 3.8, z0 + 2.6, 2.0]]) {
+    const hay = new THREE.Group();
+    hay.add(M.rot(M.cyl(0.4, 0.6, 0xe9c35a, 0, 0.4, 0), 0, 0, Math.PI / 2));
+    hay.add(M.rot(M.cyl(0.41, 0.06, 0xb5893a, 0.12, 0.4, 0), 0, 0, Math.PI / 2));
+    hay.add(M.rot(M.cyl(0.41, 0.06, 0xb5893a, -0.12, 0.4, 0), 0, 0, Math.PI / 2));
+    hay.position.set(hx, 0, hz);
+    hay.rotation.y = ry;
+    extras.add(hay);
+    nav.blockCircle(hx, hz, 0.4 + PLAYER_R * 0.5);
+  }
+  for (const [tx, tz] of [[x0 + 9, z0 + 4], [x1 - 5, z1 - 4], [x1 - 9, z0 + 3]]) {
+    const t = M.makeTree('round', 1.25);
+    t.position.set(tx, 0, tz);
+    extras.add(t);
+    nav.blockCircle(tx, tz, 0.4 + PLAYER_R);
+  }
+  scene.add(extras);
+  const label = M.textSprite(`${PASTURE.icon} ${PASTURE.name}`, 0.5);
+  label.position.set(x0 - m, 1.5, (gate[0] + gate[1]) / 2);
+  scene.add(label);
+  // Placa de venda no portão
+  const [sx, sz] = SPOTS.pasto.at;
+  const sign = new THREE.Group();
+  const board = M.makeSaleSign();
+  board.position.set(sx, 0, sz);
+  board.rotation.y = Math.PI / 4;
+  sign.add(board);
+  const saleLabel = M.textSprite(`🪧 ${PASTURE.name} · 🪙${PASTURE.cost.toLocaleString('pt-BR')}`, 0.45);
+  saleLabel.position.set(sx, 1.7, sz);
+  sign.add(saleLabel);
+  scene.add(sign);
+  const proxy = new THREE.Mesh(M.GEO.box, new THREE.MeshBasicMaterial({ visible: false }));
+  proxy.scale.set(1.3, 1.6, 0.6);
+  proxy.position.set(sx, 0.8, sz);
+  proxy.userData.pick = { kind: 'spot', key: 'pasto' };
+  scene.add(proxy);
+  pickables.push(proxy);
+  pasture = { fence, rope, extras, label, sign, proxy, shown: null };
+}
+
+function updatePasture() {
+  if (!pasture) return;
+  const on = core.S.pasture;
+  if (pasture.shown === on) return;
+  pasture.shown = on;
+  pasture.fence.visible = pasture.extras.visible = pasture.label.visible = on;
+  pasture.rope.visible = pasture.sign.visible = pasture.proxy.visible = !on;
+}
+
+function randomPasturePoint() {
+  for (let k = 0; k < 30; k++) {
+    const x = rand(PAST.x0 + 0.8, PAST.x1 - 0.8), z = rand(PAST.z0 + 0.8, PAST.z1 - 0.8);
+    if (nav.free(x, z)) return new THREE.Vector3(x, 0, z);
+  }
+  return new THREE.Vector3((PAST.x0 + PAST.x1) / 2, 0, (PAST.z0 + PAST.z1) / 2);
+}
+/** Onde o animal vive: gado no pasto (se comprado), o resto no curral. */
+const pointFor = (a) => (core.inPasture(a) ? randomPasturePoint() : randomPenPoint());
 
 // ================= Campo de Trigo e galpão =================
 let bigTex, bigTexData, bigWheat, bigSign, bigProxy, bigOwnedShown = null;
@@ -874,8 +1000,8 @@ function buildNature() {
     return obj;
   };
   // Árvores altas só no fundo e à esquerda (não escondem o personagem)
-  for (let x = -24; x <= 56; x += rand(1.6, 2.6)) put(M.makeTree(Math.random() < 0.55 ? 'pine' : 'round', rand(0.9, 1.35)), x, rand(-13.2, -11.4));
-  for (let x = -22; x <= 56; x += rand(2.2, 3.4)) put(M.makeTree(Math.random() < 0.5 ? 'pine' : 'round', rand(1.0, 1.5)), x, rand(-16.5, -14.5));
+  for (let x = -24; x <= 86; x += rand(1.6, 2.6)) put(M.makeTree(Math.random() < 0.55 ? 'pine' : 'round', rand(0.9, 1.35)), x, rand(-13.2, -11.4));
+  for (let x = -22; x <= 86; x += rand(2.2, 3.4)) put(M.makeTree(Math.random() < 0.5 ? 'pine' : 'round', rand(1.0, 1.5)), x, rand(-16.5, -14.5));
   for (let z = -10; z <= 4; z += rand(1.6, 2.4)) put(M.makeTree(Math.random() < 0.6 ? 'pine' : 'round', rand(0.9, 1.3)), rand(-17.8, -16.2), z);
   put(M.makeTree('apple', 1.1), -13.3, -8.6);
   put(M.makeTree('apple', 1.0), 9.8, -9.2);
@@ -883,8 +1009,8 @@ function buildNature() {
   nav.blockCircle(9.8, -9.2, 0.35 + PLAYER_R);
 
   // Arbustos, pedras e flores nas bordas da frente e da direita
-  for (let x = -16; x <= 51; x += rand(1.2, 2.2)) put(M.makeBush(rand(0.8, 1.2)), x, rand(15.3, 16.1));
-  for (let z = -9; z <= 15; z += rand(1.2, 2.2)) put(M.makeBush(rand(0.8, 1.2)), rand(50.8, 51.6), z);
+  for (let x = -16; x <= 80; x += rand(1.2, 2.2)) put(M.makeBush(rand(0.8, 1.2)), x, rand(15.3, 16.1));
+  for (let z = -9; z <= 15; z += rand(1.2, 2.2)) put(M.makeBush(rand(0.8, 1.2)), rand(80.3, 81.1), z);
   for (let z = 5; z <= 15; z += rand(1.4, 2)) put(M.makeBush(rand(0.8, 1.1)), rand(-16.2, -15.6), z);
   const flowerColors = [0xff6f91, 0xffffff, 0xffd54f, 0xba68c8, 0xff8a65, 0x64b5f6];
   const inField = (x, z) => FIELDS.some((f) => { const q = fieldRect(f, 0.5); return x > q.x1 && x < q.x2 && z > q.z1 && z < q.z2; });
@@ -892,7 +1018,9 @@ function buildNature() {
     inField(x, z) ||
     Math.hypot(x - SPOTS.serraria.at[0], z - SPOTS.serraria.at[1]) < 2.8 ||
     CHOP_TREES.some(([tx, tz]) => Math.hypot(x - tx, z - tz) < 0.6) ||
-    (x > BIG_X0 - 1.5 && z > BIG_Z0 - 1.5 && z < BIG_Z0 + BIG_FIELD.rows + 1.5) ||
+    (x > BIG_X0 - 1.5 && x < BIG_X0 + BIG_FIELD.cols + 1.5 && z > BIG_Z0 - 1.5 && z < BIG_Z0 + BIG_FIELD.rows + 1.5) ||
+    (x > PAST.x0 - 1 && x < PAST.x1 + 1 && z > PAST.z0 - 1 && z < PAST.z1 + 1) ||
+    (x > 29 && x < 51.5 && z > -6.2 && z < -0.3) ||
     (x > 16 && x < 30 && z < -3) ||
     (x > 16.5 && x < 24.5 && z > -2.1 && z < 0.1) ||
     (x > 3.8 && x < 10.9 && z > -2.1 && z < 0.1) ||
@@ -1190,6 +1318,7 @@ function guidePos(d) {
   if (d.tree != null) { const v = grove[d.tree]; return v ? { x: v.x, z: v.z, h: 3.3 } : null; }
   if (d.field) { const [x, z] = FIELD_POS[d.field]; return { x, z, h: 1.6 }; }
   if (d.big) return { x: BIG_X0 + 2, z: BIG.cz, h: 1.8 };
+  if (d.pasture) return { x: PAST.x0 + 3, z: (PAST.gate[0] + PAST.gate[1]) / 2, h: 2 };
   if (d.machine) {
     const v = machines.get(d.machine);
     return v ? { x: v.pos.x, z: v.pos.z, h: v.id === 'colheitadeira' ? 3.7 : 2.5, gx: v.pos.x, gz: v.pos.z, gy: 0.04 } : null;
@@ -1235,7 +1364,7 @@ function updateGuide(dt) {
 function inFieldOrPond(x, z) {
   if (FIELDS.some((f) => { const q = fieldRect(f, 0.6); return x > q.x1 && x < q.x2 && z > q.z1 && z < q.z2; })) return true;
   if (x > PEN.x1 - 0.5 && x < PEN.x2 + 0.5 && z > PEN.z1 - 0.5 && z < PEN.z2 + 0.5) return true;
-  if (x > BIG_X0 - 1 && z > BIG_Z0 - 1 && z < BIG_Z0 + BIG_FIELD.rows + 1) return true;
+  if (x > BIG_X0 - 1 && z > BIG_Z0 - 1 && z < BIG_Z0 + BIG_FIELD.rows + 1) return true; // (inclui o pasto, mais a leste)
   return Math.hypot(x - POND.x, z - POND.z) < POND.r + 0.8;
 }
 
@@ -1477,7 +1606,8 @@ function syncPlots() {
     }
 
     const stage = p.s === 'planted' ? core.cropStage(p).stage : -1;
-    const cropKey = stage >= 0 ? p.crop + stage : '';
+    const giant = stage >= 0 && p.m && p.m.includes('gigante');
+    const cropKey = stage >= 0 ? p.crop + stage + (giant ? 'G' : '') : '';
     if (v.cropKey !== cropKey) {
       if (v.crop) v.group.remove(v.crop);
       v.crop = null;
@@ -1486,7 +1616,8 @@ function syncPlots() {
         v.crop = M.makeCrop(p.crop, stage);
         v.crop.position.y = v.top;
         v.crop.rotation.y = ((i * 7) % 4) * (Math.PI / 2);
-        v.cropH = M.cropHeight(p.crop) * (stage === 3 ? 1 : 0.4 + stage * 0.25);
+        v.giant = giant ? 1.55 : 1; // fertilizante: planta gigante
+        v.cropH = M.cropHeight(p.crop) * (stage === 3 ? 1 : 0.4 + stage * 0.25) * v.giant;
         v.pop = 0;
         v.group.add(v.crop);
       }
@@ -1529,7 +1660,7 @@ function animatePlots() {
         v.pop = Math.min(1, v.pop + 0.05);
         const t = v.pop;
         const s = 1 + 2.2 * Math.pow(t - 1, 3) + 1.2 * Math.pow(t - 1, 2); // ease-out-back
-        v.crop.scale.setScalar(Math.max(0.01, s));
+        v.crop.scale.setScalar(Math.max(0.01, s) * (v.giant || 1));
       }
       // Na ventania as plantas balançam bem mais
       const windy = core.S.event && core.S.event.id === 'ventania';
@@ -1568,13 +1699,19 @@ function syncAnimals() {
   for (const a of S.animals) {
     ids.add(a.id);
     if (animalVis.has(a.id)) continue;
-    const m = M.makeAnimal(a.type);
-    const pos = randomPenPoint();
+    const m = M.makeAnimal(a.type, { color: a.color || 0, male: a.sex === 'm' });
+    // Filhote recém-nascido aparece perto da mãe, com festa
+    const mom = a.born != null && core.S.time - a.born < 5 ? [...animalVis.values()].find((o) => o.type === a.type) : null;
+    const pos = mom ? mom.pos.clone().add(new THREE.Vector3(rand(-0.4, 0.4), 0, rand(-0.4, 0.4))) : pointFor(a);
+    if (mom) {
+      burst(pos.x, 0.5, pos.z, 0xff8fb1, 14, { up: 2.2, spread: 0.6, size: 0.06, life: 0.9 });
+      burst(pos.x, 0.6, pos.z, 0xfff3b0, 8, { up: 2.6, spread: 0.5, size: 0.05, life: 0.9 });
+    }
     m.root.position.copy(pos);
     m.root.userData.pick = { kind: 'animal', id: a.id };
     scene.add(m.root);
     pickables.push(m.root);
-    animalVis.set(a.id, { id: a.id, type: a.type, m, pos, target: randomPenPoint(), wait: rand(0, 2), heading: rand(0, 6.28), phase: 0, ind: null, indKey: '' });
+    animalVis.set(a.id, { id: a.id, type: a.type, m, pos, loc: core.inPasture(a), target: pointFor(a), wait: rand(0, 2), heading: rand(0, 6.28), phase: 0, ind: null, indKey: '' });
   }
   for (const [id, v] of animalVis) {
     if (ids.has(id)) continue;
@@ -1589,6 +1726,12 @@ function updateAnimals(dt) {
   for (const v of animalVis.values()) {
     const a = core.findAnimal(v.id);
     if (!a) continue;
+    // Comprou o pasto: o gado muda para lá
+    if (v.loc !== core.inPasture(a)) {
+      v.loc = core.inPasture(a);
+      v.pos.copy(pointFor(a));
+      v.target = pointFor(a);
+    }
     let moving = false;
     if (v.wait > 0) {
       v.wait -= dt;
@@ -1597,7 +1740,7 @@ function updateAnimals(dt) {
       const d = Math.hypot(dx, dz);
       if (d < 0.08) {
         v.wait = rand(1.5, 5);
-        v.target = randomPenPoint();
+        v.target = pointFor(a);
       } else {
         const step = Math.min(d, ANIMAL_SPEED[v.type] * dt);
         v.pos.x += (dx / d) * step;
@@ -1609,7 +1752,12 @@ function updateAnimals(dt) {
     const m = v.m;
     m.root.position.copy(v.pos);
     m.root.rotation.y = lerpAngle(m.root.rotation.y, v.heading, 1 - Math.exp(-6 * dt));
-    if (moving) v.phase += dt * (v.type === 'galinha' ? 16 : 9);
+    // Filhotes começam pequenos (cabeça proporcionalmente maior) e crescem até virar adultos
+    const grow = core.isBaby(a) ? 0.45 + 0.55 * (1 - a.age / BREED.grow) : 1;
+    v.size = grow;
+    m.root.scale.setScalar(grow);
+    m.head.scale.setScalar(grow < 1 ? 1 + (1 - grow) * 0.6 : 1);
+    if (moving) v.phase += dt * (v.type === 'galinha' ? 16 : 9) / Math.sqrt(v.size || 1);
     const swing = moving ? Math.sin(v.phase) * 0.55 : 0;
     m.legs.forEach((leg, k) => {
       const opposite = m.legs.length === 2 ? k === 1 : k === 1 || k === 2;
@@ -1617,17 +1765,17 @@ function updateAnimals(dt) {
     });
     m.body.position.y = moving ? Math.abs(Math.sin(v.phase)) * 0.03 : 0;
     // Cabeça: bica o chão (galinha) ou pasta quando parado
-    const graze = !moving && a.fed ? Math.max(0, Math.sin(clock * (v.type === 'galinha' ? 4 : 1.2) + v.id)) * (v.type === 'galinha' ? 0.7 : 0.35) : 0;
+    const graze = !moving && (a.fed || !core.producer(a)) ? Math.max(0, Math.sin(clock * (v.type === 'galinha' ? 4 : 1.2) + v.id)) * (v.type === 'galinha' ? 0.7 : 0.35) : 0;
     m.head.rotation.x += (graze - m.head.rotation.x) * Math.min(1, dt * 8);
 
-    const indKey = a.ready ? PRODUCTS[ANIMALS[a.type].product].icon : !a.fed ? '🌾' : '';
+    const indKey = a.ready ? PRODUCTS[ANIMALS[a.type].product].icon : !a.fed && core.producer(a) ? '🌾' : '';
     if (v.indKey !== indKey) {
       if (v.ind) scene.remove(v.ind);
       v.ind = indKey ? M.emojiSprite(indKey, 0.45) : null;
       if (v.ind) scene.add(v.ind);
       v.indKey = indKey;
     }
-    if (v.ind) v.ind.position.set(v.pos.x, ANIMAL_H[v.type] + 0.3 + Math.sin(clock * 3 + v.id) * 0.06, v.pos.z);
+    if (v.ind) v.ind.position.set(v.pos.x, ANIMAL_H[v.type] * (v.size || 1) + 0.3 + Math.sin(clock * 3 + v.id) * 0.06, v.pos.z);
   }
 }
 
@@ -1672,6 +1820,7 @@ function jobTarget(job) {
   if (job.kind === 'tree') { const v = grove[job.i]; return v && v.state === 'up' ? { x: v.x, z: v.z, reach: 1.25 } : null; }
   if (job.kind === 'pet') return pet.model ? { x: pet.pos.x, z: pet.pos.z, reach: 1.1 } : null;
   if (job.kind === 'horse') return horse ? { x: horse.pos.x, z: horse.pos.z, reach: 1.3 } : null;
+  if (job.kind === 'poop') { const p = poopPos[job.k]; return p && job.k < poopCount() ? { x: p.x, z: p.z, reach: 0.6 } : null; }
   if (job.kind === 'fish') {
     // Vai até a beira do lago, do lado em que o pescador está
     const dx = player.pos.x - POND.x, dz = player.pos.z - POND.z, d = Math.hypot(dx, dz) || 1;
@@ -1733,6 +1882,7 @@ function performJob(job) {
   else if (job.kind === 'fish') startCast(job.x, job.z);
   else if (job.kind === 'pet') petInteract();
   else if (job.kind === 'horse') mountHorse();
+  else if (job.kind === 'poop') doPoop(job.k);
   else if (job.kind === 'tree') {
     // Clicou na árvore: continua cortando até ela cair
     if (doChop(job.i, job.quiet) === 'hit') player.queue.unshift({ kind: 'tree', i: job.i, quiet: true });
@@ -1834,6 +1984,113 @@ function deliverBuild(id) {
     const [x, z] = SPOTS[key].at;
     burst(x, 0.6, z, 0xd7b98a, 14, { up: 2.4, spread: 1.2, size: 0.07 });
   }
+}
+
+// ================= Esterco e composteira =================
+const poops = [];      // montinhos (até MANURE.max), mostrados conforme core.S.manure
+const poopPos = [];    // posição de cada montinho visível
+let compost = null;
+
+function buildCompost() {
+  const [x, z] = SPOTS.compost.at;
+  const m = M.makeCompost();
+  m.group.position.set(x, 0, z);
+  m.group.rotation.y = Math.PI / 4;
+  scene.add(m.group);
+  const label = M.textSprite(`${COMPOST.icon} ${COMPOST.name}`, 0.42);
+  label.position.set(x, SPOTS.compost.labelY, z);
+  scene.add(label);
+  const proxy = new THREE.Mesh(M.GEO.box, new THREE.MeshBasicMaterial({ visible: false }));
+  proxy.scale.set(1.4, 1, 1.1);
+  proxy.position.set(x, 0.5, z);
+  proxy.rotation.y = Math.PI / 4;
+  proxy.userData.pick = { kind: 'spot', key: 'compost' };
+  scene.add(proxy);
+  pickables.push(proxy);
+  nav.blockCircle(x, z, 0.62 + PLAYER_R * 0.5);
+  compost = { m, label, proxy, shown: null };
+  for (let k = 0; k < MANURE.max; k++) {
+    const p = M.makePoop();
+    p.visible = false;
+    p.userData.pick = { kind: 'poop', k };
+    scene.add(p);
+    pickables.push(p);
+    poops.push(p);
+  }
+}
+
+/** Lugar livre dentro do curral, longe do cocho e do alimentador. */
+function randomPoopPos() {
+  if (core.S.pasture) {
+    const p = randomPasturePoint();
+    return { x: p.x, z: p.z };
+  }
+  for (let tries = 0; tries < 30; tries++) {
+    const x = rand(PEN.x1 + 0.6, PEN.x2 - 0.6), z = rand(PEN.z1 + 0.6, PEN.z2 - 0.6);
+    if (Math.hypot(x - SPOTS.cocho.at[0], z - SPOTS.cocho.at[1]) < 1.4) continue;
+    if (Math.hypot(x + 13.55, z + 2.0) < 1.0) continue;
+    if (poopPos.some((p) => p && Math.hypot(p.x - x, p.z - z) < 0.6)) continue;
+    return { x, z };
+  }
+  return { x: (PEN.x1 + PEN.x2) / 2, z: (PEN.z1 + PEN.z2) / 2 };
+}
+
+const poopCount = () => (core.built('curral') ? Math.min(core.S.manure, MANURE.max) : 0);
+
+function updateCompost() {
+  if (!compost) return;
+  const on = core.built('curral');
+  if (compost.shown !== on) {
+    compost.shown = on;
+    compost.m.group.visible = compost.label.visible = compost.proxy.visible = on;
+  }
+  if (on) {
+    const cp = core.S.compost;
+    const fill = 0.08 + 0.5 * Math.min(1, cp.queue / COMPOST.capacity);
+    compost.m.heap.scale.y = fill;
+    compost.m.heap.position.y = fill / 2 + 0.03;
+    compost.m.bags.forEach((b, k) => { b.visible = k < Math.min(4, cp.ready); });
+  }
+  const n = poopCount();
+  for (let k = 0; k < poops.length; k++) {
+    const vis = k < n;
+    if (vis && !poopPos[k]) {
+      poopPos[k] = randomPoopPos();
+      poops[k].position.set(poopPos[k].x, 0, poopPos[k].z);
+      poops[k].rotation.y = Math.random() * Math.PI * 2;
+    }
+    if (!vis) poopPos[k] = null;
+    poops[k].visible = vis;
+  }
+}
+
+function nearestPoop(maxD) {
+  let best = -1, bd = maxD;
+  const n = poopCount();
+  for (let k = 0; k < n; k++) {
+    const p = poopPos[k];
+    if (!p) continue;
+    const d = dist2(player.pos, p.x, p.z);
+    if (d < bd) { bd = d; best = k; }
+  }
+  return best;
+}
+
+/** Recolhe o montinho k (o último visível passa para o lugar dele). */
+function doPoop(k) {
+  const n = poopCount();
+  if (k < 0 || k >= n || !poopPos[k]) return false;
+  const { x, z } = poopPos[k];
+  if (!core.collectManure()) return false;
+  poopPos[k] = poopPos[n - 1];
+  if (poopPos[k]) poops[k].position.set(poopPos[k].x, 0, poopPos[k].z);
+  poopPos[n - 1] = null;
+  player.heading = Math.atan2(x - player.pos.x, z - player.pos.z) || player.heading;
+  startAction('collect');
+  burst(x, 0.15, z, 0x6b4423, 8, { up: 1.6, spread: 0.4, size: 0.05, life: 0.5 });
+  const p = screenPosOf({ pos: { x, z } });
+  if (p) ui.fxAt(p.x, p.y - 20, `+1 ${MANURE.icon}`);
+  return true;
 }
 
 // ================= Mesa de carpintaria =================
@@ -2348,6 +2605,15 @@ function openSpot(key) {
     }
     return;
   }
+  if (key === 'compost') {
+    const res = core.compostUse();
+    if (res && (res.collected || res.loaded)) {
+      startAction('collect');
+      const [x, z] = SPOTS.compost.at;
+      burst(x, 0.7, z, res.collected ? 0x7cb342 : 0x6b4423, 12, { up: 2.2, spread: 0.7, size: 0.06 });
+    }
+    return;
+  }
   if (key === 'serraria') {
     if (!core.S.saw.owned) { ui.openPanel('loja', 'lenha'); return; }
     const res = core.sawmillUse();
@@ -2356,6 +2622,10 @@ function openSpot(key) {
       const [x, z] = SPOTS.serraria.at;
       burst(x, 0.8, z, 0xd7b98a, 12, { up: 2.4, spread: 0.8, size: 0.06 });
     }
+    return;
+  }
+  if (key === 'pasto') {
+    ui.openPanel('loja', 'campos');
     return;
   }
   if (key === 'campo:trigo') {
@@ -2379,6 +2649,8 @@ function getContext() {
   if (driving) return { kind: 'exit', id: driving };
   if (riding) return { kind: 'dismount' };
   if (fishing.state !== 'idle') return { kind: 'fish' };
+  const pk = nearestPoop(0.75);
+  if (pk >= 0) return { kind: 'poop', k: pk };
   let best = null;
   let bd = 1.25;
   for (const v of animalVis.values()) {
@@ -2413,6 +2685,8 @@ function actionLabel(ctx) {
   if (ctx.kind === 'machine') return `Dirigir: ${MACHINES[ctx.id].name}`;
   if (ctx.kind === 'exit') return 'Sair da máquina';
   if (ctx.kind === 'dismount') return 'Descer do cavalo';
+  if (ctx.kind === 'poop') return 'Recolher o esterco';
+  if (ctx.kind === 'spot' && ctx.key === 'compost') return core.compostLabel();
   if (ctx.kind === 'horse') return core.S.horse.saddle ? 'Montar no cavalo' : 'Ver o cavalo';
   if (ctx.kind === 'fish') return FISH_LABEL[fishing.state] || null;
   if (ctx.kind === 'tree') {
@@ -2437,6 +2711,8 @@ function infoText(ctx) {
   if (ctx.kind === 'tile') return core.plotInfo(ctx.i);
   if (ctx.kind === 'machine') return `${MACHINES[ctx.id].icon} ${MACHINES[ctx.id].name}: ${MACHINES[ctx.id].desc}`;
   if (ctx.kind === 'exit') return machineInfo();
+  if (ctx.kind === 'poop') return `${MANURE.icon} Esterco de vaca: recolha e leve para a ${COMPOST.icon} composteira, ao lado do curral, para virar ${FERTILIZER.icon} fertilizante.`;
+  if (ctx.kind === 'spot' && ctx.key === 'compost') return core.compostInfo();
   if (ctx.kind === 'dismount') return `${HORSE.icon} Cavalgando! ${'ontouchstart' in window ? 'Leve o joystick até a borda para galopar.' : 'Segure Shift para galopar.'} Clique no chão para ir até lá.`;
   if (ctx.kind === 'horse') return core.S.horse.saddle ? `${HORSE.icon} Seu cavalo, já selado. Monte para andar bem mais rápido.` : `${HORSE.icon} Seu cavalo. Compre a ${SADDLE.icon} sela na loja (🪙${SADDLE.cost}) para montar.`;
   if (ctx.kind === 'fish') return FISH_INFO[fishing.state];
@@ -2456,6 +2732,7 @@ function keyAction(repeat) {
   if (!ctx) return;
   if (ctx.kind === 'exit') { if (!repeat) exitMachine(); return; }
   if (ctx.kind === 'dismount') { if (!repeat) dismountHorse(); return; }
+  if (ctx.kind === 'poop') { doPoop(ctx.k); return; }
   if (ctx.kind === 'horse') { if (!repeat) mountHorse(); return; }
   if (ctx.kind === 'fish') { if (!repeat) fishAction(); return; }
   if (ctx.kind === 'pet') { if (!repeat) petInteract(); return; }
@@ -2539,7 +2816,7 @@ function updatePlayer(dt) {
   // Segurar Espaço/E repete a ação ao passar por novos lotes
   if ((keys.has(' ') || keys.has('e') || actionHeld) && player.busy <= 0) {
     const ctx = getContext();
-    if (ctx && ((ctx.kind === 'tile' && ctx.i !== lastKeyTile) || ctx.kind === 'tree' || (ctx.kind === 'spot' && ctx.key === 'mesa'))) keyAction(true);
+    if (ctx && ((ctx.kind === 'tile' && ctx.i !== lastKeyTile) || ctx.kind === 'tree' || ctx.kind === 'poop' || (ctx.kind === 'spot' && ctx.key === 'mesa'))) keyAction(true);
   }
 
   animateFarmer(player, dt, core.tool.startsWith('seed:') ? 'seed' : core.tool);
@@ -2974,6 +3251,7 @@ function clickAt(e) {
     return hit;
   }
   if (hit.kind === 'horse') { player.queue.push({ kind: 'horse' }); return hit; }
+  if (hit.kind === 'poop') { player.queue.push({ kind: 'poop', k: hit.k }); return hit; }
   if (hit.kind === 'water') {
     if (!core.S.fishing.rod) ui.toast('🎣 Compre uma vara de pesca na loja para pescar aqui.');
     else if (fishing.state === 'idle') player.queue.push({ kind: 'fish', x: hit.x, z: hit.z });
@@ -3042,9 +3320,10 @@ function bindInput() {
       return;
     }
     if (e.pointerType === 'touch') {
-      // Segundo dedo, ou dedo que começa na metade direita da tela: gira a câmera (toque rápido continua valendo como clique)
-      const right = e.clientX > canvas.clientWidth * 0.5;
-      if (rot.id === null && (joy.id !== null || right)) {
+      // Segundo dedo, ou dedo que começa no lado oposto ao joystick: gira a câmera (toque rápido continua valendo como clique)
+      const onRight = e.clientX > canvas.clientWidth * 0.5;
+      const camSide = joySide() === 'right' ? !onRight : onRight;
+      if (rot.id === null && (joy.id !== null || camSide)) {
         Object.assign(rot, { id: e.pointerId, x: e.clientX, sx: e.clientX, sy: e.clientY, moved: false, mouse: false });
         try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* ponteiro sintético */ }
         return;
@@ -3099,7 +3378,7 @@ function bindInput() {
     }
   });
   const endRot = (e, tap) => {
-    if (tap && !rot.moved && !rot.mouse) clickAt(e); // toque rápido na metade direita: anda/age como antes
+    if (tap && !rot.moved && !rot.mouse) clickAt(e); // toque rápido do lado da câmera: anda/age como antes
     rot.id = null;
     rot.moved = false;
     canvas.classList.remove('rotating');
@@ -3232,6 +3511,7 @@ export function worldFrame(dt) {
   syncBig();
   syncMachines();
   syncHorse();
+  updatePasture();
   syncAnimals();
   syncWorkers();
   updatePlayer(dt);
@@ -3241,6 +3521,7 @@ export function worldFrame(dt) {
   updateGrove(dt);
   updateSawmill(dt);
   updateSites(dt);
+  updateCompost();
   updateBench(dt);
   updateLights(dt);
   syncPet();
@@ -3259,4 +3540,4 @@ export function worldFrame(dt) {
 }
 
 // Usado pelos testes no console do navegador
-export const debug = { player, animalVis, npcs, machines, fishing, fishAction, startCast, pet, petInteract, randomSpot, fauna, get driving() { return driving; }, get riding() { return riding; }, get horse() { return horse; }, mountHorse, dismountHorse, enterMachine, exitMachine, bigCellAt, bigCellCenter, get zoom() { return zoom; }, get zoomMult() { return zoomMult; }, get camH() { return camera.top - camera.bottom; }, tileAt, tilePos, get nav() { return nav; } };
+export const debug = { player, animalVis, npcs, machines, fishing, fishAction, startCast, pet, petInteract, randomSpot, fauna, get driving() { return driving; }, get riding() { return riding; }, poopPos, get horse() { return horse; }, mountHorse, dismountHorse, enterMachine, exitMachine, bigCellAt, bigCellCenter, get zoom() { return zoom; }, get zoomMult() { return zoomMult; }, get camH() { return camera.top - camera.bottom; }, tileAt, tilePos, get nav() { return nav; } };
