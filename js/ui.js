@@ -177,7 +177,7 @@ function shopHtml() {
       <div class="info"><b>${f.name}${owned ? ' <small>✔ seu</small>' : ''}</b>
         <small>${f.count} lotes novos (${f.cols}×${f.rows}), já limpos para arar. Você escolhe onde ele fica.</small></div>
       <div class="btns">${owned
-        ? '<span class="req">✔ Comprado</span>'
+        ? `<button class="btn ghost" data-act="movelot" data-id="${f.id}" title="Mudar o campo de lugar">↔ Mover</button>`
         : locked
           ? `<span class="req">🔒 Nível ${f.level}</span>`
           : `<button class="btn alt" data-act="placelot" data-id="${f.id}" title="Escolher o lugar e comprar" ${S.coins < f.cost ? 'disabled' : ''}>📍 🪙${fmt(f.cost)}</button>`}
@@ -191,7 +191,7 @@ function shopHtml() {
       <div class="info"><b>${PASTURE.name}${owned ? ` <small>✔ seu · ${core.pastureCount()}/${PASTURE.slots} cabeças</small>` : ''}</b>
         <small>Campo enorme só para o gado (você escolhe onde fica): ${PASTURE.slots} vagas para vacas, touros e bezerros, que comem capim e não precisam de 🌾 trigo. Libera o curral para os outros animais.</small></div>
       <div class="btns">${owned
-        ? '<span class="req">✔ Comprado</span>'
+        ? '<button class="btn ghost" data-act="movelot" data-id="pasto" title="Mudar o pasto de lugar">↔ Mover</button>'
         : locked
           ? `<span class="req">🔒 Nível ${PASTURE.level}</span>`
           : !core.built('curral')
@@ -248,7 +248,7 @@ function shopHtml() {
       <div class="info"><b>${SAWMILL.name}${owned ? ' <small>✔ sua</small>' : ''}</b>
         <small>Transforma cada 🪵 tronco em ${SAWMILL.perLog} ${PLANK.icon} tábuas (🪙${PLANK.sell} cada), um a cada ${SAWMILL.time}s, até com o jogo fechado. Você escolhe onde ela fica.</small></div>
       <div class="btns">${owned
-        ? '<span class="req">✔ Construída</span>'
+        ? '<button class="btn ghost" data-act="movelot" data-id="serraria" title="Mudar a serraria de lugar">↔ Mover</button>'
         : locked
           ? `<span class="req">🔒 Nível ${SAWMILL.level}</span>`
           : `<button class="btn alt" data-act="placelot" data-id="serraria" title="Escolher o lugar e comprar" ${S.coins < SAWMILL.cost ? 'disabled' : ''}>📍 🪙${fmt(SAWMILL.cost)}</button>`}
@@ -310,7 +310,7 @@ function shopHtml() {
       <div class="info"><b>${BIG_FIELD.name}${big ? ' <small>✔ seu</small>' : ''}</b>
         <small>${BIG_FIELD.cols}×${BIG_FIELD.rows} = ${BIG_CELLS} lotes só de trigo (você escolhe onde fica). Cresce sem rega; trabalhe com as máquinas.</small></div>
       <div class="btns">${big
-        ? '<span class="req">✔ Comprado</span>'
+        ? '<button class="btn ghost" data-act="movelot" data-id="trigo" title="Mudar o Campo de Trigo de lugar">↔ Mover</button>'
         : bigLocked
           ? `<span class="req">🔒 Nível ${BIG_FIELD.level}</span>`
           : `<button class="btn alt" data-act="placelot" data-id="trigo" title="Escolher o lugar e comprar" ${S.coins < BIG_FIELD.cost ? 'disabled' : ''}>📍 🪙${fmt(BIG_FIELD.cost)}</button>`}
@@ -613,9 +613,9 @@ function workshopHtml() {
         <small>${b.desc}</small>
         <small>${done ? 'Pronto!' : prog > 0 ? `Falta ${missing.map((x) => `${x.qty} ${core.ITEMS[x.id].icon}`).join(' + ')}` : `Custa ${io(b.cost)}`}</small>
         ${done || prog <= 0 ? '' : `<div class="progress"><i style="width:${Math.round(prog * 100)}%"></i></div>`}</div>
-      <div class="btns">${done ? '<span class="req">✔</span>' : b.level > S.level ? `<span class="req">🔒 Nível ${b.level}</span>` : !core.lotPlaced(id) ? `<button class="btn alt" data-act="placelot" data-id="${id}">📍 Escolher lugar</button>` : '<span class="req">Entregue no canteiro</span>'}</div></div>`;
+      <div class="btns">${id !== 'celeiro' && core.lotPlaced(id) ? `<button class="btn ghost" data-act="movelot" data-id="${id}" title="Mudar de lugar">↔ Mover</button>` : ''}${done ? (id === 'celeiro' ? '<span class="req">✔</span>' : '') : b.level > S.level ? `<span class="req">🔒 Nível ${b.level}</span>` : !core.lotPlaced(id) ? `<button class="btn alt" data-act="placelot" data-id="${id}">📍 Escolher lugar</button>` : ''}</div></div>`;
   }
-  h += `</div><p class="hint">📍 Primeiro escolha onde cada obra fica; um caminho de terra liga ela à rua. 🪓 Corte árvores no bosque (oeste) para ter troncos. Leve a madeira até o canteiro 🏗️ e use a ação para entregar: dá para entregar aos poucos.${S.saw.owned ? '' : ` Mais tarde, a ${SAWMILL.icon} Serraria faz tábuas sozinha.`}</p>`;
+  h += `</div><p class="hint">📍 Primeiro escolha onde cada obra fica; um caminho de terra liga ela à rua. 🪓 Corte árvores no bosque (oeste) para ter troncos. Leve a madeira até o canteiro 🏗️ e use a ação para entregar: dá para entregar aos poucos. ↔ Mover muda qualquer obra de lugar, de graça.${S.saw.owned ? '' : ` Mais tarde, a ${SAWMILL.icon} Serraria faz tábuas sozinha.`}</p>`;
   out.obras = h;
   return out;
 }
@@ -855,8 +855,8 @@ export function showPlaceBar(def, left, h, mode) {
   placeHandlers = h;
   const bar = $('#placebar');
   const touch = window.matchMedia('(pointer: coarse)').matches;
-  $('#place-text').textContent = mode === 'lot'
-    ? `${def.icon} ${def.name}: ${touch ? 'toque no chão ou ande' : 'mova o mouse e clique'} para escolher onde fica (verde = cabe)`
+  $('#place-text').textContent = mode === 'lot' || mode === 'move'
+    ? `${mode === 'move' ? '↔ Mover ' : ''}${def.icon} ${def.name}: ${touch ? 'toque no chão (ou ande) para marcar' : 'clique no chão para marcar'} o lugar (verde = cabe) e depois ✔ Colocar${touch ? '' : ' (ou clique de novo nele)'}`
     : `${def.icon} ${def.name}${left > 1 ? ` (${left})` : ''}: ${touch ? 'toque no chão ou ande' : 'mova o mouse e clique'} para escolher o lugar`;
   $('#place-rot').hidden = !h.rotate;
   bar.hidden = false;
@@ -1066,6 +1066,7 @@ export function initUI(h) {
     else if (act === 'decor') { if (sys.buyDecor(id)) handlers.onPlaceDecor(id); return; }
     else if (act === 'decorplace') { handlers.onPlaceDecor(id); return; }
     else if (act === 'placelot') { handlers.onPlaceLot(id); return; }
+    else if (act === 'movelot') { handlers.onPlaceLot(id, true); return; }
     else if (act === 'fair') sys.fairEnter(id);
     else if (act === 'tree') sys.buyTree(id);
     else if (act === 'hive') sys.buyHive();

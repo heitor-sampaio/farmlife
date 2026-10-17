@@ -35,7 +35,7 @@ ui.initUI({
   onZoom: (f) => world.zoomBy(f),
   onCamReset: () => world.resetCamera(),
   onPlaceDecor: (id) => world.startPlacing(id),
-  onPlaceLot: (id) => world.startPlacingLot(id),
+  onPlaceLot: (id, move) => world.startPlacingLot(id, move),
   onGfx: (mode) => world.setVisual(mode),
   drawMap: (ctx, w, h) => world.drawMap(ctx, w, h),
   mapPlaces: () => world.mapPlaces(),

@@ -2,6 +2,11 @@
 
 Todas as mudanças do jogo, da mais nova para a mais antiga. Este arquivo é gerado a partir de `js/changelog.js` por `node tools/gerar-versao.mjs`.
 
+## v4.8.0 — Mudar as coisas de lugar (17/10/2026)
+
+- ↔ Toda obra (curral, galinheiro, queijaria, fábricas, galpão) e toda compra grande (campos, serraria, Campo de Trigo e pasto) pode mudar de lugar quando você quiser, de graça: botão ↔ Mover na Oficina (Obras) e na Loja (Terras e Ferramentas). Animais, plantações e o que estiver dentro vão junto.
+- 📍 Escolher o lugar ficou mais calmo: o clique só marca o lugar, e você confirma com ✔ Colocar, com Enter ou clicando de novo dentro do retângulo. Clicar em outro ponto marca de novo.
+
 ## v4.7.0 — Visual pintado: grama e árvores vivas (17/10/2026)
 
 - 🌾 No visual pintado, a grama livre da fazenda se enche de tufos de capim que balançam com o vento (bem mais forte na ventania). Eles saem do caminho quando você coloca uma obra ou campo.

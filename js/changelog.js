@@ -3,6 +3,13 @@
 
 export const CHANGELOG = [
   {
+    version: '4.8.0', date: '2026-10-17', title: 'Mudar as coisas de lugar',
+    items: [
+      '↔ Toda obra (curral, galinheiro, queijaria, fábricas, galpão) e toda compra grande (campos, serraria, Campo de Trigo e pasto) pode mudar de lugar quando você quiser, de graça: botão ↔ Mover na Oficina (Obras) e na Loja (Terras e Ferramentas). Animais, plantações e o que estiver dentro vão junto.',
+      '📍 Escolher o lugar ficou mais calmo: o clique só marca o lugar, e você confirma com ✔ Colocar, com Enter ou clicando de novo dentro do retângulo. Clicar em outro ponto marca de novo.',
+    ],
+  },
+  {
     version: '4.7.0', date: '2026-10-17', title: 'Visual pintado: grama e árvores vivas',
     items: [
       '🌾 No visual pintado, a grama livre da fazenda se enche de tufos de capim que balançam com o vento (bem mais forte na ventania). Eles saem do caminho quando você coloca uma obra ou campo.',

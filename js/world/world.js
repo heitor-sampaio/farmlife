@@ -372,6 +372,7 @@ export async function initWorld(cv) {
   M.setFarmerStyle(core.S.char.gender);
   buildGrass();
   nav.snapshot(); // obstáculos fixos; as decorações são bloqueadas por cima
+  afterMove();
   player.m = M.makeFarmer();
   scene.add(player.m.root);
   camTarget.copy(player.pos);
@@ -3262,9 +3263,9 @@ function placeLotNow(id, x, z) {
 // ----- Escolher o lugar (como as decorações: segue o mouse, ou fica à frente do personagem) -----
 let lotPlacing = null; // { id, group, fill, edges, x, z, valid, follow }
 
-/** Começa a escolher o lugar de uma obra, campo, serraria, Campo de Trigo ou pasto. */
-export function startPlacingLot(id) {
-  if (!LOTS[id] || lotPlaced(id)) return;
+/** Começa a escolher o lugar de uma obra, campo, serraria, Campo de Trigo ou pasto (move = mudar de lugar). */
+export function startPlacingLot(id, move = false) {
+  if (!LOTS[id] || lotPlaced(id) !== move) return;
   if (placing) cancelPlacing(true);
   if (lotPlacing) cancelLot(true);
   if (driving || riding) { ui.toast('Desça antes de escolher o lugar.'); return; }
@@ -3288,8 +3289,10 @@ export function startPlacingLot(id) {
   label.position.set((e[0] + e[2]) / 2, 1.6, (e[1] + e[3]) / 2);
   group.add(label);
   scene.add(group);
-  lotPlacing = { id, group, fill, edgeMat, x: player.pos.x, z: player.pos.z, valid: false, follow: 'player' };
-  ui.showPlaceBar(def, 1, { ok: confirmLot, cancel: () => cancelLot() }, 'lot');
+  lotPlacing = { id, group, fill, edgeMat, x: player.pos.x, z: player.pos.z, valid: false, follow: 'player', move };
+  // Mudando de lugar: o retângulo começa onde a obra está hoje
+  if (move) { const p = core.S.layout[id]; lotPlacing.x = p.x; lotPlacing.z = p.z; lotPlacing.follow = 'fixed'; }
+  ui.showPlaceBar(def, 1, { ok: confirmLot, cancel: () => cancelLot() }, move ? 'move' : 'lot');
 }
 
 function updateLotPlacing() {
@@ -3324,6 +3327,7 @@ function confirmLot() {
   if (!p.valid) { ui.toast('🚫 Não cabe aqui: escolha um lugar livre, fora das ruas, da sede, dos campos e do bosque.', 'bad'); sfx('error'); return; }
   const { id, x, z } = p;
   const kind = LOTS[id].kind;
+  if (p.move) { moveLotNow(id, x, z); return; }
   // Campos, serraria, Campo de Trigo e pasto: compra agora (se der) e coloca
   if (kind !== 'build') {
     const S = core.S;
@@ -3338,6 +3342,44 @@ function confirmLot() {
   placeLotNow(id, x, z);
   if (kind === 'build') ui.toast(`🏗️ Canteiro ${BUILDINGS[id].fem ? 'da' : 'do'} ${BUILDINGS[id].name} marcado! Leve a madeira até lá e use a ação para entregar.`, 'good');
   ui.markDirty('panel');
+}
+
+/** Muda o lote de lugar: salva o lugar novo e monta a fazenda de novo (com uma transição rápida). */
+function moveLotNow(id, x, z) {
+  const S = core.S;
+  const old = S.layout[id];
+  if (old && old.x === x && old.z === z) { cancelLot(true); return; }
+  // Decorações que estavam no lugar novo voltam para a Loja
+  const r = lotRect(id, x, z);
+  for (let k = sys.decorList().length - 1; k >= 0; k--) {
+    const it = sys.decorList()[k];
+    if (it.x > r.x1 - 0.3 && it.x < r.x2 + 0.3 && it.z > r.z1 - 0.3 && it.z < r.z2 + 0.3) sys.pickupDecor(k);
+  }
+  cancelLot(true);
+  core.placeLot(id, x, z);
+  // Máquinas e cavalo voltam para casa (o galpão ou o curral podem ter mudado)
+  for (const st of Object.values(S.machines)) if (st && typeof st === 'object') { st.x = null; st.z = null; }
+  S.horse.x = null;
+  S.horse.z = null;
+  const L = LOTS[id];
+  const at = L.door ? [x + L.door[0], z + L.door[1] + 0.8] : [(r.x1 + r.x2) / 2, r.z2 + 1];
+  try { sessionStorage.setItem('farmlife-moved', JSON.stringify({ id, x: at[0], z: at[1] })); } catch (e) { /* sem sessão */ }
+  core.save();
+  ui.sleepFade();
+  sfx('level');
+  setTimeout(() => location.reload(), 380);
+}
+
+/** Depois de mudar algo de lugar: o fazendeiro aparece perto do lugar novo. */
+function afterMove() {
+  let mv = null;
+  try { mv = JSON.parse(sessionStorage.getItem('farmlife-moved') || 'null'); sessionStorage.removeItem('farmlife-moved'); } catch (e) { /* sem sessão */ }
+  if (!mv || !LOTS[mv.id]) return;
+  const [cx, cz] = nav.toCell(mv.x, mv.z);
+  const n = nav.freeCell(cx, cz) ? [cx, cz] : nav.nearestFree(cx, cz);
+  if (n) { const c = nav.center(n[0], n[1]); player.pos.set(c.x, 0, c.z); }
+  const d = lotDef(mv.id);
+  setTimeout(() => ui.toast(`↔ ${d.icon} ${d.name} mudou de lugar!`, 'good'), 300);
 }
 
 function cancelLot(silent) {
@@ -4303,13 +4345,16 @@ function clickAt(e) {
   if (fishing.state === 'reeling' || fishing.state === 'caught' || fishing.state === 'casting') { fishMouse = true; return hit; }
   if (fishing.state === 'waiting' && hit.kind !== 'water') endFishing();
   if (lotPlacing) {
-    // Escolhendo o lugar de uma obra ou campo: o clique escolhe (no mouse, já confirma)
+    // Escolhendo o lugar: o clique marca; clicar de novo dentro do retângulo marcado confirma
     const pt = new THREE.Vector3();
     if (raycaster.ray.intersectPlane(pickPlane, pt)) {
+      const q = lotRect(lotPlacing.id, lotPlacing.x, lotPlacing.z);
+      const inside = pt.x > q.x1 && pt.x < q.x2 && pt.z > q.z1 && pt.z < q.z2;
+      if (lotPlacing.follow === 'fixed' && inside && e.pointerType === 'mouse') { confirmLot(); return hit; }
       [lotPlacing.x, lotPlacing.z] = lotAnchorAt(lotPlacing.id, pt.x, pt.z);
       lotPlacing.follow = 'fixed';
       updateLotPlacing();
-      if (e.pointerType === 'mouse') confirmLot();
+      sfx('open');
     }
     return hit;
   }
@@ -4459,7 +4504,7 @@ function bindInput() {
       raycaster.setFromCamera(ndc, camera);
       if (raycaster.ray.intersectPlane(pickPlane, tmpPlace)) { placing.x = tmpPlace.x; placing.z = tmpPlace.z; placing.follow = 'mouse'; }
     }
-    if (lotPlacing) {
+    if (lotPlacing && lotPlacing.follow !== 'fixed') {
       raycaster.setFromCamera(ndc, camera);
       if (raycaster.ray.intersectPlane(pickPlane, tmpPlace)) { [lotPlacing.x, lotPlacing.z] = lotAnchorAt(lotPlacing.id, tmpPlace.x, tmpPlace.z); lotPlacing.follow = 'mouse'; }
     }
