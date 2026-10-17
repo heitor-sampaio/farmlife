@@ -1,7 +1,8 @@
 /* FarmLife — tutorial interativo, dicas na hora certa e o Guia da Fazenda */
 import {
   CROPS, ANIMALS, PRODUCTS, UPGRADES, WORKERS, FIELDS, BIG_FIELD, BIG_CELLS, MACHINES, FISH, RODS, PET, WATER_TIME, PEN_SIZE,
-  WEATHER_EVENTS, MUTATIONS, RARITY_COLOR, EVENT_ROUND, EVENT_CHANCE,
+  WEATHER_EVENTS, MUTATIONS, RARITY_COLOR, EVENT_ROUND, EVENT_CHANCE, AXES, LOG, WOOD, SAWMILL, PLANK,
+  BEAM, RECIPES, BUILDINGS, CARPENTRY, CHOP_TREES,
 } from './data.js';
 import * as core from './core.js';
 import { CHANGELOG, VERSION, compareVersions } from './changelog.js';
@@ -27,9 +28,9 @@ function keyOf(toolId) {
 const STEPS = [
   {
     id: 'boas-vindas', icon: '🌻', title: 'Bem-vindo ao FarmLife!', intro: true,
-    body: () => `Você herdou um pequeno terreno. Neste tutorial rápido você aprende o ciclo da fazenda:
-      <div class="tut-flow"><span>🌱 Plantar</span><span>💧 Regar</span><span>🧺 Colher</span><span>🛖 Vender</span></div>
-      Leva uns 3 minutos, e cada passo concluído dá moedas.`,
+    body: () => `Você herdou um pequeno terreno, uma casa e as ferramentas do seu avô. O resto, você vai construir com madeira! Neste tutorial você aprende:
+      <div class="tut-flow"><span>🌱 Plantar</span><span>💧 Regar</span><span>🧺 Colher</span><span>🪓 Cortar</span><span>🪚 Serrar</span><span>🛖 Construir</span><span>💰 Vender</span></div>
+      Leva uns 6 minutos, e cada passo concluído dá moedas.`,
   },
   {
     id: 'andar', icon: '🚶', title: 'Ande pela fazenda', goal: 6, unit: 'm', reward: 0,
@@ -63,20 +64,54 @@ const STEPS = [
       <br>Enquanto espera, que tal plantar e regar mais?`,
   },
   {
+    id: 'cortar', icon: '🪓', title: 'Corte uma árvore', event: 'chop', goal: 1, reward: 10, tool: 'machado',
+    target: () => nearestTree(),
+    body: () => `Para vender a colheita você precisa de um <b>🛖 Celeiro</b>, e ele é feito de madeira. Siga a seta até o <b>bosque</b>, escolha o <b>🪓 Machado</b>${keyOf('machado')}
+      e use ${ACT()} perto de uma árvore (segure para continuar), ou ${TAP()} nela. Cada árvore derrubada dá ${WOOD.logs[0]}–${WOOD.logs[1]} 🪵 troncos.`,
+  },
+  {
+    id: 'serrar', icon: '🪚', title: 'Serre tábuas', event: 'craft', match: 'tabuas', goal: 2, reward: 10,
+    target: () => ({ spot: 'mesa' }),
+    body: () => `Leve os troncos até a <b>${CARPENTRY.icon} ${CARPENTRY.name}</b> (a seta, entre a casa e o celeiro). Com <b>Tábuas</b> escolhido, use ${ACT()} na mesa
+      (segure para continuar) ou ${TAP()} nela: a cada 3 golpes de serrote, 1 🪵 vira 2 🟫 tábuas.`,
+  },
+  {
+    id: 'construir', icon: '🏗️', title: 'Construa o celeiro', event: 'build', match: 'celeiro', goal: 1, reward: 30, live: true,
+    done: () => core.built('celeiro'),
+    target: () => {
+      const miss = core.buildMissing('celeiro');
+      const has = miss.some((x) => (core.S.inv[x.id] || 0) > 0);
+      if (has) return { spot: 'celeiro' };
+      const needBeam = miss.some((x) => x.id === 'viga');
+      const inv = core.S.inv;
+      if ((inv.tronco || 0) > 0 || (needBeam && (inv.madeira || 0) >= 3)) return { spot: 'mesa' };
+      return nearestTree();
+    },
+    body: () => {
+      const miss = core.buildMissing('celeiro');
+      const inv = core.S.inv;
+      const cost = Object.entries(BUILDINGS.celeiro.cost).map(([id, q]) => `${q} ${core.ITEMS[id].icon}`).join(' + ');
+      return `O celeiro custa <b>${cost}</b>. As <b>📏 vigas</b> também saem da mesa: abra a <b>🪚 Oficina</b> (botão no topo) e escolha <b>Viga</b> (3 🟫 → 1 📏).
+        Leve a madeira até o <b>canteiro 🏗️</b> do celeiro e use ${ACT()} para entregar (dá para entregar aos poucos).
+        <br>Falta: <b>${miss.map((x) => `${x.qty} ${core.ITEMS[x.id].icon}`).join(' + ') || 'nada!'}</b> · você tem 🪵${inv.tronco || 0} 🟫${inv.madeira || 0} 📏${inv.viga || 0}`;
+    },
+  },
+  {
     id: 'vender', icon: '🛖', title: 'Venda no Celeiro', event: 'sell', goal: 1, reward: 20,
     target: () => ({ spot: 'celeiro' }),
-    body: () => `Siga a seta até o <b>🛖 Celeiro</b> e use ${ACT()} para abrir (ou o botão 🛖 no topo). Venda o seu trigo.
+    body: () => `Celeiro pronto! Use ${ACT()} nele para abrir (ou o botão 🛖 no topo) e venda o seu trigo.
       <br>Os preços mudam todo dia: <b class="up">▲</b> está caro, <b class="down">▼</b> está barato.`,
   },
   {
     id: 'loja', icon: '🏪', title: 'Compre sementes', event: 'buy-seed', goal: 1, reward: 20,
     target: () => ({ spot: 'loja' }),
-    body: () => `Agora visite a <b>🏪 Loja</b> e compre mais sementes. Lá também ficam animais, o pet, a vara de pesca, melhorias, campos e máquinas, liberados conforme o seu nível.`,
+    body: () => `Agora visite a <b>🏪 Loja</b> e compre mais sementes. Lá também ficam animais, o pet, ferramentas melhores, melhorias, campos e máquinas, liberados conforme o seu nível.`,
   },
   {
     id: 'pedidos', icon: '📦', title: 'Conheça os pedidos', event: 'panel', match: 'pedidos', goal: 1, reward: 20,
     target: () => ({ spot: 'pedidos' }),
-    body: () => `Os moradores da vila fazem <b>📦 Pedidos</b> que pagam bem mais que o mercado. Abra o quadro de pedidos para ver o que eles querem.`,
+    body: () => `Os moradores da vila fazem <b>📦 Pedidos</b> que pagam bem mais que o mercado. Eles ficam no <b>quadro de Pedidos</b> (a seta): use ${ACT()} nele para ver o que eles querem.
+      Quando aparecer a <b>cartinha ✉️</b> em cima do quadro, tem pedido novo ou pronto para entregar.`,
   },
   {
     id: 'fim', icon: '🏆', title: 'Tutorial completo!', final: true, reward: 100, xp: 20,
@@ -91,7 +126,7 @@ const PLAY_STEPS = STEPS.filter((s) => !s.intro && !s.final).length;
 const TIPS = {
   level2: {
     title: 'Nível 2: animais e pet!', target: { spot: 'loja' },
-    body: () => `Na 🏪 Loja agora você pode comprar 🐔 <b>galinhas</b> (botam 🥚) e adotar uma 🐶 <b>border collie</b>. A 🎣 <b>vara de pesca</b> já está à venda desde o começo.`,
+    body: () => `Na 🏪 Loja agora você pode adotar uma 🐶 <b>border collie</b> e comprar 🐔 <b>galinhas</b> (botam 🥚)${core.built('curral') ? '' : `, mas antes construa o 🐾 <b>Curral</b> com madeira (${costTxt('curral')}): o canteiro fica no portão do curral, a oeste`}.`,
   },
   animal: {
     title: 'Cuidando dos animais', target: { spot: 'cocho' },
@@ -105,7 +140,7 @@ const TIPS = {
   },
   rod: {
     title: 'Hora de pescar', target: { pond: true },
-    body: () => `Escolha a <b>🎣 Pescar</b> na barra, vá até a beira do <b>lago</b> e use ${ACT()} (ou ${TAP()} na água) para lançar.
+    body: () => `Você tem uma 🎣 <b>vara de pesca</b>! Escolha a <b>🎣 Pescar</b> na barra, vá até a beira do <b>lago</b> e use ${ACT()} (ou ${TAP()} na água) para lançar.
       Quando aparecer o <b>❗</b>, puxe rápido. Depois <b>segure</b> ${ACT()} para subir a faixa verde e manter o peixe dentro dela.`,
   },
   worker: {
@@ -128,6 +163,33 @@ const TIPS = {
       ${isTouch() ? 'o <b>joystick</b>' : '<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>'}: ela vira aos poucos para onde você aponta e trabalha por onde passa.
       Ciclo: <b>arar → plantar → esperar → colher</b>. Use ${ACT()} de novo para sair.`,
   },
+  axe: {
+    title: 'Hora de cortar lenha', target: () => nearestTree(),
+    body: () => `Você tem um 🪓 <b>machado</b>! O <b>bosque</b> fica a oeste (siga a seta). Com a 🪓 <b>Machado</b> selecionado, chegue perto de uma árvore e use ${ACT()}, ou ${TAP()} na árvore para o fazendeiro cortar até ela cair.
+      Os 🪵 <b>troncos</b> viram tábuas e vigas na ${CARPENTRY.icon} mesa de carpintaria, para construir. A árvore volta a crescer depois de um tempo.`,
+  },
+  bench: {
+    title: 'Mesa de carpintaria', target: { spot: 'mesa' },
+    body: () => `Entre a casa e o celeiro fica a ${CARPENTRY.icon} <b>${CARPENTRY.name}</b>: ali você transforma 🪵 troncos em 🟫 tábuas e tábuas em 📏 vigas, na mão.
+      Escolha a receita na <b>🪚 Oficina</b> (botão no topo) e use ${ACT()} na mesa. Na Oficina você também vê o que falta para cada obra.`,
+  },
+  'built-celeiro': {
+    title: 'Celeiro construído!', target: { spot: 'celeiro' },
+    body: () => `Agora dá para <b>vender</b> a colheita, os produtos e os peixes no 🛖 Celeiro (ou pelo botão 🛖 no topo).`,
+  },
+  'built-curral': {
+    title: 'Curral construído!', target: { spot: 'loja' },
+    body: () => `O 🐾 Curral está pronto. Compre animais na 🏪 Loja (as 🐔 galinhas liberam no nível 2) e alimente com 🌾 trigo no <b>cocho</b>.`,
+  },
+  'built-galpao': {
+    title: 'Galpão construído!', target: { spot: 'loja' },
+    body: () => `O 🚜 Galpão está pronto para guardar as máquinas do ${BIG_FIELD.icon} ${BIG_FIELD.name}. Compre o campo e as máquinas na 🏪 Loja.`,
+  },
+  sawmill: {
+    title: 'Serraria pronta!', target: { spot: 'serraria' },
+    body: () => `Leve 🪵 troncos até a <b>Serraria</b> (a seta) e use ${ACT()}: ela pega os troncos do celeiro e transforma cada um em ${SAWMILL.perLog} ${PLANK.icon} <b>tábuas</b>, um a cada ${SAWMILL.time}s.
+      Volte depois para coletar as tábuas prontas. Ela continua serrando mesmo com o jogo fechado.`,
+  },
   weather: {
     title: 'Evento climático!', target: null,
     body: () => {
@@ -139,7 +201,7 @@ const TIPS = {
   },
   night: {
     title: 'Anoiteceu 🌙', target: { spot: 'casa' },
-    body: () => `As plantas continuam crescendo à noite. Se quiser pular para a manhã, entre na sua 🏠 <b>Casa</b> e durma (depois das 18h).
+    body: () => `O fazendeiro acende a <b>lanterna</b> 🔦 sozinho, e as máquinas ligam os <b>faróis</b>. As plantas continuam crescendo à noite; se quiser pular para a manhã, entre na sua 🏠 <b>Casa</b> e durma (depois das 18h).
       À noite aparecem mais 🐡 bagres no lago e vaga-lumes pela fazenda.`,
   },
   rain: {
@@ -148,13 +210,27 @@ const TIPS = {
   },
   order: {
     title: 'Pedido pronto!', target: { spot: 'pedidos' },
-    body: () => `Você já tem tudo o que um dos pedidos da vila pede. Vá até o 📦 <b>quadro de Pedidos</b> e entregue: paga bem mais que o mercado.`,
+    body: () => `Você já tem tudo o que um dos pedidos da vila pede. Vá até o 📦 <b>quadro de Pedidos</b> (ou use o botão 📦 no topo) e entregue: paga bem mais que o mercado.`,
   },
   level6: {
     title: 'Nível 6: lavoura mecanizada!', target: { spot: 'loja' },
-    body: () => `Agora você pode comprar o ${BIG_FIELD.icon} <b>${BIG_FIELD.name}</b> (${BIG_CELLS} lotes) e as <b>máquinas</b>: trator com arado, trator com plantadeira e, no nível 7, a colheitadeira.`,
+    body: () => `Agora você pode comprar o ${BIG_FIELD.icon} <b>${BIG_FIELD.name}</b> (${BIG_CELLS} lotes) e as <b>máquinas</b>: trator com arado, trator com plantadeira e, no nível 7, a colheitadeira.${core.built('galpao') ? '' : ` As máquinas precisam do 🚜 <b>Galpão</b>, construído com madeira (${costTxt('galpao')}).`}`,
   },
 };
+const costTxt = (id) => Object.entries(BUILDINGS[id].cost).map(([m, q]) => `${q} ${core.ITEMS[m].icon}`).join(' + ');
+
+/** Árvore em pé mais perto do fazendeiro (para a seta). */
+function nearestTree() {
+  const P = api.playerPos();
+  let best = null, bd = Infinity;
+  CHOP_TREES.forEach(([x, z], i) => {
+    if (core.treeDown(i)) return;
+    const d = Math.hypot(x - P.x, z - P.z);
+    if (d < bd) { bd = d; best = i; }
+  });
+  return best === null ? null : { tree: best };
+}
+
 const tipQueue = [];
 let currentTip = null;
 let tipTargetArg = null;
@@ -172,6 +248,7 @@ let walked = 0;
 let lastPos = null;
 let minimized = false;
 let condTimer = 0;
+let liveT = 0;
 
 const T = () => core.S.tutorial;
 const active = () => !T().done;
@@ -307,6 +384,9 @@ export function onEvent(name, data) {
   else if (name === 'bigfield') queueTip('bigfield');
   else if (name === 'machine') queueTip('machine', data);
   else if (name === 'weather') queueTip('weather');
+  else if (name === 'axe') queueTip('axe');
+  else if (name === 'sawmill') queueTip('sawmill');
+  else if (name === 'build' && !(data === 'celeiro' && active())) queueTip('built-' + data);
   else if (name === 'level') {
     if (data >= 2) queueTip('level2');
     if (data >= 6) queueTip('level6');
@@ -344,6 +424,12 @@ export function tutorialFrame(dt) {
       }
     }
     lastPos = { x: P.x, z: P.z };
+    // Passo já cumprido por outro caminho (ex.: celeiro construído antes da hora)
+    if (s.done && s.done()) { completeStep(); return; }
+    if (s.live) {
+      liveT -= dt;
+      if (liveT <= 0) { liveT = 0.5; render(); }
+    }
     api.setGuide(s.target ? s.target() : null);
     setToolHint(s.tool && core.tool !== s.tool ? s.tool : null);
     return;
@@ -355,6 +441,9 @@ export function tutorialFrame(dt) {
     condTimer = 1;
     const S = core.S;
     if (core.darkness() > 0.6) queueTip('night');
+    if (!(S.stats.logs > 0)) queueTip('axe');
+    else if (!(S.stats.crafted > 0)) queueTip('bench');
+    if (S.level >= 2 && !(S.stats.fish > 0)) queueTip('rod');
     if (S.weather === 'chuva') queueTip('rain');
     if (S.orders.some(core.canFulfill)) queueTip('order');
   }
@@ -396,6 +485,8 @@ function roadmap() {
   add(BIG_FIELD.level, `${BIG_FIELD.icon} ${BIG_FIELD.name}`);
   for (const m of Object.values(MACHINES)) add(m.level, `🚜 ${m.name}`);
   RODS.forEach((r) => r && add(r.level, `${r.icon} ${r.name}`));
+  AXES.forEach((a) => a && add(a.level, `${a.icon} ${a.name}`));
+  add(SAWMILL.level, `${SAWMILL.icon} ${SAWMILL.name}`);
   add(PET.level, `${PET.icon} Pet (${PET.breed})`);
   return L;
 }
@@ -420,9 +511,14 @@ const TOPICS = [
     id: 'inicio', icon: '🌻', title: 'Primeiros passos',
     html: () => `<p>O FarmLife gira em torno de um ciclo simples:</p>
       <div class="tut-flow big"><span>⛏️ Arar</span><span>🌱 Plantar</span><span>💧 Regar</span><span>🧺 Colher</span><span>🛖 Vender</span><span>🏪 Comprar</span></div>
+      <p>Você começa só com a casa e as ferramentas. O 🛖 <b>Celeiro</b>, o 🐾 <b>Curral</b> e o 🚜 <b>Galpão</b> são construídos com madeira: corte árvores 🪓, serre na mesa de carpintaria 🪚 e entregue no canteiro 🏗️ (veja <b>🏗️ Construções</b>).</p>
       <p>Com o dinheiro, você compra sementes melhores, animais, melhorias e terreno. Cada colheita, produto e pedido dá <b>XP</b>, e cada nível libera coisas novas (veja <b>🏆 Progressão</b>).</p>
       <p>O jogo salva sozinho, e a fazenda continua crescendo enquanto você está fora (até 8 horas).</p>
-      <button class="btn" data-guide="restart">🔁 Refazer o tutorial</button>`,
+      <button class="btn" data-guide="restart">🔁 Refazer o tutorial</button>
+      <details class="g-cheat"${core.S.god ? ' open' : ''}><summary>🧪 Códigos de teste</summary>
+        <form data-guide="cheat"><input id="cheat-code" placeholder="Digite um código" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <button class="btn alt">Ativar</button></form>
+        ${core.S.god ? '<small>🧪 Godmode ligado.</small>' : ''}</details>`,
   },
   {
     id: 'novidades', icon: '📜', title: 'Novidades',
@@ -465,15 +561,15 @@ const TOPICS = [
   {
     id: 'dinheiro', icon: '💰', title: 'Vender e comprar',
     html: () => `<ul class="g-list">
-      <li>🛖 <b>Celeiro:</b> venda colheitas, produtos e peixes. Os preços mudam todo dia (<b class="up">▲</b> caro, <b class="down">▼</b> barato), então às vezes vale esperar.</li>
-      <li>📦 <b>Pedidos:</b> os moradores pagam <b>bem mais</b> que o mercado e dão XP extra. Recuse (✖) os que não interessam para receber outro.</li>
+      <li>🛖 <b>Celeiro:</b> depois de construído (${costTxt('celeiro')}), venda colheitas, produtos e peixes. Os preços mudam todo dia (<b class="up">▲</b> caro, <b class="down">▼</b> barato), então às vezes vale esperar.</li>
+      <li>📦 <b>Pedidos:</b> os moradores pagam <b>bem mais</b> que o mercado e dão XP extra. Veja no <b>quadro de Pedidos</b> (a cartinha ✉️ em cima dele avisa quando chega pedido novo ou dá para entregar algum) ou no botão 📦 do topo. Recuse (✖) os que não interessam para receber outro.</li>
       <li>🏪 <b>Loja:</b> sementes, campos, pet, pesca, máquinas, animais, funcionários e melhorias.</li>
       <li>🔒 <b>Terrenos:</b> no campo principal, os lotes bloqueados com 🪙 ao lado dos seus podem ser comprados um a um (próximo: 🪙${core.fmt(core.plotCost())}).</li>
       <li>"<b>Vender tudo</b>" guarda 1 🌾 trigo por animal, para alimentá-los.</li></ul>`,
   },
   {
     id: 'animais', icon: '🐔', title: 'Animais',
-    html: () => `<p>Os animais vivem no <b>Curral</b>, a oeste. Cada um come <b>1 🌾 trigo</b> por ciclo: alimente chegando perto (${ACT()}) ou use o <b>cocho</b> para todos.
+    html: () => `<p>Os animais vivem no <b>Curral</b>, a oeste, que precisa ser construído com madeira (${costTxt('curral')}). Cada um come <b>1 🌾 trigo</b> por ciclo: alimente chegando perto (${ACT()}) ou use o <b>cocho</b> para todos.
       Quando o produto aparece em cima dele, colete e venda. O <b>⚙️ alimentador automático</b> (melhoria) alimenta sozinho com o trigo do celeiro.</p>` + table(
       ['', 'Animal', 'Custa', 'Produz', 'A cada', 'Nível'],
       Object.values(ANIMALS).map((a) => [a.icon, a.name, `🪙${core.fmt(a.cost)}`, `${PRODUCTS[a.product].icon} ${PRODUCTS[a.product].name} (🪙${PRODUCTS[a.product].sell})`, dur(a.time), `${a.level}${lock(a.level)}`]),
@@ -482,13 +578,37 @@ const TOPICS = [
   {
     id: 'pesca', icon: '🎣', title: 'Pescaria',
     html: () => `<ol class="g-list">
-      <li>Compre uma <b>vara</b> na loja e escolha a 🎣 <b>Pescar</b> na barra.</li>
+      <li>Você já começa com uma <b>vara simples</b> (as melhores ficam na loja). Escolha a 🎣 <b>Pescar</b> na barra.</li>
       <li>Vá até a beira do <b>lago</b> e use ${ACT()} (ou ${TAP()} na água) para lançar.</li>
       <li>Quando aparecer o <b>❗</b>, puxe rápido!</li>
       <li>No minigame, <b>segure</b> ${ACT()} para subir a faixa verde e solte para descer. Mantenha o peixe dentro dela até a barra encher.</li></ol>` + table(
       ['', 'Pesca', 'Vende', 'Dificuldade', 'Quando'],
       Object.values(FISH).map((f) => [f.icon, f.name, `🪙${f.sell}`, '★'.repeat(Math.max(1, Math.round(f.dif * 5))), f.night ? 'Mais à noite' : f.rain ? 'Mais na chuva' : f.rare ? 'Rara (vara de fibra ajuda)' : f.junk ? 'Ops…' : 'Sempre']),
     ) + table(['Vara', 'Custa', 'Nível', 'Vantagem'], RODS.filter(Boolean).map((r) => [`${r.icon} ${r.name}`, `🪙${core.fmt(r.cost)}`, `${r.level}${lock(r.level)}`, r.desc])),
+  },
+  {
+    id: 'lenha', icon: '🪓', title: 'Lenha',
+    html: () => `<ol class="g-list">
+      <li>Você já começa com um <b>machado</b> (o de aço, na loja, corta mais rápido). Escolha a 🪓 <b>Machado</b> na barra.</li>
+      <li>Vá até o <b>bosque</b>, a oeste, entre o curral e o Campo do Sul.</li>
+      <li>Chegue perto de uma árvore e use ${ACT()} (segure para continuar), ou ${TAP()} na árvore: o fazendeiro corta até ela cair.</li>
+      <li>A árvore cai e deixa um <b>toco</b>; você ganha ${WOOD.logs[0]}–${WOOD.logs[1]} ${LOG.icon} <b>troncos</b> (🪙${LOG.sell} cada). Ela cresce de novo em ~${Math.round(WOOD.regrow / 60)} min.</li></ol>
+      <p>Os troncos viram tábuas e vigas na ${CARPENTRY.icon} mesa de carpintaria (veja <b>🏗️ Construções</b>) e também aparecem nos <b>pedidos</b> da vila.</p>
+      <p>${SAWMILL.icon} <b>Serraria</b> (🪙${core.fmt(SAWMILL.cost)}, nível ${SAWMILL.level}${lock(SAWMILL.level)}): fica na entrada do bosque. Use ${ACT()} nela para colocar os troncos do celeiro na fila e coletar as tábuas prontas.
+        Cada tronco vira ${SAWMILL.perLog} ${PLANK.icon} tábuas (🪙${PLANK.sell} cada), uma a cada ${SAWMILL.time}s, até com o jogo fechado. Cabem ${SAWMILL.capacity} troncos na fila.</p>` +
+      table(['Machado', 'Custa', 'Nível', 'Golpes', 'Vantagem'], AXES.filter(Boolean).map((a) => [`${a.icon} ${a.name}`, `🪙${core.fmt(a.cost)}`, `${a.level}${lock(a.level)}`, a.hits, a.bonus ? `+${a.bonus} tronco por árvore` : '—'])),
+  },
+  {
+    id: 'obras', icon: '🏗️', title: 'Construções',
+    html: () => `<p>Você começa só com a 🏠 casa. As outras construções são feitas de madeira:</p>
+      <ol class="g-list">
+        <li>🪓 Corte árvores no bosque para ganhar <b>🪵 troncos</b>.</li>
+        <li>Na ${CARPENTRY.icon} <b>${CARPENTRY.name}</b> (entre a casa e o celeiro), escolha a receita na <b>🪚 Oficina</b> (botão no topo) e use ${ACT()} na mesa. Segure para continuar, ou ${TAP()} na mesa: o fazendeiro trabalha até acabar o material.</li>
+        <li>Leve a madeira até o <b>canteiro 🏗️</b> da obra e use ${ACT()} para entregar. Dá para entregar aos poucos: a obra vai subindo.</li></ol>` +
+      table(['Receita', 'Precisa', 'Faz', 'Golpes'], RECIPES.map((rc) => [`${rc.icon} ${rc.name}`, Object.entries(rc.input).map(([id, q]) => `${q} ${core.ITEMS[id].icon}`).join(' + '), Object.entries(rc.output).map(([id, q]) => `${q} ${core.ITEMS[id].icon}`).join(' + '), rc.work])) +
+      table(['Construção', 'Custa', 'Libera', 'Onde'], Object.entries(BUILDINGS).map(([id, b]) => [`${b.icon} ${b.name}${core.built(id) ? ' ✔' : ''}`, costTxt(id), b.desc,
+        id === 'celeiro' ? 'Ao lado da loja' : id === 'curral' ? 'Portão do curral, a oeste' : 'Perto do Campo de Trigo, a leste'])) +
+      `<p>💡 Tábuas (🪙${PLANK.sell}) e vigas (🪙${BEAM.sell}) também podem ser vendidas ou entregues em pedidos. A ${SAWMILL.icon} Serraria (nível ${SAWMILL.level}) serra tábuas sozinha.</p>`,
   },
   {
     id: 'pet', icon: '🐶', title: 'Pet',
@@ -511,7 +631,7 @@ const TOPICS = [
       ['', 'Campo', 'Lotes', 'Custa', 'Nível'],
       FIELDS.filter((f) => f.cost).map((f) => [f.icon, f.name, f.count, `🪙${core.fmt(f.cost)}`, `${f.level}${lock(f.level)}`])
         .concat([[BIG_FIELD.icon, `${BIG_FIELD.name} (só trigo, sem rega)`, BIG_CELLS, `🪙${core.fmt(BIG_FIELD.cost)}`, `${BIG_FIELD.level}${lock(BIG_FIELD.level)}`]]),
-    ) + `<p>O <b>${BIG_FIELD.name}</b> é trabalhado com <b>máquinas que você dirige</b>. Elas ficam no 🚜 Galpão: chegue perto e use ${ACT()} para entrar,
+    ) + `<p>O <b>${BIG_FIELD.name}</b> é trabalhado com <b>máquinas que você dirige</b>. Elas ficam no 🚜 Galpão (construído com madeira: ${costTxt('galpao')}) e ligam os faróis à noite. Para dirigir: chegue perto e use ${ACT()} para entrar,
       dirija com ${isTouch() ? 'o joystick' : '<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>'} e use ${ACT()} de novo para sair.</p>` + table(
       ['Máquina', 'O que faz', 'Custa', 'Nível'],
       Object.values(MACHINES).map((m) => [`${m.icon} ${m.name}`, m.desc, `🪙${core.fmt(m.cost)}`, `${m.level}${lock(m.level)}`]),
@@ -593,6 +713,14 @@ export function initTutorial(a) {
   });
   el.content.addEventListener('click', (e) => {
     if (e.target.closest('[data-guide="restart"]')) restartTutorial();
+  });
+  el.content.addEventListener('submit', (e) => {
+    const f = e.target.closest('[data-guide="cheat"]');
+    if (!f) return;
+    e.preventDefault();
+    const input = f.querySelector('input');
+    if (core.cheat(input.value)) openGuide('inicio');
+    else input.select();
   });
   $('#guide-close').addEventListener('click', closeGuide);
   ready = true;

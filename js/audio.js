@@ -44,6 +44,10 @@ export const Sound = {
         case 'chirp': [2600, 3100, 2800].forEach((f, k) => this.tone(f, 0.05, 'sine', 0.025, k * 0.07, 400)); break;
         case 'thunder': [70, 55, 82, 48].forEach((f, k) => this.tone(f, 0.9, 'sawtooth', 0.05, k * 0.07, -25)); this.tone(140, 0.25, 'square', 0.04, 0, -90); break;
         case 'event': [523, 784, 1047, 1319].forEach((f, k) => this.tone(f, 0.22, 'sine', 0.06, k * 0.09)); break;
+        case 'chop': this.tone(260, 0.06, 'square', 0.06, 0, -120); this.tone(180, 0.08, 'triangle', 0.06, 0.03, -60); break;
+        case 'timber': this.tone(320, 0.5, 'sawtooth', 0.04, 0, -250); [90, 70].forEach((f, k) => this.tone(f, 0.35, 'square', 0.05, 0.75 + k * 0.05, -30)); break;
+        case 'saw': this.tone(520, 0.13, 'sawtooth', 0.03, 0, 160); this.tone(470, 0.13, 'sawtooth', 0.03, 0.17, -160); break;
+        case 'hammer': this.tone(900, 0.04, 'square', 0.05, 0, -500); this.tone(240, 0.08, 'triangle', 0.06, 0.01, -80); break;
         case 'sleep': [784, 659, 523, 392].forEach((f, k) => this.tone(f, 0.3, 'sine', 0.08, k * 0.18)); break;
       }
     } catch (e) { /* áudio indisponível */ }

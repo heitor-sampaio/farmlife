@@ -383,6 +383,12 @@ export function makeFarmer(colors = {}) {
   tools.seed.add(ball(0.08, 0.1, 0.07, 0xe8d5a5, 0, -0.1, 0.03));
   tools.seed.add(box(0.06, 0.03, 0.06, 0xa0703c, 0, -0.01, 0.03));
 
+  // Machado: cabo de madeira com a lâmina na ponta
+  tools.machado = new THREE.Group();
+  tools.machado.add(cyl(0.022, 0.62, 0x8d6334, 0, -0.22, 0.02));
+  tools.machado.add(box(0.03, 0.16, 0.2, 0x9aa3ad, 0, -0.48, 0.1));
+  tools.machado.add(box(0.032, 0.17, 0.04, 0xd5dbe0, 0, -0.48, 0.2));
+
   // Vara de pesca: sai da mão para frente e para cima; rodTip marca a ponta (de onde sai a linha)
   tools.vara = new THREE.Group();
   const rodPivot = new THREE.Group();
@@ -397,7 +403,18 @@ export function makeFarmer(colors = {}) {
 
   for (const t of Object.values(tools)) { t.visible = false; hand.add(t); }
 
-  return { root, body, legL, legR, armL, armR, head, tools, rodTip };
+  // Lanterna na mão esquerda (acende à noite)
+  const torch = new THREE.Group();
+  torch.position.set(0, -0.33, 0.02);
+  torch.add(rot(cyl(0.035, 0.2, 0x37474f, 0, 0, 0.06), Math.PI / 2, 0, 0));
+  torch.add(rot(cyl(0.05, 0.06, 0x263238, 0, 0, 0.17), Math.PI / 2, 0, 0));
+  const lens = rot(cyl(0.042, 0.015, mat(0xfff6c8, { emissive: 0xfff2b0, emissiveIntensity: 2 }), 0, 0, 0.205), Math.PI / 2, 0, 0);
+  lens.castShadow = false;
+  torch.add(lens);
+  torch.visible = false;
+  armL.add(torch);
+
+  return { root, body, legL, legR, armL, armR, head, tools, rodTip, torch };
 }
 
 // ================= Animais =================
@@ -709,6 +726,8 @@ const STEEL = 0x8f979e;
 const DARK = 0x262626;
 const glassMat = new THREE.MeshStandardMaterial({ color: 0xbfe6ff, transparent: true, opacity: 0.32, roughness: 0.1, metalness: 0.2 });
 const lampMat = () => mat(0xfff2b0, { emissive: 0xfff2b0, emissiveIntensity: 0.5 });
+/** Material dos faróis das máquinas (cada máquina ganha uma cópia para acender sozinha). */
+export const machineLampMat = lampMat;
 
 /** Roda com pneu de cravos e aro amarelo. Gira pelo grupo `spin` em torno do eixo x. */
 function wheel(r, w, x, y, z) {
@@ -1120,4 +1139,162 @@ export function makeGlow(color, size = 1) {
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
   sp.scale.set(size, size, 1);
   return sp;
+}
+
+
+/** Toco de árvore cortada (com anéis no topo). */
+export function makeStump(s = 1) {
+  const g = new THREE.Group();
+  g.add(cyl(0.2, 0.26, 0x7a5230, 0, 0.13, 0));
+  g.add(cyl(0.17, 0.02, 0xd7b98a, 0, 0.27, 0));
+  g.add(cyl(0.1, 0.022, 0xb8925f, 0, 0.272, 0));
+  g.add(cyl(0.04, 0.024, 0x9b7448, 0, 0.274, 0));
+  for (let k = 0; k < 3; k++) {
+    const a = (k / 3) * Math.PI * 2 + 0.4;
+    g.add(rot(cone(0.06, 0.18, 0x6b4423, Math.cos(a) * 0.2, 0.05, Math.sin(a) * 0.2), Math.sin(a) * 1.1, 0, -Math.cos(a) * 1.1));
+  }
+  g.scale.setScalar(s);
+  return g;
+}
+
+/** Serraria: galpão aberto com serra circular, pilha de troncos (esquerda) e de tábuas (direita). Frente para +z. */
+export function makeSawmill() {
+  const g = new THREE.Group();
+  const wood = 0xa0703c, dark = 0x6f4825, steel = 0x9aa3ad;
+  g.add(box(2.7, 0.12, 2.0, 0x8d6334, 0, 0.06, 0));
+  for (const [x, z] of [[-1.25, -0.9], [1.25, -0.9], [-1.25, 0.9], [1.25, 0.9]]) g.add(cyl(0.07, 2.1, dark, x, 1.05, z));
+  g.add(rot(box(3.0, 0.1, 2.4, 0x7b5a46, 0, 2.15, -0.05), -0.14, 0, 0));
+  g.add(box(3.02, 0.06, 0.06, 0xd9473b, 0, 2.0, 1.15));
+  g.add(box(2.6, 1.2, 0.08, wood, 0, 0.7, -0.95));
+  // Bancada com a serra circular
+  g.add(box(1.5, 0.1, 0.6, wood, 0, 0.78, 0.25));
+  for (const [x, z] of [[-0.68, 0.0], [0.68, 0.0], [-0.68, 0.5], [0.68, 0.5]]) g.add(box(0.07, 0.72, 0.07, dark, x, 0.42, z));
+  g.add(box(0.32, 0.28, 0.3, 0xc0392b, 0.35, 0.62, 0.25));
+  const blade = new THREE.Group();
+  blade.position.set(-0.05, 0.92, 0.25);
+  blade.add(rot(cyl(0.26, 0.025, steel, 0, 0, 0), 0, 0, Math.PI / 2));
+  for (let k = 0; k < 10; k++) {
+    const a = (k / 10) * Math.PI * 2;
+    const tooth = box(0.03, 0.06, 0.04, 0xd5dbe0, 0, Math.cos(a) * 0.27, Math.sin(a) * 0.27);
+    tooth.rotation.x = a;
+    blade.add(tooth);
+  }
+  blade.add(rot(cyl(0.05, 0.05, dark, 0, 0, 0), 0, 0, Math.PI / 2));
+  g.add(blade);
+  g.add(cone(0.22, 0.14, 0xe6d2a8, -0.05, 0.19, 0.75));
+  // Pilha de troncos (até 6 aparecem)
+  const logs = [];
+  const logSpots = [[-1.65, 0.13, -0.3], [-1.65, 0.13, 0.0], [-1.65, 0.13, 0.3], [-1.65, 0.35, -0.15], [-1.65, 0.35, 0.15], [-1.65, 0.57, 0]];
+  for (const [x, y, z] of logSpots) {
+    const lg = new THREE.Group();
+    lg.position.set(x, y, z);
+    lg.add(rot(cyl(0.12, 0.9, 0x7a5230, 0, 0, 0), 0, 0, Math.PI / 2));
+    lg.add(rot(cyl(0.1, 0.92, 0xd7b98a, 0, 0, 0), 0, 0, Math.PI / 2));
+    lg.add(rot(cyl(0.125, 0.86, 0x7a5230, 0, 0, 0), 0, 0, Math.PI / 2));
+    lg.visible = false;
+    g.add(lg);
+    logs.push(lg);
+  }
+  // Pilha de tábuas (até 10 aparecem)
+  const planks = [];
+  for (let k = 0; k < 10; k++) {
+    const p = box(0.95, 0.05, 0.2, k % 2 ? 0xd7b98a : 0xc9a874, 1.75, 0.15 + Math.floor(k / 2) * 0.055, -0.15 + (k % 2) * 0.23);
+    p.visible = false;
+    g.add(p);
+    planks.push(p);
+  }
+  return { group: g, blade, logs, planks, lights: [] };
+}
+
+/** Mesa de carpintaria: bancada com serrote, martelo, morsa e pilhas de material. */
+export function makeCarpentryTable() {
+  const g = new THREE.Group();
+  const wood = 0xb07a45, dark = 0x6f4825, steel = 0x9aa3ad;
+  // Tampo e pernas
+  g.add(box(1.7, 0.12, 0.8, wood, 0, 0.82, 0));
+  for (const [x, z] of [[-0.75, -0.32], [0.75, -0.32], [-0.75, 0.32], [0.75, 0.32]]) g.add(box(0.1, 0.78, 0.1, dark, x, 0.4, z));
+  g.add(box(1.5, 0.06, 0.06, dark, 0, 0.25, -0.32));
+  g.add(box(1.5, 0.06, 0.06, dark, 0, 0.25, 0.32));
+  g.add(box(1.5, 0.05, 0.6, 0x8d6334, 0, 0.22, 0));
+  // Morsa
+  g.add(box(0.18, 0.16, 0.2, steel, 0.72, 0.95, 0.3));
+  g.add(rot(cyl(0.02, 0.3, dark, 0.72, 0.95, 0.48), Math.PI / 2, 0, 0));
+  // Tábua sendo serrada e o serrote
+  const work = box(0.9, 0.05, 0.22, 0xd7b98a, -0.1, 0.91, 0.08);
+  g.add(work);
+  const saw = new THREE.Group();
+  saw.position.set(0.25, 0.98, 0.08);
+  saw.add(box(0.5, 0.12, 0.012, steel, 0, 0.02, 0));
+  saw.add(box(0.14, 0.12, 0.05, 0xc0392b, 0.31, 0.04, 0));
+  g.add(saw);
+  // Martelo e pregos
+  g.add(rot(cyl(0.022, 0.32, dark, -0.55, 0.9, -0.22), 0, 0, Math.PI / 2));
+  g.add(box(0.06, 0.07, 0.14, 0x55606a, -0.7, 0.9, -0.22));
+  g.add(box(0.14, 0.05, 0.1, 0x7f8c8d, 0.3, 0.9, -0.25));
+  // Lascas no chão
+  g.add(cone(0.24, 0.08, 0xe6d2a8, 0.1, 0.04, 0.55));
+  // Pilha de tábuas (até 6) e de vigas (até 4) ao lado
+  const planks = [];
+  for (let k = 0; k < 6; k++) {
+    const p = box(0.85, 0.05, 0.18, k % 2 ? 0xd7b98a : 0xc9a874, 1.25, 0.04 + Math.floor(k / 2) * 0.055, -0.12 + (k % 2) * 0.22);
+    p.visible = false;
+    g.add(p);
+    planks.push(p);
+  }
+  const beams = [];
+  for (let k = 0; k < 4; k++) {
+    const b = box(0.14, 0.14, 1.1, 0xa8794a, -1.15 + (k % 2) * 0.17, 0.08 + Math.floor(k / 2) * 0.15, 0);
+    b.visible = false;
+    g.add(b);
+    beams.push(b);
+  }
+  return { group: g, saw, work, planks, beams };
+}
+
+/**
+ * Canteiro de obras de largura w e profundidade d (centro na origem).
+ * As peças (alicerce, postes, vigas, tábuas) aparecem conforme o progresso.
+ */
+export function makeConstruction(w, d) {
+  const g = new THREE.Group();
+  const stages = [];
+  const add = (m) => { m.visible = false; g.add(m); stages.push(m); };
+  // Cordinha e estacas sempre visíveis
+  for (const [x, z] of [[-w / 2, -d / 2], [w / 2, -d / 2], [-w / 2, d / 2], [w / 2, d / 2]]) {
+    const st = makeStake();
+    st.position.set(x, 0, z);
+    g.add(st);
+  }
+  for (const [x, z, sx, sz] of [[0, -d / 2, w, 0.02], [0, d / 2, w, 0.02], [-w / 2, 0, 0.02, d], [w / 2, 0, 0.02, d]]) {
+    g.add(box(sx, 0.02, sz, 0xf2f2f2, x, 0.4, z));
+  }
+  // Alicerce
+  const iw = w - 0.4, id = d - 0.4;
+  add(box(iw, 0.14, id, 0xa59a8a, 0, 0.07, 0));
+  // Postes (cantos e meio)
+  const posts = [[-iw / 2, -id / 2], [iw / 2, -id / 2], [-iw / 2, id / 2], [iw / 2, id / 2], [0, -id / 2], [0, id / 2], [-iw / 2, 0], [iw / 2, 0]];
+  for (const [x, z] of posts) add(box(0.16, 2.0, 0.16, 0xa8794a, x, 1.1, z));
+  // Vigas de cima
+  add(box(iw, 0.14, 0.16, 0x8d6334, 0, 2.1, -id / 2));
+  add(box(iw, 0.14, 0.16, 0x8d6334, 0, 2.1, id / 2));
+  add(box(0.16, 0.14, id, 0x8d6334, -iw / 2, 2.1, 0));
+  add(box(0.16, 0.14, id, 0x8d6334, iw / 2, 2.1, 0));
+  // Tábuas das paredes, de baixo para cima
+  for (let k = 0; k < 4; k++) {
+    const y = 0.35 + k * 0.42;
+    add(box(iw, 0.34, 0.05, 0xc9a874, 0, y, -id / 2));
+    add(box(0.05, 0.34, id, 0xc9a874, -iw / 2, y, 0));
+  }
+  // Placa da obra
+  const sign = new THREE.Group();
+  sign.add(cyl(0.05, 1.1, 0x6f4825, -0.4, 0.55, 0));
+  sign.add(cyl(0.05, 1.1, 0x6f4825, 0.4, 0.55, 0));
+  sign.add(box(1.1, 0.6, 0.07, 0xf1c40f, 0, 0.85, 0));
+  for (let k = 0; k < 4; k++) sign.add(rot(box(0.12, 0.62, 0.02, 0x2c3e50, -0.4 + k * 0.27, 0.85, 0.045), 0, 0, 0.6));
+  sign.position.set(w / 2 - 0.6, 0, d / 2 + 0.25);
+  g.add(sign);
+  // Pilha de material na frente
+  g.add(box(0.8, 0.1, 0.25, 0xd7b98a, -w / 2 + 0.7, 0.05, d / 2 + 0.35));
+  g.add(box(0.8, 0.1, 0.25, 0xc9a874, -w / 2 + 0.75, 0.15, d / 2 + 0.38));
+  return { group: g, stages };
 }

@@ -4,6 +4,7 @@ import {
   CROPS, PRODUCTS, ANIMALS, WATER_TIME, GROW_SPEED, PEN_SIZE, UPGRADES, CUSTOMERS,
   WORKERS, WORK_TIME, BIG_FIELD, BIG_CELLS, MACHINES, FISH, RODS, PET,
   MUTATIONS, WEATHER_EVENTS, EVENT_ROUND, EVENT_CHANCE, EVENT_COOLDOWN,
+  AXES, LOG, WOOD, CHOP_TREES, SAWMILL, PLANK, BEAM, RECIPES, BUILDINGS, CARPENTRY,
 } from './data.js';
 
 // ================= Utilidades =================
@@ -34,6 +35,9 @@ export const ITEMS = {};
 for (const [id, c] of Object.entries(CROPS)) ITEMS[id] = { name: c.name, icon: c.icon, sell: c.sell, xp: c.xp };
 for (const [id, p] of Object.entries(PRODUCTS)) ITEMS[id] = { ...p };
 for (const [id, f] of Object.entries(FISH)) ITEMS[id] = { name: f.name, icon: f.icon, sell: f.sell, xp: f.xp };
+ITEMS.tronco = { ...LOG };
+ITEMS.madeira = { ...PLANK };
+ITEMS.viga = { ...BEAM };
 
 // ================= Ganchos para a interface/cena =================
 const hooks = { fx() {}, toast() {}, sfx() {}, dirty() {}, event() {} };
@@ -58,6 +62,7 @@ export const TOOLS = [
   { id: 'regador', icon: '💧', name: 'Regador' },
   { id: 'mao', icon: '🧺', name: 'Colher' },
   { id: 'vara', icon: '🎣', name: 'Pescar' },
+  { id: 'machado', icon: '🪓', name: 'Machado' },
 ];
 
 export function setTool(id) {
@@ -67,12 +72,17 @@ export function setTool(id) {
 
 export function toolList() {
   const seeds = Object.keys(CROPS).filter((id) => CROPS[id].level <= S.level).map((id) => 'seed:' + id);
-  return TOOLS.filter((t) => t.id !== 'vara' || S.fishing.rod > 0).map((t) => t.id).concat(seeds);
+  const owned = (t) => (t.id === 'vara' ? S.fishing.rod > 0 : t.id === 'machado' ? S.wood.axe > 0 : true);
+  return TOOLS.filter(owned).map((t) => t.id).concat(seeds);
 }
 
 // Campo de Trigo: s = 0 palha (precisa arar), 1 arado, 2 plantado; g = crescimento em segundos
 function newBigField() {
   return { owned: false, s: new Array(BIG_CELLS).fill(0), g: new Array(BIG_CELLS).fill(0), mm: new Array(BIG_CELLS).fill(0) };
+}
+
+function newBuild(done) {
+  return Object.fromEntries(Object.keys(BUILDINGS).map((id) => [id, { done, got: {} }]));
 }
 
 function newState() {
@@ -109,8 +119,13 @@ function newState() {
     orders: [],
     bought: 0,
     stats: { harvest: 0, earned: 0, orders: 0, fish: 0, mutated: 0 },
-    fishing: { rod: 0 },
+    fishing: { rod: 1 },
+    build: newBuild(false), // construções de madeira: { done, got: { material: entregue } }
+    wood: { axe: 1, trees: CHOP_TREES.map(() => ({ hits: 0, t: 0 })) }, // t > 0: árvore cortada, crescendo de novo
+    saw: { owned: false, queue: 0, t: 0, ready: 0 }, // serraria: troncos na fila, progresso do atual, tábuas prontas
     pet: { owned: false, name: PET.defaultName, day: 0 },
+    bench: 'tabuas', // receita escolhida na mesa de carpintaria
+    god: false,      // cheat de teste: moedas infinitas e nível máximo
     tutorial: { step: 0, count: 0, done: false, tips: {} },
     savedAt: Date.now(),
     seen: false,
@@ -150,6 +165,14 @@ export const penSize = () => PEN_SIZE[S.up.curral];
 export const isReady = (p) => p.s === 'planted' && p.g >= CROPS[p.crop].time;
 export const isWet = (p) => autoWater() || p.w > 0;
 export const canFulfill = (o) => o.req.every((r) => (S.inv[r.id] || 0) >= r.qty);
+/** Há pedido novo (ainda não lido) ou que já dá para entregar? (cartinha sobre o quadro) */
+export const hasMail = () => S.orders.some((o) => !o.seen || canFulfill(o));
+/** Marca todos os pedidos como lidos (ao abrir os pedidos). */
+export function markOrdersSeen() {
+  for (const o of S.orders) if (!o.seen) { o.seen = true; o.seenAt = S.time; }
+}
+/** Pedido recém-chegado: ainda não lido ou lido há poucos segundos. */
+export const isNewOrder = (o) => !o.seen || (o.seenAt != null && S.time - o.seenAt < 10);
 export const findAnimal = (id) => S.animals.find((a) => a.id === id);
 
 /** Hora do dia (o dia começa às 6h, então vai de 6 a 30). */
@@ -326,6 +349,7 @@ function applyEvent(dt, quiet) {
 let feederWarned = false;
 
 export function update(dt, quiet) {
+  if (S.god) S.coins = GOD_COINS;
   const before = dayOf(S.time);
   S.time += dt;
   const after = dayOf(S.time);
@@ -379,6 +403,21 @@ export function update(dt, quiet) {
     for (let k = 0; k < BIG_CELLS; k++) {
       if (b.s[k] === 2 && b.g[k] < BIG_FIELD.time) b.g[k] = Math.min(BIG_FIELD.time, b.g[k] + dt * speed);
     }
+  }
+
+  // Árvores cortadas voltam a crescer
+  for (const tr of S.wood.trees) if (tr.t > 0) tr.t = Math.max(0, tr.t - dt);
+
+  // Serraria: serra um tronco por vez (também com o jogo fechado)
+  const saw = S.saw;
+  if (saw.owned && saw.queue > 0) {
+    saw.t += dt;
+    while (saw.t >= SAWMILL.time && saw.queue > 0) {
+      saw.t -= SAWMILL.time;
+      saw.queue--;
+      saw.ready += SAWMILL.perLog;
+    }
+    if (saw.queue === 0) saw.t = 0;
   }
 
   if (quiet) workersOffline(dt);
@@ -471,6 +510,9 @@ function onLevelUp(silent) {
 function availableItems() {
   const ids = Object.keys(CROPS).filter((id) => CROPS[id].level <= S.level);
   for (const t of new Set(S.animals.map((a) => a.type))) ids.push(ANIMALS[t].product);
+  if (S.wood.axe > 0) ids.push('tronco');
+  if (S.saw.owned || built('celeiro')) ids.push('madeira');
+  if (built('celeiro')) ids.push('viga');
   return ids;
 }
 
@@ -483,7 +525,7 @@ function makeOrder() {
   }));
   const value = req.reduce((s, r) => s + ITEMS[r.id].sell * r.qty, 0);
   const xp = req.reduce((s, r) => s + ITEMS[r.id].xp * r.qty, 0);
-  return { who: pick(CUSTOMERS), req, coins: Math.round(value * rand(1.3, 1.7)), xp: Math.round(xp * 1.5) + 5 };
+  return { who: pick(CUSTOMERS), req, coins: Math.round(value * rand(1.3, 1.7)), xp: Math.round(xp * 1.5) + 5, seen: false };
 }
 
 function fillOrders() {
@@ -722,6 +764,7 @@ export function buyMachine(id) {
   const m = MACHINES[id];
   if (S.machines[id] || m.level > S.level) return;
   if (!S.big.owned) { toast(`Compre o ${BIG_FIELD.name} antes das máquinas.`, 'bad'); sfx('error'); return; }
+  if (!needBuilt('galpao', 'guardar as máquinas')) return;
   if (!spend(m.cost)) return;
   S.machines[id] = { x: null, z: null, h: 0 }; // a cena estaciona no galpão
   emit('machine', id);
@@ -789,6 +832,265 @@ export function petDog() {
   gainXp(PET.xp);
   toast(`❤️ ${S.pet.name} adorou o carinho! +${PET.xp} XP`, 'good');
   return true;
+}
+
+// ================= Lenha =================
+export const axe = () => AXES[S.wood.axe] || null;
+export const treeDown = (i) => S.wood.trees[i].t > 0;
+
+export function buyAxe(level) {
+  const a = AXES[level];
+  if (!a || S.wood.axe >= level || a.level > S.level) return;
+  if (level > 1 && S.wood.axe < level - 1) { toast('Compre o machado anterior primeiro.', 'bad'); return; }
+  if (!spend(a.cost)) return;
+  S.wood.axe = level;
+  tool = 'machado';
+  toast(`${a.icon} ${a.name} comprado! Vá até o bosque, a oeste, e corte algumas árvores.`, 'good');
+  sfx('coin');
+  emit('axe', level);
+  markDirty('toolbar', 'panel');
+}
+
+/** Um golpe de machado na árvore i. Retorna 'hit', 'fell' (derrubou) ou null. */
+export function chopTree(i, quiet = false) {
+  const tr = S.wood.trees[i];
+  const a = axe();
+  if (!tr || tr.t > 0) return null;
+  if (!a) {
+    if (!quiet) { toast('🪓 Compre um machado na loja para cortar árvores.', 'bad'); sfx('error'); }
+    return null;
+  }
+  tr.hits++;
+  if (tr.hits < a.hits) { sfx('chop'); return 'hit'; }
+  const logs = WOOD.logs[0] + Math.floor(Math.random() * (WOOD.logs[1] - WOOD.logs[0] + 1)) + a.bonus;
+  tr.hits = 0;
+  tr.t = WOOD.regrow;
+  addItem('tronco', logs);
+  gainXp(WOOD.xp);
+  S.stats.logs = (S.stats.logs || 0) + logs;
+  sfx('timber');
+  emit('chop', logs);
+  return 'fell';
+}
+
+// ================= Construções de madeira =================
+export const built = (id) => !!(S.build[id] && S.build[id].done);
+
+function needBuilt(id, what) {
+  if (built(id)) return true;
+  const b = BUILDINGS[id];
+  toast(`${b.icon} Construa o ${b.name} com madeira para ${what}.`, 'bad');
+  sfx('error');
+  return false;
+}
+
+/** Material que ainda falta entregar: [{ id, qty }]. */
+export function buildMissing(id) {
+  const st = S.build[id];
+  return Object.entries(BUILDINGS[id].cost)
+    .map(([m, qty]) => ({ id: m, qty: qty - (st.got[m] || 0) }))
+    .filter((x) => x.qty > 0);
+}
+
+/** Progresso da obra (0 a 1). */
+export function buildProgress(id) {
+  const cost = BUILDINGS[id].cost;
+  const st = S.build[id];
+  if (st.done) return 1;
+  let total = 0, got = 0;
+  for (const [m, qty] of Object.entries(cost)) { total += qty; got += Math.min(qty, st.got[m] || 0); }
+  return total ? got / total : 1;
+}
+
+/** Entrega no canteiro o material que o jogador tem. Retorna { delivered, done } ou null. */
+export function buildDeliver(id) {
+  const b = BUILDINGS[id];
+  const st = S.build[id];
+  if (!b || st.done) return null;
+  let delivered = 0;
+  for (const { id: m, qty } of buildMissing(id)) {
+    const n = Math.min(qty, S.inv[m] || 0);
+    if (n > 0) {
+      S.inv[m] -= n;
+      st.got[m] = (st.got[m] || 0) + n;
+      delivered += n;
+    }
+  }
+  if (!buildMissing(id).length) {
+    st.done = true;
+    gainXp(15);
+    toast(`${b.icon} ${b.name} construído! ${b.desc}`, 'good');
+    sfx('level');
+    emit('build', id);
+    markDirty('panel', 'toolbar');
+    return { delivered, done: true };
+  }
+  if (delivered) {
+    toast(`🏗️ ${b.name}: material entregue (${Math.round(buildProgress(id) * 100)}%). Falta ${missingText(id)}.`, 'good');
+    sfx('chop');
+    markDirty('panel');
+  } else {
+    toast(`🏗️ Para o ${b.name} falta ${missingText(id)}. Faça na ${CARPENTRY.name}.`, 'bad');
+    sfx('error');
+  }
+  return { delivered, done: false };
+}
+
+const missingText = (id) => buildMissing(id).map((x) => `${x.qty} ${ITEMS[x.id].icon}`).join(' e ');
+
+export function buildLabel(id) {
+  const b = BUILDINGS[id];
+  const can = buildMissing(id).some((x) => (S.inv[x.id] || 0) > 0);
+  return can ? `Entregar madeira no ${b.name}` : `Ver a obra do ${b.name}`;
+}
+
+export function buildInfo(id) {
+  const b = BUILDINGS[id];
+  return `🏗️ Obra do ${b.name} (${Math.round(buildProgress(id) * 100)}%): falta ${missingText(id)}. ${b.desc}`;
+}
+
+export const recipe = () => RECIPES.find((x) => x.id === S.bench) || RECIPES[0];
+export function setBench(id) {
+  if (!RECIPES.some((x) => x.id === id)) return;
+  S.bench = id;
+  markDirty('panel');
+}
+
+/** Quantas vezes dá para fazer a receita com o que há no celeiro. */
+export function craftMax(rid) {
+  const rc = RECIPES.find((x) => x.id === rid);
+  if (!rc) return 0;
+  return Math.min(...Object.entries(rc.input).map(([m, q]) => Math.floor((S.inv[m] || 0) / q)));
+}
+
+/** Faz uma unidade da receita na mesa de carpintaria. Retorna true se deu certo. */
+export function craft(rid) {
+  const rc = RECIPES.find((x) => x.id === rid);
+  if (!rc || craftMax(rid) < 1) return false;
+  for (const [m, q] of Object.entries(rc.input)) S.inv[m] -= q;
+  for (const [m, q] of Object.entries(rc.output)) addItem(m, q);
+  gainXp(rc.xp);
+  S.stats.crafted = (S.stats.crafted || 0) + 1;
+  if (rid === 'tabuas') S.stats.planks = (S.stats.planks || 0) + rc.output.madeira;
+  emit('craft', rid);
+  markDirty('panel');
+  return true;
+}
+
+// ================= Códigos de teste =================
+const GOD_COINS = 999999999;
+/** Nível em que tudo do jogo já está liberado. */
+export const MAX_LEVEL = Math.max(
+  ...Object.values(CROPS).map((c) => c.level),
+  ...Object.values(ANIMALS).map((a) => a.level),
+  ...Object.values(UPGRADES).flatMap((u) => u.req),
+  ...Object.values(WORKERS).map((w) => w.level),
+  ...FIELDS.map((f) => f.level || 1),
+  ...Object.values(MACHINES).map((m) => m.level),
+  ...RODS.filter(Boolean).map((r) => r.level),
+  ...AXES.filter(Boolean).map((a) => a.level),
+  BIG_FIELD.level, SAWMILL.level, PET.level,
+);
+
+/** Liga/desliga o godmode. Ao desligar, volta às moedas e ao nível de antes. */
+export function godMode(on = !S.god) {
+  if (on === !!S.god) return;
+  if (on) {
+    S.godBackup = { coins: S.coins, level: S.level, xp: S.xp };
+    S.god = true;
+    S.coins = GOD_COINS;
+    if (S.level < MAX_LEVEL) { S.level = MAX_LEVEL; S.xp = 0; }
+    toast(`🧪 Godmode ligado: moedas infinitas e nível ${S.level}. Digite o código de novo para desligar.`, 'level');
+    sfx('level');
+  } else {
+    const b = S.godBackup || { coins: 0, level: S.level, xp: S.xp };
+    S.god = false;
+    Object.assign(S, { coins: b.coins, level: b.level, xp: b.xp });
+    delete S.godBackup;
+    toast('🧪 Godmode desligado: moedas e nível voltaram ao que eram.');
+  }
+  markDirty('panel', 'toolbar');
+  save();
+}
+
+/** Aplica um código de teste. Retorna true se o código existe. */
+export function cheat(code) {
+  code = String(code || '').trim().toLowerCase();
+  if (code === 'godmode') { godMode(); return true; }
+  toast('🧪 Código desconhecido.', 'bad');
+  sfx('error');
+  return false;
+}
+
+// ================= Serraria =================
+export function buySawmill() {
+  if (S.saw.owned || SAWMILL.level > S.level) return;
+  if (!spend(SAWMILL.cost)) return;
+  S.saw.owned = true;
+  toast(`${SAWMILL.icon} Serraria construída na entrada do bosque! Leve troncos 🪵 para virar tábuas ${PLANK.icon}.`, 'good');
+  sfx('level');
+  emit('sawmill');
+  markDirty('panel');
+}
+
+/** Usar a serraria: coleta as tábuas prontas e coloca os troncos do celeiro na fila. */
+export function sawmillUse() {
+  const saw = S.saw;
+  if (!saw.owned) return null;
+  const collected = saw.ready;
+  if (collected) {
+    addItem('madeira', collected);
+    gainXp(collected * PLANK.xp);
+    S.stats.planks = (S.stats.planks || 0) + collected;
+    saw.ready = 0;
+  }
+  const loaded = Math.min(S.inv.tronco || 0, SAWMILL.capacity - saw.queue);
+  if (loaded > 0) {
+    S.inv.tronco -= loaded;
+    saw.queue += loaded;
+  }
+  if (collected || loaded) {
+    const parts = [];
+    if (collected) parts.push(`coletou ${collected} ${PLANK.icon}`);
+    if (loaded) parts.push(`colocou ${loaded} 🪵 para serrar`);
+    toast(`${SAWMILL.icon} Serraria: ${parts.join(' e ')}.`, 'good');
+    sfx(collected ? 'harvest' : 'chop');
+    markDirty('panel');
+  } else if (saw.queue >= SAWMILL.capacity) {
+    toast(`${SAWMILL.icon} A serraria está cheia (${SAWMILL.capacity} troncos na fila).`);
+  } else {
+    toast(`${SAWMILL.icon} Traga troncos 🪵 para serrar. Corte árvores no bosque com o machado.`);
+  }
+  return { collected, loaded };
+}
+
+/** Rótulo da ação na serraria (ou null se não há o que fazer). */
+export function sawLabel() {
+  const saw = S.saw;
+  if (!saw.owned) return `Ver a Serraria (🪙${fmt(SAWMILL.cost)})`;
+  const canLoad = Math.min(S.inv.tronco || 0, SAWMILL.capacity - saw.queue);
+  const parts = [];
+  if (saw.ready) parts.push(`Coletar ${saw.ready} ${PLANK.icon}`);
+  if (canLoad) parts.push(`serrar ${canLoad} 🪵`);
+  if (!parts.length) return null;
+  const txt = parts.join(' e ');
+  return txt[0].toUpperCase() + txt.slice(1);
+}
+
+export function sawInfo() {
+  const saw = S.saw;
+  if (!saw.owned) return `${SAWMILL.icon} Terreno da Serraria: compre na loja (🪙${fmt(SAWMILL.cost)}, nível ${SAWMILL.level}) para transformar troncos em tábuas.`;
+  const next = saw.queue ? ` · próxima tábua em ${Math.ceil(SAWMILL.time - saw.t)}s` : '';
+  return `${SAWMILL.icon} Serraria: ${saw.queue} 🪵 na fila · ${saw.ready} ${PLANK.icon} prontas${next}. Cada tronco vira ${SAWMILL.perLog} tábuas.`;
+}
+
+/** Texto do contexto da árvore. */
+export function treeInfo(i) {
+  const tr = S.wood.trees[i];
+  if (tr.t > 0) return `🪵 Toco: a árvore volta a crescer em ~${fmtDuration(Math.ceil(tr.t))}.`;
+  const a = axe();
+  if (!a) return '🌳 Árvore do bosque. Compre um 🪓 machado na loja para cortar e ganhar troncos.';
+  return `🌳 Árvore: ${tr.hits}/${a.hits} golpes. Rende ${WOOD.logs[0] + a.bonus}–${WOOD.logs[1] + a.bonus} 🪵 troncos.`;
 }
 
 // ================= Pescaria =================
@@ -935,6 +1237,7 @@ export function buySeed(id, qty) {
 export function buyAnimal(type) {
   const def = ANIMALS[type];
   if (def.level > S.level) return;
+  if (!needBuilt('curral', 'comprar animais')) return;
   if (S.animals.length >= penSize()) { toast('🏡 Curral cheio! Compre a melhoria "Curral maior".', 'bad'); sfx('error'); return; }
   if (!spend(def.cost)) return;
   S.animals.push({ id: S.nextId++, type, fed: false, p: 0, ready: false });
@@ -947,6 +1250,7 @@ export function buyUpgrade(id) {
   const u = UPGRADES[id];
   const l = S.up[id];
   if (l >= u.costs.length || u.req[l] > S.level) return;
+  if ((id === 'curral' || id === 'alimentador') && !needBuilt('curral', 'comprar esta melhoria')) return;
   if (!spend(u.costs[l])) return;
   S.up[id]++;
   toast(`${u.icon} ${u.name}: ${u.effect(S.up[id])}!`, 'good');
@@ -954,6 +1258,7 @@ export function buyUpgrade(id) {
 }
 
 export function sell(id, qty) {
+  if (!needBuilt('celeiro', 'vender')) return;
   qty = Math.min(qty, S.inv[id] || 0);
   if (qty <= 0) return;
   S.inv[id] -= qty;
@@ -963,6 +1268,7 @@ export function sell(id, qty) {
 }
 
 export function sellAll() {
+  if (!needBuilt('celeiro', 'vender')) return;
   const reserve = S.animals.length;
   let total = 0;
   for (const id of Object.keys(S.inv)) {
@@ -1023,6 +1329,7 @@ export function toolHint() {
   if (tool === 'enxada') return '⛏️ Enxada: are a grama para poder plantar.';
   if (tool === 'regador') return `💧 Regador: molhe a terra — a água dura ${WATER_TIME[S.up.regador]}s.`;
   if (tool === 'mao') return '🧺 Colher: chegue perto das plantas prontas ✨ e colha.';
+  if (tool === 'machado') return '🪓 Machado: chegue perto de uma árvore do bosque e corte para ganhar troncos 🪵.';
   if (tool === 'vara') return '🎣 Vara de pesca: vá até a beira do lago e aperte Espaço para lançar a linha.';
   const id = tool.slice(5);
   return `${CROPS[id].icon} Plantando ${CROPS[id].name}: ${S.seeds[id] || 0} sementes.`;
@@ -1051,7 +1358,13 @@ function load() {
       workers: { ...base.workers, ...d.workers },
       fields: { ...base.fields, ...d.fields },
       machines: { ...base.machines, ...d.machines },
-      fishing: { ...base.fishing, ...d.fishing },
+      fishing: { rod: Math.max(1, (d.fishing && d.fishing.rod) || 0) },
+      build: d.build ? Object.fromEntries(Object.keys(BUILDINGS).map((id) => [id, { done: false, got: {}, ...d.build[id] }])) : newBuild(true),
+      saw: { ...base.saw, ...d.saw },
+      wood: {
+        axe: Math.max(1, (d.wood && d.wood.axe) || 0),
+        trees: CHOP_TREES.map((_, k) => (d.wood && d.wood.trees && d.wood.trees[k]) || { hits: 0, t: 0 }),
+      },
       pet: { ...base.pet, ...d.pet },
       tutorial: d.tutorial ? { ...base.tutorial, ...d.tutorial, tips: { ...(d.tutorial.tips || {}) } } : { ...base.tutorial, done: true },
       big: d.big && Array.isArray(d.big.s) && d.big.s.length === BIG_CELLS ? d.big : base.big,
@@ -1067,6 +1380,7 @@ function load() {
     st.nextId = st.nextId || 1;
     for (const a of st.animals) if (!a.id) a.id = st.nextId++;
     st.orders = (st.orders || []).filter((o) => o.req && o.req.every((r) => ITEMS[r.id]));
+    for (const o of st.orders) if (o.seen === undefined) o.seen = true;
     return st;
   } catch (e) {
     return null;

@@ -35,10 +35,11 @@ Depois acesse http://localhost:5173. Na primeira vez, precisa de internet para b
 ## Mecânicas
 
 - **Lavoura**: are a grama, plante, regue e colha. Sem água, nada cresce.
-- **Construções**: Celeiro (vender), Loja (sementes, animais, melhorias), quadro de Pedidos e Casa (dormir à noite).
+- **Construções**: o jogo começa só com a Casa (dormir à noite), a Loja, o quadro de Pedidos e todas as ferramentas. O Celeiro (libera a venda), o Curral (libera os animais) e o Galpão (libera as máquinas) são construídos com madeira, entregue aos poucos no canteiro de cada obra.
+- **Lenha e carpintaria**: corte as árvores do bosque com o machado para ganhar troncos; na mesa de carpintaria, serre troncos em tábuas e pregue tábuas em vigas, na mão. A Serraria (nível 3) serra tábuas sozinha, até com o jogo fechado.
 - **Curral**: os animais andam livres, comem 🌾 trigo e produzem ovos, lã, leite e trufas. O cocho alimenta todos de uma vez, e o Alimentador automático (melhoria da loja) faz isso sozinho usando o trigo do celeiro.
 - **Funcionários**: Colhedor, Plantador e Tratador andam pela fazenda e trabalham sozinhos (também enquanto você está fora). Cobram salário no início de cada dia; sem dinheiro, pedem demissão.
-- **Tempo**: dia de 3 minutos com sol que muda as sombras, noite com lampiões e dias de chuva.
+- **Tempo**: dia de 3 minutos com sol que muda as sombras, noite com lampiões, lanterna do fazendeiro e faróis nas máquinas, e dias de chuva.
 - **Expansão**: no campo principal, compre lotes vizinhos um a um; na loja, compre campos inteiros novos (Leste, Sul e Lago, com 24 a 32 lotes cada), marcados no mapa com placas de venda.
 - **Pescaria**: com uma vara (bambu ou fibra) você pesca no lago: lance, espere a mordida (❗) e segure a ação no minigame para manter o peixe na faixa verde. Seis tipos de pesca, com bagres à noite, lagostins na chuva e uma rara carpa dourada.
 - **Clima e mutações**: eventos climáticos (chuva, ventania, neve, sol escaldante, tempestade de raios, arco-íris e eclipse) dão mutações às plantas que estão crescendo. As mutações se acumulam até a planta amadurecer, vão para o item colhido e aumentam o preço de venda conforme a raridade (cada uma soma o seu bônus, de ×1,5 a ×20). Vale também para o Campo de Trigo e para os funcionários.

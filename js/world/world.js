@@ -1,6 +1,6 @@
 /* FarmLife — mundo 3D: cena, câmera isométrica, personagem, animais e interações */
 import * as THREE from 'three';
-import { ANIMALS, PRODUCTS, CROPS, WORKERS, FIELDS, TOTAL_PLOTS, fieldOf, BIG_FIELD, BIG_CELLS, MACHINES, FISH, MUTATIONS } from '../data.js';
+import { ANIMALS, PRODUCTS, CROPS, WORKERS, FIELDS, TOTAL_PLOTS, fieldOf, BIG_FIELD, BIG_CELLS, MACHINES, FISH, MUTATIONS, CHOP_TREES, SAWMILL, BUILDINGS, RECIPES, CARPENTRY } from '../data.js';
 import { sfx } from '../audio.js';
 import * as core from '../core.js';
 import * as ui from '../ui.js';
@@ -28,7 +28,10 @@ const SPOTS = {
   loja:    { label: '🏪 Loja', at: [6.5, -7.9], labelY: 2.9, point: [6.5, -6.4], r: 1.3, text: 'Abrir a Loja', info: '🏪 Loja: sementes, animais e melhorias.' },
   pedidos: { label: '📦 Pedidos', at: [2.6, -6.9], labelY: 2.4, point: [2.6, -6.0], r: 1.1, text: 'Ver os Pedidos', info: '📦 Quadro de pedidos da vila: entregas pagam mais que o mercado.' },
   casa:    { label: '🏠 Casa', at: [-9.5, -8.4], labelY: 3.9, point: [-8.9, -6.1], r: 1.2, text: 'Dormir até amanhã', info: '🏠 Sua casa. Depois das 18h, durma para pular para a manhã seguinte.' },
-  cocho:   { label: null, at: [-13.5, -0.5], point: [-12.8, -0.5], r: 1.1, text: 'Alimentar todos no cocho', info: '🪵 Cocho: alimenta de uma vez todos os animais com fome (1 🌾 cada).' },
+  serraria: { label: null, at: [-5.4, 7.0], labelY: 3.1, point: [-4.34, 8.06], r: 1.3, text: '', info: '' },
+  mesa:    { label: '🪚 Carpintaria', at: [-5.6, -8.0], labelY: 2.0, point: [-4.93, -7.33], r: 1.15, text: '', info: '' },
+  'obra:curral': { label: null, at: [-7.2, -0.2], labelY: 1.6, point: [-6.6, -0.2], r: 1.3, build: 'curral', text: '', info: '' },
+  cocho:   { label: null, needs: 'curral', at: [-13.5, -0.5], point: [-12.8, -0.5], r: 1.1, text: 'Alimentar todos no cocho', info: '🪵 Cocho: alimenta de uma vez todos os animais com fome (1 🌾 cada).' },
 };
 for (const f of FIELDS) {
   if (!f.cost) continue;
@@ -44,12 +47,18 @@ const BIG = { cx: 36, cz: 4.5 };
 const BIG_X0 = BIG.cx - BIG_FIELD.cols / 2;
 const BIG_Z0 = BIG.cz - BIG_FIELD.rows / 2;
 const SHED = [21, -8.3];
+SPOTS['obra:galpao'] = { label: null, at: SHED, labelY: 2.6, point: [SHED[0], SHED[1] + 2.4], r: 1.6, build: 'galpao', text: '', info: '' };
 SPOTS['campo:trigo'] = {
   label: null, at: [BIG_X0 + 1.6, BIG.cz], point: [BIG_X0 + 1.6, BIG.cz + 0.9], r: 1.4, big: true,
   text: `Ver o ${BIG_FIELD.name}`,
   info: `${BIG_FIELD.icon} ${BIG_FIELD.name} à venda: ${BIG_CELLS} lotes por 🪙${BIG_FIELD.cost.toLocaleString('pt-BR')} (nível ${BIG_FIELD.level}). Compre na loja.`,
 };
-const spotActive = (s) => (s.big ? !core.S.big.owned : !s.field || !core.fieldOwned(s.field));
+const spotActive = (s) => (s.build ? !core.built(s.build)
+  : s.needs ? core.built(s.needs)
+  : s.big ? !core.S.big.owned : !s.field || !core.fieldOwned(s.field));
+/** Construção de madeira associada a um ponto (só enquanto está em obra). */
+const siteOf = (key) => (SPOTS[key].build || (key === 'celeiro' ? 'celeiro' : null));
+const inWork = (key) => { const b = siteOf(key); return b && !core.built(b) ? b : null; };
 
 // Máquinas: onde ficam estacionadas e como se comportam
 const PARK = { arado: [18.4, -4.6, 0], plantadeira: [22.4, -4.6, 0], colheitadeira: [27.6, -7.0, 0] };
@@ -122,6 +131,7 @@ let hoverRing, targetRing, clickMarker, feeder;
 const queueRings = [];
 
 const keys = new Set();
+let typed = ''; // últimas teclas (para os códigos de teste)
 let lastKeyTile = -1;
 let actionHeld = false;
 
@@ -199,6 +209,11 @@ export async function initWorld(cv) {
   buildPen();
   buildBigField();
   buildNature();
+  buildGrove();
+  buildSawmill();
+  buildSites();
+  buildBench();
+  buildLights();
   buildRain();
   buildWeatherFx();
   buildHelpers();
@@ -342,6 +357,19 @@ function buildFarm() {
   }
 }
 
+let mailLetter = null;
+
+/** Bandeirinha levanta e uma cartinha flutua quando há pedido novo ou pronto para entregar. */
+function updateMailbox() {
+  if (!mailLetter) return;
+  const mail = core.hasMail();
+  mailLetter.visible = mail;
+  if (mail) {
+    const [x, z] = SPOTS.pedidos.at;
+    mailLetter.position.set(x, SPOTS.pedidos.labelY + 0.55 + Math.abs(Math.sin(clock * 3)) * 0.12, z);
+  }
+}
+
 function addSpot(key, model, footprint) {
   const s = SPOTS[key];
   const [x, z] = s.at;
@@ -360,11 +388,15 @@ function addSpot(key, model, footprint) {
     const label = M.textSprite(s.label, 0.5);
     label.position.set(x, s.labelY, z);
     scene.add(label);
+    return { proxy, label };
   }
+  return { proxy, label: null };
 }
 
 function buildBuildings() {
-  addSpot('celeiro', M.makeBarn(), { size: [4, 3.7, 3.4] });
+  const barn = M.makeBarn();
+  const barnSpot = addSpot('celeiro', barn, { size: [4, 3.7, 3.4] });
+  sites.celeiro = { model: barn.group, labels: [barnSpot.label] };
   nav.blockRect(-3.5, -10, 0.5, -6.6, PLAYER_R);
   nav.blockRect(0.7, -7.95, 1.5, -6.85, PLAYER_R);
 
@@ -374,6 +406,11 @@ function buildBuildings() {
 
   addSpot('pedidos', M.makeBoard(), { size: [1.8, 2.0, 0.5] });
   nav.blockLine(1.85, -6.9, 3.35, -6.9, 0.12 + PLAYER_R);
+
+  // Cartinha que pula sobre o quadro quando há pedido novo ou pronto para entregar
+  mailLetter = M.emojiSprite('✉️', 0.42);
+  mailLetter.visible = false;
+  scene.add(mailLetter);
 
   addSpot('casa', M.makeHouse(), { size: [3.6, 3.4, 3.0] });
   nav.blockRect(-11.3, -9.9, -7.7, -6.9, PLAYER_R);
@@ -385,6 +422,7 @@ function buildBuildings() {
   lampHouse.position.set(-10.3, 1.3, -6.5);
   const lampShop = new THREE.PointLight(0xffd27a, 0, 6, 1.5);
   lampShop.position.set(6.5, 2.0, -7.0);
+  lampBarn.userData.needs = 'celeiro';
   scene.add(lampBarn, lampHouse, lampShop);
   lamps.push(lampBarn, lampHouse, lampShop);
 }
@@ -470,6 +508,7 @@ function buildBigField() {
   const shedLabel = M.textSprite('🚜 Galpão', 0.45);
   shedLabel.position.set(SHED[0], 3.9, SHED[1]);
   scene.add(shedLabel);
+  sites.galpao = { model: shed, labels: [shedLabel] };
   nav.blockLine(SHED[0] - 3.6, SHED[1] - 1.6, SHED[0] + 3.6, SHED[1] - 1.6, 0.1 + PLAYER_R);
   nav.blockLine(SHED[0] - 3.6, SHED[1] - 1.6, SHED[0] - 3.6, SHED[1] + 1.6, 0.1 + PLAYER_R);
   nav.blockLine(SHED[0] + 3.6, SHED[1] - 1.6, SHED[0] + 3.6, SHED[1] + 1.6, 0.1 + PLAYER_R);
@@ -568,6 +607,15 @@ function syncMachines() {
       m.root.position.copy(pos);
       m.root.rotation.y = heading;
       m.root.userData.pick = { kind: 'machine', id };
+      // Faróis próprios para acender só na máquina dirigida
+      const lampMats = [];
+      const base = M.machineLampMat();
+      m.root.traverse((o) => {
+        if (o.isMesh && o.material === base) {
+          if (!lampMats.length) lampMats.push(base.clone());
+          o.material = lampMats[0];
+        }
+      });
       scene.add(m.root);
       pickables.push(m.root);
       // Retângulo claro mostrando a faixa que o implemento trabalha
@@ -579,7 +627,7 @@ function syncMachines() {
       area.position.set(0, 0.07, def.workZ);
       area.visible = false;
       m.root.add(area);
-      machines.set(id, { id, def, m, pos, heading, speed: 0, area, harvested: 0, fxT: 0, sfxT: 0, smokeT: 0 });
+      machines.set(id, { id, def, m, pos, heading, speed: 0, area, harvested: 0, fxT: 0, sfxT: 0, smokeT: 0, lampMats });
     } else if (!st && machines.has(id)) {
       const v = machines.get(id);
       if (driving === id) exitMachine();
@@ -739,10 +787,27 @@ function buildPen() {
   scene.add(ground);
 
   const lines = [[x1, z1, x2, z1], [x1, z2, x2, z2], [x1, z1, x1, z2], [x2, z1, x2, gate[0]], [x2, gate[1], x2, z2]];
+  const parts = [];
+  const rope = new THREE.Group();
   for (const [a, b, c, d] of lines) {
-    scene.add(M.makeFence(a, b, c, d));
+    const fence = M.makeFence(a, b, c, d);
+    scene.add(fence);
+    parts.push(...fence.children);
     nav.blockLine(a, b, c, d, 0.08 + PLAYER_R);
+    // Cordinha da obra: estacas e fio por onde a cerca vai passar
+    const len = Math.hypot(c - a, d - b);
+    const n = Math.max(1, Math.round(len / 2));
+    for (let k = 0; k <= n; k++) {
+      const st = M.makeStake();
+      st.position.set(a + ((c - a) * k) / n, 0, b + ((d - b) * k) / n);
+      rope.add(st);
+    }
+    const line = M.box(Math.abs(c - a) || 0.02, 0.02, Math.abs(d - b) || 0.02, 0xf2f2f2, (a + c) / 2, 0.4, (b + d) / 2);
+    line.castShadow = false;
+    rope.add(line);
   }
+  // Ordem em que a cerca sobe: ao longo de cada lado
+  scene.add(rope);
   const label = M.textSprite('🐾 Curral', 0.42);
   label.position.set(x2, 1.4, (gate[0] + gate[1]) / 2);
   scene.add(label);
@@ -753,6 +818,7 @@ function buildPen() {
   scene.add(trough);
   pickables.push(trough);
   nav.blockRect(-13.8, -1.25, -13.2, 0.25, PLAYER_R);
+  sites.curral = { parts, rope, labels: [label], extras: [trough] };
 
   // Silo do alimentador automático (aparece quando a melhoria é comprada)
   feeder = M.makeFeeder();
@@ -786,6 +852,8 @@ function buildNature() {
   const inField = (x, z) => FIELDS.some((f) => { const q = fieldRect(f, 0.5); return x > q.x1 && x < q.x2 && z > q.z1 && z < q.z2; });
   const blocked = (x, z) =>
     inField(x, z) ||
+    Math.hypot(x - SPOTS.serraria.at[0], z - SPOTS.serraria.at[1]) < 2.8 ||
+    CHOP_TREES.some(([tx, tz]) => Math.hypot(x - tx, z - tz) < 0.6) ||
     (x > BIG_X0 - 1.5 && z > BIG_Z0 - 1.5 && z < BIG_Z0 + BIG_FIELD.rows + 1.5) ||
     (x > 16 && x < 30 && z < -3) ||
     (x > 16.5 && x < 24.5 && z > -2.1 && z < 0.1) ||
@@ -822,6 +890,7 @@ function buildRain() {
 
 // ================= Efeitos dos eventos climáticos =================
 let snow, snowCover, leaves, rainbow;
+let rainbowAnchor = null; // onde o arco-íris ficou quando apareceu
 const bolts = [];
 const SNOW_N = 900;
 const LEAF_N = 110;
@@ -939,12 +1008,16 @@ function updateWeatherFx(dt, evId) {
     rbOp = arc.material.opacity;
   }
   rainbow.visible = rbOp > 0.01;
-  if (rainbow.visible) {
-    // Ajusta ao enquadramento: o arco cobre a largura da tela, com os pés perto da parte de baixo
+  if (rbOn && !rainbowAnchor) {
+    // Quando o arco-íris aparece, fica fixo naquele lugar (dimensionado para a tela daquele momento)
     const halfW = (camera.right - camera.left) / 2, halfH = (camera.top - camera.bottom) / 2;
-    rainbow.scale.setScalar((halfW * 0.85) / 8.6);
     const d = (0.35 * halfH) / 0.63; // deslocamento no chão em direção à câmera
-    rainbow.position.set(camTarget.x + d * 0.707, -0.2, camTarget.z + d * 0.707);
+    rainbowAnchor = { x: camTarget.x + d * 0.707, z: camTarget.z + d * 0.707, scale: (halfW * 0.85) / 8.6 };
+  }
+  if (!rbOn && !rainbow.visible) rainbowAnchor = null;
+  if (rainbow.visible && rainbowAnchor) {
+    rainbow.scale.setScalar(rainbowAnchor.scale);
+    rainbow.position.set(rainbowAnchor.x, -0.2, rainbowAnchor.z);
   }
 
   // Raios
@@ -1075,6 +1148,7 @@ function guidePos(d) {
     return { x: sp.at[0], z: sp.at[1], h: (sp.labelY || 1.4) + 0.55, gx: sp.point[0], gz: sp.point[1], gy: 0.04 };
   }
   if (d.pond) return { x: POND.x, z: POND.z, h: 1.3 };
+  if (d.tree != null) { const v = grove[d.tree]; return v ? { x: v.x, z: v.z, h: 3.3 } : null; }
   if (d.field) { const [x, z] = FIELD_POS[d.field]; return { x, z, h: 1.6 }; }
   if (d.big) return { x: BIG_X0 + 2, z: BIG.cz, h: 1.8 };
   if (d.machine) {
@@ -1241,7 +1315,7 @@ function updateSky(dt) {
   hemi.intensity += flashT * 4;
   updateWeatherFx(dt, evId);
 
-  for (const l of lamps) l.intensity = d * 14;
+  for (const l of lamps) l.intensity = l.userData.needs && !core.built(l.userData.needs) ? 0 : d * 14;
   for (const m of glowMats) m.emissiveIntensity = d * 1.3;
 
   // Chuva
@@ -1548,6 +1622,7 @@ function jobTarget(job) {
   if (job.kind === 'spot') { const s = SPOTS[job.key]; return { x: s.point[0], z: s.point[1], reach: 0.6 }; }
   if (job.kind === 'move') return { x: job.x, z: job.z, reach: 0.1 };
   if (job.kind === 'machine') { const v = machines.get(job.id); return v ? { x: v.pos.x, z: v.pos.z, reach: v.def.reach } : null; }
+  if (job.kind === 'tree') { const v = grove[job.i]; return v && v.state === 'up' ? { x: v.x, z: v.z, reach: 1.25 } : null; }
   if (job.kind === 'pet') return pet.model ? { x: pet.pos.x, z: pet.pos.z, reach: 1.1 } : null;
   if (job.kind === 'fish') {
     // Vai até a beira do lago, do lado em que o pescador está
@@ -1602,10 +1677,446 @@ function processJobs(dt) {
 function performJob(job) {
   if (job.kind === 'tile') doTile(job.i, job.quiet);
   else if (job.kind === 'animal') doAnimal(job.id, job.quiet);
-  else if (job.kind === 'spot') openSpot(job.key);
+  else if (job.kind === 'spot' && job.key === 'mesa') {
+    // Clicou na mesa: continua trabalhando enquanto houver material
+    if (doBench(job.quiet)) player.queue.unshift({ kind: 'spot', key: 'mesa', quiet: true });
+  } else if (job.kind === 'spot') openSpot(job.key);
   else if (job.kind === 'machine') enterMachine(job.id);
   else if (job.kind === 'fish') startCast(job.x, job.z);
   else if (job.kind === 'pet') petInteract();
+  else if (job.kind === 'tree') {
+    // Clicou na árvore: continua cortando até ela cair
+    if (doChop(job.i, job.quiet) === 'hit') player.queue.unshift({ kind: 'tree', i: job.i, quiet: true });
+  }
+}
+
+// ================= Construções de madeira (canteiros de obra) =================
+const sites = {};
+const easeOutBack = (t) => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); };
+
+function buildSites() {
+  const make = (id, key, w, d, labelY) => {
+    const st = sites[id];
+    const [x, z] = SPOTS[key].at;
+    const c = M.makeConstruction(w, d);
+    c.group.position.set(x, 0, z);
+    scene.add(c.group);
+    st.site = c;
+    st.siteLabel = M.textSprite(`🏗️ ${BUILDINGS[id].name}`, 0.45);
+    st.siteLabel.position.set(x, labelY, z);
+    scene.add(st.siteLabel);
+  };
+  make('celeiro', 'celeiro', 4.2, 3.6, 3.0);
+  make('galpao', 'obra:galpao', 7.2, 3.2, 3.0);
+  // Clique no canteiro do galpão (o do celeiro usa o volume do próprio celeiro)
+  const proxy = new THREE.Mesh(M.GEO.box, new THREE.MeshBasicMaterial({ visible: false }));
+  proxy.scale.set(7.2, 2.4, 3.2);
+  proxy.position.set(SHED[0], 1.2, SHED[1]);
+  proxy.userData.pick = { kind: 'spot', key: 'obra:galpao' };
+  scene.add(proxy);
+  pickables.push(proxy);
+  sites.galpao.proxy = proxy;
+  // Curral: placa da obra no portão
+  const st = sites.curral;
+  const [x, z] = SPOTS['obra:curral'].at;
+  st.sign = M.makeSaleSign();
+  st.sign.position.set(x, 0, z);
+  st.sign.rotation.y = Math.PI / 2;
+  scene.add(st.sign);
+  st.siteLabel = M.textSprite(`🏗️ ${BUILDINGS.curral.name}`, 0.42);
+  st.siteLabel.position.set(x, 1.7, z);
+  scene.add(st.siteLabel);
+  const signProxy = new THREE.Mesh(M.GEO.box, new THREE.MeshBasicMaterial({ visible: false }));
+  signProxy.scale.set(0.6, 1.4, 1.3);
+  signProxy.position.set(x, 0.7, z);
+  signProxy.userData.pick = { kind: 'spot', key: 'obra:curral' };
+  scene.add(signProxy);
+  pickables.push(signProxy);
+  st.proxy = signProxy;
+  nav.blockCircle(x, z, 0.15 + PLAYER_R);
+}
+
+function updateSites(dt) {
+  for (const [id, st] of Object.entries(sites)) {
+    const done = core.built(id);
+    const prog = core.buildProgress(id);
+    if (st.done !== done || st.prog !== prog) {
+      const finished = st.done === false && done;
+      st.done = done;
+      st.prog = prog;
+      for (const l of st.labels) if (l) l.visible = done;
+      if (st.siteLabel) st.siteLabel.visible = !done;
+      if (st.proxy && id !== 'celeiro') st.proxy.visible = !done;
+      if (st.extras) for (const e of st.extras) e.visible = done;
+      if (st.site) {
+        st.site.group.visible = !done;
+        const n = Math.ceil(prog * st.site.stages.length);
+        st.site.stages.forEach((m, k) => { m.visible = k < n; });
+      }
+      if (st.model) st.model.visible = done;
+      if (st.parts) {
+        const n = done ? st.parts.length : Math.floor(prog * st.parts.length);
+        st.parts.forEach((m, k) => { m.visible = k < n; });
+        st.rope.visible = !done;
+        st.sign.visible = !done;
+      }
+      if (finished) {
+        st.riseT = 0;
+        const [x, z] = id === 'curral' ? SPOTS['obra:curral'].at : SPOTS[id === 'galpao' ? 'obra:galpao' : 'celeiro'].at;
+        burst(x, 0.5, z, 0xd7c4a0, 30, { up: 3, spread: 2.2, size: 0.09, life: 1.1 });
+        burst(x, 1.5, z, 0xfff3b0, 16, { up: 4, spread: 1.4, size: 0.07, life: 1 });
+      }
+    }
+    // O prédio "sobe" quando a obra termina
+    if (st.riseT != null && st.model) {
+      st.riseT = Math.min(1, st.riseT + dt * 1.6);
+      st.model.scale.set(1, Math.max(0.01, easeOutBack(st.riseT)), 1);
+      if (st.riseT >= 1) st.riseT = null;
+    } else if (st.riseT != null) st.riseT = null;
+  }
+}
+
+/** Entrega a madeira que o jogador tem na obra. */
+function deliverBuild(id) {
+  const res = core.buildDeliver(id);
+  if (res && res.delivered) {
+    startAction('collect');
+    const key = id === 'celeiro' ? 'celeiro' : 'obra:' + id;
+    const [x, z] = SPOTS[key].at;
+    burst(x, 0.6, z, 0xd7b98a, 14, { up: 2.4, spread: 1.2, size: 0.07 });
+  }
+}
+
+// ================= Mesa de carpintaria =================
+let bench = null;
+const tmpBench = new THREE.Vector3();
+
+function buildBench() {
+  const [x, z] = SPOTS.mesa.at;
+  const m = M.makeCarpentryTable();
+  m.group.position.set(x, 0, z);
+  m.group.rotation.y = Math.PI / 4; // de frente para a câmera
+  scene.add(m.group);
+  const label = M.textSprite(SPOTS.mesa.label, 0.45);
+  label.position.set(x, SPOTS.mesa.labelY, z);
+  scene.add(label);
+  const proxy = new THREE.Mesh(M.GEO.box, new THREE.MeshBasicMaterial({ visible: false }));
+  proxy.scale.set(2.8, 1.2, 1.0);
+  proxy.position.set(x, 0.6, z);
+  proxy.rotation.y = Math.PI / 4;
+  proxy.userData.pick = { kind: 'spot', key: 'mesa' };
+  scene.add(proxy);
+  pickables.push(proxy);
+  for (const lx of [-1.1, 0, 1.1]) nav.blockCircle(x + lx * Math.cos(Math.PI / 4), z - lx * Math.sin(Math.PI / 4), 0.42 + PLAYER_R * 0.5);
+  // Barra de progresso do trabalho
+  const barBg = new THREE.Sprite(new THREE.SpriteMaterial({ color: 0x3b2a1a, depthTest: false, transparent: true, opacity: 0.75 }));
+  barBg.scale.set(1.1, 0.13, 1);
+  barBg.center.set(0, 0.5);
+  barBg.position.set(x - 0.55, 1.55, z);
+  barBg.renderOrder = 10;
+  const bar = new THREE.Sprite(new THREE.SpriteMaterial({ color: 0xffc94d, depthTest: false }));
+  bar.scale.set(0.01, 0.09, 1);
+  bar.center.set(0, 0.5);
+  bar.position.set(x - 0.53, 1.55, z);
+  bar.renderOrder = 11;
+  scene.add(barBg, bar);
+  bench = { m, prog: 0, anim: 0, barBg, bar, show: 0 };
+}
+
+/** Um golpe de serrote/martelo na mesa. Retorna true se trabalhou. */
+function doBench(quiet) {
+  const rc = core.recipe();
+  if (core.craftMax(rc.id) < 1) {
+    if (!quiet) {
+      const need = Object.entries(rc.input).map(([id, q]) => `${q} ${core.ITEMS[id].icon}`).join(' + ');
+      ui.toast(`${CARPENTRY.icon} Para fazer ${rc.name} precisa de ${need}. Escolha a receita na Oficina.`, 'bad');
+      sfx('error');
+      ui.openPanel('oficina');
+    }
+    bench.prog = 0;
+    return false;
+  }
+  const [x, z] = SPOTS.mesa.at;
+  player.heading = Math.atan2(x - player.pos.x, z - player.pos.z);
+  startAction('chop');
+  player.busy = 0.4;
+  bench.prog++;
+  bench.anim = 0.4;
+  bench.show = 2.5;
+  sfx(rc.id === 'viga' ? 'hammer' : 'saw');
+  bench.m.saw.getWorldPosition(tmpBench);
+  burst(tmpBench.x, tmpBench.y, tmpBench.z, 0xe6d2a8, 5, { up: 1.4, spread: 0.5, size: 0.04, life: 0.6, gravity: 3 });
+  if (bench.prog >= rc.work) {
+    bench.prog = 0;
+    core.craft(rc.id);
+    sfx('harvest');
+    const out = Object.entries(rc.output).map(([id, q]) => `+${q} ${core.ITEMS[id].icon}`).join(' ');
+    const p = screenPosOf({ pos: { x, z } });
+    if (p) ui.fxAt(p.x, p.y - 30, out, 'gold');
+    burst(x, 1.0, z, 0xd7b98a, 12, { up: 2.4, spread: 0.8, size: 0.06 });
+  }
+  return true;
+}
+
+function updateBench(dt) {
+  if (!bench) return;
+  const m = bench.m;
+  const inv = core.S.inv;
+  m.planks.forEach((p, k) => { p.visible = k < Math.ceil((inv.madeira || 0) / 4); });
+  m.beams.forEach((b, k) => { b.visible = k < (inv.viga || 0); });
+  if (bench.anim > 0) {
+    bench.anim -= dt;
+    m.saw.position.x = 0.25 + Math.sin(bench.anim * 30) * 0.12;
+  }
+  bench.show = Math.max(0, bench.show - dt);
+  const rc = core.recipe();
+  const on = bench.show > 0 && bench.prog > 0;
+  bench.bar.visible = bench.barBg.visible = on;
+  if (on) bench.bar.scale.x = Math.max(0.01, (bench.prog / rc.work) * 1.06);
+}
+
+function benchLabel() {
+  const rc = core.recipe();
+  if (core.craftMax(rc.id) < 1) return 'Escolher o que fazer';
+  return `${rc.verb} (${bench.prog + 1}/${rc.work})`;
+}
+
+function benchInfo() {
+  const rc = core.recipe();
+  const io = (o) => Object.entries(o).map(([id, q]) => `${q} ${core.ITEMS[id].icon}`).join(' + ');
+  const inv = core.S.inv;
+  return `${CARPENTRY.icon} ${CARPENTRY.name}: ${rc.name} (${io(rc.input)} → ${io(rc.output)}). Você tem 🪵 ${inv.tronco || 0} · 🟫 ${inv.madeira || 0} · 📏 ${inv.viga || 0}. Troque a receita na Oficina 🪚.`;
+}
+
+// ================= Luzes da noite: lanterna e faróis =================
+let torchLight, headLight;
+
+function buildLights() {
+  // As luzes ficam sempre na cena (intensidade 0 de dia) para não recompilar os materiais
+  torchLight = new THREE.SpotLight(0xfff1c4, 0, 11, 0.62, 0.55, 1.1);
+  scene.add(torchLight, torchLight.target);
+  headLight = new THREE.SpotLight(0xfff6d8, 0, 20, 0.55, 0.45, 1.0);
+  scene.add(headLight, headLight.target);
+}
+
+function updateLights(dt) {
+  const d = core.darkness();
+  const night = THREE.MathUtils.smoothstep(d, 0.3, 0.7);
+  // Lanterna do fazendeiro
+  const torchOn = night > 0.01 && !driving;
+  const fwdX = Math.sin(player.heading), fwdZ = Math.cos(player.heading);
+  torchLight.intensity += ((torchOn ? night * 26 : 0) - torchLight.intensity) * Math.min(1, dt * 6);
+  torchLight.position.set(player.pos.x + fwdX * 0.25, 1.0, player.pos.z + fwdZ * 0.25);
+  torchLight.target.position.set(player.pos.x + fwdX * 4.5, 0, player.pos.z + fwdZ * 4.5);
+  player.m.torch.visible = torchOn;
+  // Faróis da máquina dirigida
+  const v = driving ? machines.get(driving) : null;
+  const headOn = !!v && night > 0.01;
+  headLight.intensity += ((headOn ? night * 60 : 0) - headLight.intensity) * Math.min(1, dt * 8);
+  for (const mv of machines.values()) {
+    const lit = mv === v && headOn;
+    for (const lm of mv.lampMats) lm.emissiveIntensity = lit ? 0.5 + night * 3 : 0.5;
+  }
+  if (v) {
+    const s = Math.sin(v.heading), c = Math.cos(v.heading);
+    const y = v.id === 'colheitadeira' ? 2.9 : 0.9;
+    const front = v.id === 'colheitadeira' ? 1.1 : 1.0;
+    headLight.position.set(v.pos.x + s * front, y, v.pos.z + c * front);
+    headLight.target.position.set(v.pos.x + s * (front + 9), 0, v.pos.z + c * (front + 9));
+  }
+}
+
+// ================= Serraria =================
+let sawmill = null;
+const tmpSaw = new THREE.Vector3();
+
+function buildSawmill() {
+  const [x, z] = SPOTS.serraria.at;
+  const root = new THREE.Group();
+  root.position.set(x, 0, z);
+  root.rotation.y = Math.PI / 4; // de frente para a câmera
+  scene.add(root);
+
+  const pad = new THREE.Mesh(
+    new THREE.PlaneGeometry(4.8, 2.8),
+    new THREE.MeshStandardMaterial({ color: 0xb59b6e, roughness: 1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }),
+  );
+  pad.rotation.x = -Math.PI / 2;
+  pad.position.y = 0.012;
+  pad.receiveShadow = true;
+  root.add(pad);
+
+  const model = M.makeSawmill();
+  root.add(model.group);
+
+  // Enquanto não é comprada: placa de venda e estacas
+  const sign = new THREE.Group();
+  const board = M.makeSaleSign();
+  sign.add(board);
+  for (const [sx, sz] of [[-2.2, -1.2], [2.2, -1.2], [-2.2, 1.2], [2.2, 1.2]]) {
+    const st = M.makeStake();
+    st.position.set(sx, 0, sz);
+    sign.add(st);
+  }
+  root.add(sign);
+  const saleLabel = M.textSprite(`🪧 ${SAWMILL.name} · 🪙${SAWMILL.cost.toLocaleString('pt-BR')}`, 0.42);
+  saleLabel.position.set(x, 1.7, z);
+  scene.add(saleLabel);
+  const label = M.textSprite(`${SAWMILL.icon} ${SAWMILL.name}`, 0.5);
+  label.position.set(x, SPOTS.serraria.labelY, z);
+  scene.add(label);
+
+  const proxy = new THREE.Mesh(M.GEO.box, new THREE.MeshBasicMaterial({ visible: false }));
+  proxy.scale.set(3, 2.4, 3);
+  proxy.position.set(x, 1.2, z);
+  proxy.userData.pick = { kind: 'spot', key: 'serraria' };
+  scene.add(proxy);
+  pickables.push(proxy);
+
+  // Bloqueia o galpão (três círculos ao longo do comprimento)
+  for (const lx of [-1.5, 0, 1.5]) {
+    nav.blockCircle(x + lx * Math.cos(Math.PI / 4), z - lx * Math.sin(Math.PI / 4), 0.95 + PLAYER_R * 0.5);
+  }
+  sawmill = { root, model, sign, saleLabel, label, owned: null, dustT: 0 };
+}
+
+function updateSawmill(dt) {
+  if (!sawmill) return;
+  const saw = core.S.saw;
+  if (sawmill.owned !== saw.owned) {
+    sawmill.owned = saw.owned;
+    sawmill.model.group.visible = saw.owned;
+    sawmill.label.visible = saw.owned;
+    sawmill.sign.visible = !saw.owned;
+    sawmill.saleLabel.visible = !saw.owned;
+  }
+  if (!saw.owned) return;
+  const m = sawmill.model;
+  m.logs.forEach((lg, k) => { lg.visible = k < saw.queue; });
+  m.planks.forEach((p, k) => { p.visible = k < saw.ready; });
+  if (saw.queue > 0) {
+    m.blade.rotation.x += dt * 22;
+    sawmill.dustT -= dt;
+    if (sawmill.dustT <= 0) {
+      sawmill.dustT = 0.15;
+      m.blade.getWorldPosition(tmpSaw);
+      burst(tmpSaw.x, tmpSaw.y, tmpSaw.z, 0xe6d2a8, 2, { up: 1.2, spread: 0.4, size: 0.035, life: 0.6, gravity: 3 });
+    }
+  }
+}
+
+// ================= Bosque: árvores que podem ser cortadas =================
+const grove = [];
+const UP_AXIS = new THREE.Vector3(0, 1, 0);
+
+function buildGrove() {
+  CHOP_TREES.forEach(([x, z], i) => {
+    const root = new THREE.Group();
+    root.position.set(x, 0, z);
+    const pivot = new THREE.Group(); // a árvore gira em torno da base ao cair
+    root.add(pivot);
+    const s = 0.78 + ((i * 37) % 10) / 50;
+    const tree = M.makeTree(i % 3 === 0 ? 'round' : 'pine', s);
+    tree.rotation.y = i * 1.7;
+    pivot.add(tree);
+    const stump = M.makeStump(s);
+    stump.visible = false;
+    root.add(stump);
+    scene.add(root);
+    const proxy = new THREE.Mesh(M.GEO.box, new THREE.MeshBasicMaterial({ visible: false }));
+    proxy.scale.set(1.0, 2.6, 1.0);
+    proxy.position.set(x, 1.3, z);
+    proxy.userData.pick = { kind: 'tree', i };
+    scene.add(proxy);
+    pickables.push(proxy);
+    nav.blockCircle(x, z, 0.3 + PLAYER_R);
+    grove.push({ i, x, z, s, root, pivot, tree, stump, state: 'up', t: 0, axis: new THREE.Vector3(1, 0, 0), shakeT: 0 });
+  });
+}
+
+function setTreeDown(v) {
+  v.state = 'down';
+  v.tree.visible = false;
+  v.pivot.quaternion.identity();
+  v.stump.visible = true;
+}
+
+function updateGrove(dt) {
+  for (const v of grove) {
+    const down = core.treeDown(v.i);
+    if (v.state === 'up') {
+      if (down) { setTreeDown(v); continue; } // cortada enquanto o jogo estava fechado
+      if (v.shakeT > 0) {
+        v.shakeT = Math.max(0, v.shakeT - dt);
+        v.pivot.rotation.set(Math.sin(v.shakeT * 45) * 0.07 * (v.shakeT / 0.3), 0, Math.cos(v.shakeT * 38) * 0.05 * (v.shakeT / 0.3));
+      }
+    } else if (v.state === 'falling') {
+      v.t += dt;
+      const k = Math.min(1, v.t / 0.9);
+      v.pivot.quaternion.setFromAxisAngle(v.axis, k * k * (Math.PI / 2 - 0.08));
+      if (k >= 1 && !v.landed) {
+        v.landed = true;
+        // Poeira onde a copa bate no chão
+        const d = new THREE.Vector3().crossVectors(v.axis, UP_AXIS).multiplyScalar(2 * v.s); // (UP×dir)×UP = dir
+        burst(v.x + d.x, 0.2, v.z + d.z, 0xb59b6e, 16, { up: 1.6, spread: 1.4, life: 0.7, size: 0.08 });
+        burst(v.x + d.x, 0.5, v.z + d.z, 0x5aa845, 10, { up: 2, spread: 1.2, life: 0.8 });
+      }
+      if (v.t > 1.7) setTreeDown(v);
+    } else if (v.state === 'down') {
+      if (!down) {
+        // Cresceu de novo
+        v.state = 'growing';
+        v.t = 0;
+        v.stump.visible = false;
+        v.tree.visible = true;
+        v.tree.scale.setScalar(0.01);
+      }
+    } else if (v.state === 'growing') {
+      v.t += dt;
+      const k = Math.min(1, v.t / 1.4);
+      const e = 1 + 2.2 * Math.pow(k - 1, 3) + 1.2 * Math.pow(k - 1, 2); // ease-out-back
+      v.tree.scale.setScalar(Math.max(0.01, e * v.s));
+      if (k >= 1) { v.tree.scale.setScalar(v.s); v.state = 'up'; }
+    }
+  }
+}
+
+/** Golpe de machado na árvore i. */
+function doChop(i, quiet) {
+  const v = grove[i];
+  if (!v || v.state !== 'up') return null;
+  player.heading = Math.atan2(v.x - player.pos.x, v.z - player.pos.z);
+  const logs0 = core.S.inv.tronco || 0;
+  const res = core.chopTree(i, quiet);
+  if (!res) return null;
+  startAction('chop');
+  player.busy = 0.42;
+  v.shakeT = 0.3;
+  burst(v.x, 0.6, v.z, 0xd7b98a, 8, { up: 2, spread: 0.6, size: 0.05, life: 0.5 });
+  burst(v.x, 1.9 * v.s, v.z, 0x4f9a3d, 5, { up: 0.5, spread: 1, size: 0.06, life: 1, gravity: 2 });
+  if (res === 'fell') {
+    // Cai para longe do fazendeiro
+    const d = new THREE.Vector3(v.x - player.pos.x, 0, v.z - player.pos.z);
+    if (d.lengthSq() < 1e-4) d.set(1, 0, 0);
+    d.normalize();
+    v.axis.crossVectors(UP_AXIS, d).normalize();
+    v.pivot.rotation.set(0, 0, 0);
+    v.state = 'falling';
+    v.t = 0;
+    v.landed = false;
+    const p = screenPosOf({ pos: { x: v.x, z: v.z } });
+    if (p) ui.fxAt(p.x, p.y - 20, `+${(core.S.inv.tronco || 0) - logs0} 🪵`, 'gold');
+  }
+  return res;
+}
+
+function nearestTree(maxD) {
+  let best = null, bd = maxD;
+  for (const v of grove) {
+    const d = dist2(player.pos, v.x, v.z);
+    if (d < bd) { bd = d; best = v; }
+  }
+  return best;
 }
 
 function startAction(kind) {
@@ -1637,10 +2148,23 @@ function doAnimal(id, quiet) {
 }
 
 function openSpot(key) {
+  const site = inWork(key);
+  if (site) { deliverBuild(site); return; }
+  if (key === 'mesa') { doBench(false); return; }
   if (key === 'casa') {
     if (core.sleep()) {
       ui.sleepFade();
       ui.markDirty('panel');
+    }
+    return;
+  }
+  if (key === 'serraria') {
+    if (!core.S.saw.owned) { ui.openPanel('loja', 'lenha'); return; }
+    const res = core.sawmillUse();
+    if (res && (res.collected || res.loaded)) {
+      startAction('collect');
+      const [x, z] = SPOTS.serraria.at;
+      burst(x, 0.8, z, 0xd7b98a, 12, { up: 2.4, spread: 0.8, size: 0.06 });
     }
     return;
   }
@@ -1672,6 +2196,10 @@ function getContext() {
   }
   if (best) return best;
   if (pet.model && dist2(player.pos, pet.pos.x, pet.pos.z) < 1.3) return { kind: 'pet' };
+  if (core.tool === 'machado') {
+    const t = nearestTree(1.5);
+    if (t) return { kind: 'tree', i: t.i };
+  }
   for (const v of machines.values()) {
     if (dist2(player.pos, v.pos.x, v.pos.z) < v.def.reach) return { kind: 'machine', id: v.id };
   }
@@ -1693,8 +2221,16 @@ function actionLabel(ctx) {
   if (ctx.kind === 'machine') return `Dirigir: ${MACHINES[ctx.id].name}`;
   if (ctx.kind === 'exit') return 'Sair da máquina';
   if (ctx.kind === 'fish') return FISH_LABEL[fishing.state] || null;
+  if (ctx.kind === 'tree') {
+    const a = core.axe();
+    if (!a || core.treeDown(ctx.i) || grove[ctx.i].state !== 'up') return null;
+    return `Cortar a árvore (${core.S.wood.trees[ctx.i].hits + 1}/${a.hits})`;
+  }
   if (ctx.kind === 'pet') return `Fazer carinho em ${core.S.pet.name.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c])}`;
   if (ctx.kind === 'animal') { const a = core.findAnimal(ctx.id); return a ? core.animalActionLabel(a) : null; }
+  if (ctx.kind === 'spot' && ctx.key === 'serraria') return core.sawLabel();
+  if (ctx.kind === 'spot' && inWork(ctx.key)) return core.buildLabel(inWork(ctx.key));
+  if (ctx.kind === 'spot' && ctx.key === 'mesa') return benchLabel();
   if (ctx.kind === 'spot') {
     if (ctx.key === 'casa') return core.dayHours() >= 18 ? SPOTS.casa.text : null;
     return SPOTS[ctx.key].text;
@@ -1708,8 +2244,12 @@ function infoText(ctx) {
   if (ctx.kind === 'machine') return `${MACHINES[ctx.id].icon} ${MACHINES[ctx.id].name}: ${MACHINES[ctx.id].desc}`;
   if (ctx.kind === 'exit') return machineInfo();
   if (ctx.kind === 'fish') return FISH_INFO[fishing.state];
+  if (ctx.kind === 'tree') return core.treeInfo(ctx.i);
   if (ctx.kind === 'pet') return `🐶 ${core.S.pet.name}, sua border collie. ${petPettedToday() ? 'Já ganhou carinho hoje ❤️' : 'Faça carinho: +10 XP uma vez por dia.'}`;
   if (ctx.kind === 'animal') { const a = core.findAnimal(ctx.id); return a ? core.animalInfo(a) : null; }
+  if (ctx.kind === 'spot' && ctx.key === 'serraria') return core.sawInfo();
+  if (ctx.kind === 'spot' && inWork(ctx.key)) return core.buildInfo(inWork(ctx.key));
+  if (ctx.kind === 'spot' && ctx.key === 'mesa') return benchInfo();
   if (ctx.kind === 'spot') return SPOTS[ctx.key].info;
   return null;
 }
@@ -1721,6 +2261,8 @@ function keyAction(repeat) {
   if (ctx.kind === 'exit') { if (!repeat) exitMachine(); return; }
   if (ctx.kind === 'fish') { if (!repeat) fishAction(); return; }
   if (ctx.kind === 'pet') { if (!repeat) petInteract(); return; }
+  if (ctx.kind === 'tree') { doChop(ctx.i, repeat); return; }
+  if (ctx.kind === 'spot' && ctx.key === 'mesa') { cancelJobs(); doBench(repeat); return; }
   cancelJobs();
   if (ctx.kind === 'machine') { if (!repeat) enterMachine(ctx.id); return; }
   if (ctx.kind === 'tile') {
@@ -1796,7 +2338,7 @@ function updatePlayer(dt) {
   // Segurar Espaço/E repete a ação ao passar por novos lotes
   if ((keys.has(' ') || keys.has('e') || actionHeld) && player.busy <= 0) {
     const ctx = getContext();
-    if (ctx && ctx.kind === 'tile' && ctx.i !== lastKeyTile) keyAction(true);
+    if (ctx && ((ctx.kind === 'tile' && ctx.i !== lastKeyTile) || ctx.kind === 'tree' || (ctx.kind === 'spot' && ctx.key === 'mesa'))) keyAction(true);
   }
 
   animateFarmer(player, dt, core.tool.startsWith('seed:') ? 'seed' : core.tool);
@@ -1815,7 +2357,8 @@ function animateFarmer(e, dt, toolKey) {
   const ease = Math.min(1, dt * 14);
   m.legL.rotation.x += (swing - m.legL.rotation.x) * ease;
   m.legR.rotation.x += (-swing - m.legR.rotation.x) * ease;
-  m.armL.rotation.x += (-swing * 0.8 - m.armL.rotation.x) * ease;
+  const armL = m.torch && m.torch.visible ? -0.75 - swing * 0.15 : -swing * 0.8;
+  m.armL.rotation.x += (armL - m.armL.rotation.x) * ease;
   m.body.position.y = e.moving ? Math.abs(Math.sin(e.phase)) * 0.05 : Math.sin(clock * 2) * 0.008;
 
   let armR = swing * 0.8;
@@ -2177,10 +2720,16 @@ const FISH_INFO = {
 };
 
 // ================= Entrada (teclado, mouse e toque) =================
+function shown(o) {
+  for (; o; o = o.parent) if (!o.visible) return false;
+  return true;
+}
+
 function pick() {
   raycaster.setFromCamera(ndc, camera);
   const hits = raycaster.intersectObjects(pickables, true);
   for (const h of hits) {
+    if (!shown(h.object)) continue; // escondidos (obras, cocho sem curral) não contam
     let o = h.object;
     while (o && !o.userData.pick) o = o.parent;
     if (o) return o.userData.pick;
@@ -2220,6 +2769,14 @@ function clickAt(e) {
   }
   if (hit.kind === 'machine') { player.queue.push({ kind: 'machine', id: hit.id }); return hit; }
   if (hit.kind === 'pet') { player.queue.push({ kind: 'pet' }); return hit; }
+  if (hit.kind === 'tree') {
+    if (!core.S.wood.axe) ui.toast('🪓 Compre um machado na loja para cortar árvores.');
+    else if (!core.treeDown(hit.i)) {
+      if (core.tool !== 'machado') core.setTool('machado');
+      player.queue.push({ kind: 'tree', i: hit.i });
+    }
+    return hit;
+  }
   if (hit.kind === 'tile') {
     player.queue.push({ kind: 'tile', i: hit.i });
   } else if (hit.kind === 'animal') {
@@ -2320,6 +2877,10 @@ function bindInput() {
     if (ui.uiBlocking() || e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
     const k = e.key.toLowerCase();
+    if (k.length === 1) {
+      typed = (typed + k).slice(-12);
+      if (typed.endsWith('godmode')) { typed = ''; core.godMode(); }
+    }
     if (k === ' ' || k.startsWith('arrow')) e.preventDefault();
     if (document.activeElement && document.activeElement.tagName === 'BUTTON') document.activeElement.blur();
     if (k === ' ' || k === 'e') {
@@ -2424,6 +2985,12 @@ export function worldFrame(dt) {
   syncWorkers();
   updatePlayer(dt);
   updateFishing(dt);
+  updateMailbox();
+  updateGrove(dt);
+  updateSawmill(dt);
+  updateSites(dt);
+  updateBench(dt);
+  updateLights(dt);
   syncPet();
   updatePet(dt);
   updateCritters(dt);

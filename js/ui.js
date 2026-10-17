@@ -1,5 +1,5 @@
 /* FarmLife — interface em HTML sobre a cena 3D (HUD, hotbar, painel, avisos) */
-import { CROPS, ANIMALS, PRODUCTS, UPGRADES, WORKERS, FIELDS, BIG_FIELD, BIG_CELLS, MACHINES, FISH, RODS, PET, MUTATIONS, RARITY_COLOR, WEATHER_EVENTS, SOUND_KEY } from './data.js';
+import { CROPS, ANIMALS, PRODUCTS, UPGRADES, WORKERS, FIELDS, BIG_FIELD, BIG_CELLS, MACHINES, FISH, RODS, PET, MUTATIONS, RARITY_COLOR, WEATHER_EVENTS, AXES, LOG, WOOD, SAWMILL, PLANK, RECIPES, BUILDINGS, CARPENTRY, SOUND_KEY } from './data.js';
 import * as core from './core.js';
 import { Sound, sfx } from './audio.js';
 
@@ -108,8 +108,10 @@ function renderPanel() {
   const scroll = el.tabContent.scrollTop;
   if (currentTab === 'loja') el.tabContent.innerHTML = shopHtml();
   else if (currentTab === 'celeiro') el.tabContent.innerHTML = barnHtml();
+  else if (currentTab === 'oficina') el.tabContent.innerHTML = workshopHtml();
   else el.tabContent.innerHTML = ordersHtml();
   el.tabContent.scrollTop = scroll;
+  if (currentTab === 'pedidos' && isPanelOpen()) core.markOrdersSeen();
 
   const ok = S.orders.filter(core.canFulfill).length;
   el.badge.hidden = !ok;
@@ -174,6 +176,40 @@ function shopHtml() {
   }
   h += `</div><p class="hint">Peixes do lago: ${Object.values(FISH).filter((f) => !f.junk).map((f) => `${f.icon} ${f.name}`).join(', ')}. À noite aparecem mais bagres; na chuva, lagostins.</p>`;
 
+  h += '<h3 id="sec-lenha">🪓 Lenha</h3><div class="cards">';
+  for (let lv = 1; lv < AXES.length; lv++) {
+    const ax = AXES[lv];
+    const owned = S.wood.axe >= lv;
+    const locked = !owned && ax.level > S.level;
+    const needPrev = !owned && S.wood.axe < lv - 1;
+    h += `<div class="card${locked ? ' locked' : ''}${owned ? ' hired' : ''}">
+      <div class="ico">${ax.icon}</div>
+      <div class="info"><b>${ax.name}${owned ? ' <small>✔ seu</small>' : ''}</b><small>${ax.desc}</small></div>
+      <div class="btns">${owned
+        ? '<span class="req">✔ Comprado</span>'
+        : locked
+          ? `<span class="req">🔒 Nível ${ax.level}</span>`
+          : needPrev
+            ? '<span class="req">Compre o anterior</span>'
+            : `<button class="btn alt" data-act="axe" data-id="${lv}" ${S.coins < ax.cost ? 'disabled' : ''}>🪙${fmt(ax.cost)}</button>`}
+      </div></div>`;
+  }
+  {
+    const owned = S.saw.owned;
+    const locked = !owned && SAWMILL.level > S.level;
+    h += `<div class="card${locked ? ' locked' : ''}${owned ? ' hired' : ''}">
+      <div class="ico">${SAWMILL.icon}</div>
+      <div class="info"><b>${SAWMILL.name}${owned ? ' <small>✔ sua</small>' : ''}</b>
+        <small>Transforma cada 🪵 tronco em ${SAWMILL.perLog} ${PLANK.icon} tábuas (🪙${PLANK.sell} cada), um a cada ${SAWMILL.time}s, até com o jogo fechado. Fica na entrada do bosque.</small></div>
+      <div class="btns">${owned
+        ? '<span class="req">✔ Construída</span>'
+        : locked
+          ? `<span class="req">🔒 Nível ${SAWMILL.level}</span>`
+          : `<button class="btn alt" data-act="sawmill" ${S.coins < SAWMILL.cost ? 'disabled' : ''}>🪙${fmt(SAWMILL.cost)}</button>`}
+      </div></div>`;
+  }
+  h += `</div><p class="hint">🌲 O bosque fica a oeste, entre o curral e o Campo do Sul. Cada árvore rende ${WOOD.logs[0]}–${WOOD.logs[1]} ${LOG.icon} troncos (🪙${LOG.sell} cada) e cresce de novo em ~${Math.round(WOOD.regrow / 60)} min.</p>`;
+
   const pet = S.pet;
   const petLocked = !pet.owned && PET.level > S.level;
   const esc = (t) => String(t).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]);
@@ -215,14 +251,17 @@ function shopHtml() {
           ? `<span class="req">🔒 Nível ${m.level}</span>`
           : !big
             ? '<span class="req">Compre o campo</span>'
-            : `<button class="btn alt" data-act="machine" data-id="${id}" ${S.coins < m.cost ? 'disabled' : ''}>🪙${fmt(m.cost)}</button>`}
+            : !core.built('galpao')
+              ? '<span class="req">🏗️ Construa o galpão</span>'
+              : `<button class="btn alt" data-act="machine" data-id="${id}" ${S.coins < m.cost ? 'disabled' : ''}>🪙${fmt(m.cost)}</button>`}
       </div></div>`;
   }
   h += '</div>';
 
   const size = core.penSize();
   const full = S.animals.length >= size;
-  h += `<h3>🐾 Animais <small>(${S.animals.length}/${size} no curral)</small></h3><div class="cards">`;
+  const penBuilt = core.built('curral');
+  h += `<h3>🐾 Animais <small>(${penBuilt ? `${S.animals.length}/${size} no curral` : 'construa o curral primeiro'})</small></h3><div class="cards">`;
   for (const [id, a] of Object.entries(ANIMALS)) {
     const locked = a.level > S.level;
     const prod = PRODUCTS[a.product];
@@ -232,7 +271,9 @@ function shopHtml() {
         <small>Produz ${prod.icon} ${prod.name} (🪙${prod.sell}) a cada ${core.fmtDuration(a.time)} · come 🌾</small></div>
       <div class="btns">${locked
         ? `<span class="req">🔒 Nível ${a.level}</span>`
-        : full
+        : !penBuilt
+          ? '<span class="req">🏗️ Construa o curral</span>'
+          : full
           ? '<span class="req">Curral cheio</span>'
           : `<button class="btn" data-act="animal" data-id="${id}" ${S.coins < a.cost ? 'disabled' : ''}>🪙${fmt(a.cost)}</button>`}
       </div></div>`;
@@ -272,7 +313,9 @@ function shopHtml() {
         ? '<span class="req">✔ Máximo</span>'
         : locked
           ? `<span class="req">🔒 Nível ${u.req[l]}</span>`
-          : `<button class="btn alt" data-act="upgrade" data-id="${id}" ${S.coins < u.costs[l] ? 'disabled' : ''}>🪙${fmt(u.costs[l])}</button>`}
+          : (id === 'curral' || id === 'alimentador') && !core.built('curral')
+            ? '<span class="req">🏗️ Construa o curral</span>'
+            : `<button class="btn alt" data-act="upgrade" data-id="${id}" ${S.coins < u.costs[l] ? 'disabled' : ''}>🪙${fmt(u.costs[l])}</button>`}
       </div></div>`;
   }
   h += '</div>';
@@ -296,9 +339,14 @@ function barnHtml() {
   ids.sort((a, b) => (a.includes('|') - b.includes('|')) || (a.includes('|') ? core.price(b) - core.price(a) : 0));
   const reserve = S.animals.length;
   const total = ids.reduce((s, id) => s + core.price(id) * (id === 'trigo' ? Math.max(0, S.inv[id] - reserve) : S.inv[id]), 0);
-  let h = `<div class="barn-head">
+  const canSell = core.built('celeiro');
+  let h = canSell
+    ? `<div class="barn-head">
     <div>Valor de venda: <b>🪙${fmt(total)}</b>${reserve ? `<small>Guarda ${reserve} 🌾 para os animais</small>` : ''}</div>
-    <button class="btn" data-act="sellall" ${total ? '' : 'disabled'}>Vender tudo</button></div>`;
+    <button class="btn" data-act="sellall" ${total ? '' : 'disabled'}>Vender tudo</button></div>`
+    : `<div class="notice">🏗️ <b>O celeiro ainda está em obra.</b> Sua colheita fica guardada aqui, mas só dá para vender depois de construí-lo
+      (${costText(BUILDINGS.celeiro.cost)}). Enquanto isso, entregue os 📦 pedidos da vila para ganhar moedas.
+      <br><button class="btn alt" data-act="tab" data-id="oficina">🪚 Ver a Oficina</button></div>`;
 
   if (!ids.length) {
     h += '<p class="empty-msg">Seu celeiro está vazio. Vá colher algo! 🧺</p>';
@@ -311,9 +359,9 @@ function barnHtml() {
       h += `<div class="card${top ? ' mutated' : ''}"${top ? ` style="--mc:${RARITY_COLOR[top.rarity]}"` : ''}>
         <div class="ico">${it.icon}</div>
         <div class="info"><b>${it.name} ${tags} ×${S.inv[id]}</b><small>🪙${core.fmt(core.price(id))} cada ${trend(it.base)}${top ? ` · <b class="mut-mult">×${it.mult.toLocaleString('pt-BR')}</b>` : ''}</small></div>
-        <div class="btns">
+        <div class="btns">${canSell ? `
           <button class="btn ghost" data-act="sell" data-id="${id}" data-q="1">Vender 1</button>
-          <button class="btn" data-act="sell" data-id="${id}" data-q="${S.inv[id]}">Tudo</button>
+          <button class="btn" data-act="sell" data-id="${id}" data-q="${S.inv[id]}">Tudo</button>` : ''}
         </div></div>`;
     }
     h += '</div>';
@@ -335,7 +383,50 @@ function barnHtml() {
     <div><b>${fmt(S.stats.earned)}</b>moedas ganhas</div>
     <div><b>${fmt(S.stats.orders)}</b>pedidos</div>
     <div><b>${fmt(S.stats.fish || 0)}</b>peixes</div>
-    <div><b>${fmt(S.stats.mutated || 0)}</b>mutadas</div></div>`;
+    <div><b>${fmt(S.stats.mutated || 0)}</b>mutadas</div>
+    <div><b>${fmt(S.stats.logs || 0)}</b>troncos</div>
+    <div><b>${fmt(S.stats.planks || 0)}</b>tábuas</div>
+    <div><b>${fmt(S.stats.crafted || 0)}</b>peças feitas</div></div>`;
+  return h;
+}
+
+const PLURAL = { tronco: 'troncos', madeira: 'tábuas', viga: 'vigas' };
+const costText = (cost) => Object.entries(cost).map(([id, q]) => `${q} ${PLURAL[id] || core.ITEMS[id].name.toLowerCase()} ${core.ITEMS[id].icon}`).join(' e ');
+
+function workshopHtml() {
+  const S = core.S;
+  const io = (o) => Object.entries(o).map(([id, q]) => `${q} ${core.ITEMS[id].icon}`).join(' + ');
+  let h = `<h3>${CARPENTRY.icon} ${CARPENTRY.name}</h3>
+    <p class="hint" style="margin:0 0 8px">A mesa fica entre a casa e o celeiro. Escolha o que fazer, vá até ela e use a ação (segure para continuar) ou toque na mesa.</p>
+    <div class="chips"><span class="chip">🪵 Troncos ×${S.inv.tronco || 0}</span><span class="chip">🟫 Tábuas ×${S.inv.madeira || 0}</span><span class="chip">📏 Vigas ×${S.inv.viga || 0}</span></div>
+    <div class="cards">`;
+  for (const rc of RECIPES) {
+    const sel = S.bench === rc.id;
+    const max = core.craftMax(rc.id);
+    h += `<div class="card${sel ? ' hired' : ''}">
+      <div class="ico">${rc.icon}</div>
+      <div class="info"><b>${rc.name}${sel ? ' <small>✔ na mesa</small>' : ''}</b>
+        <small>${io(rc.input)} → ${io(rc.output)} · ${rc.work} golpes. ${rc.desc}</small>
+        <small>Dá para fazer: ${max}</small></div>
+      <div class="btns">${sel
+        ? '<span class="req">Escolhida</span>'
+        : `<button class="btn alt" data-act="bench" data-id="${rc.id}">Escolher</button>`}
+      </div></div>`;
+  }
+  h += '</div><h3>🏗️ Obras</h3><div class="cards">';
+  for (const [id, b] of Object.entries(BUILDINGS)) {
+    const done = core.built(id);
+    const prog = core.buildProgress(id);
+    const missing = core.buildMissing(id);
+    h += `<div class="card${done ? ' hired' : ''}">
+      <div class="ico">${b.icon}</div>
+      <div class="info"><b>${b.name}${done ? ' <small>✔ construído</small>' : ` <small>${Math.round(prog * 100)}%</small>`}</b>
+        <small>${b.desc}</small>
+        <small>${done ? 'Pronto!' : `Custa ${io(b.cost)} · falta ${missing.map((x) => `${x.qty} ${core.ITEMS[x.id].icon}`).join(' + ')}`}</small>
+        ${done ? '' : `<div class="progress"><i style="width:${Math.round(prog * 100)}%"></i></div>`}</div>
+      <div class="btns">${done ? '<span class="req">✔</span>' : '<span class="req">Entregue no canteiro</span>'}</div></div>`;
+  }
+  h += `</div><p class="hint">🪓 Corte árvores no bosque (oeste) para ter troncos. Leve a madeira até o canteiro 🏗️ de cada obra e use a ação para entregar: dá para entregar aos poucos.${S.saw.owned ? '' : ` Mais tarde, a ${SAWMILL.icon} Serraria faz tábuas sozinha.`}</p>`;
   return h;
 }
 
@@ -345,7 +436,7 @@ function ordersHtml() {
   S.orders.forEach((o, k) => {
     const ok = core.canFulfill(o);
     h += `<div class="order${ok ? ' ok' : ''}">
-      <div class="who">${o.who}</div>
+      <div class="who">${o.who}${core.isNewOrder(o) ? ' <span class="new-badge">Novo</span>' : ''}</div>
       <div class="reqs">${o.req.map((r) => {
         const have = Math.min(S.inv[r.id] || 0, r.qty);
         return `<span class="req-item${have >= r.qty ? ' done' : ''}">${core.ITEMS[r.id].icon} ${have}/${r.qty}</span>`;
@@ -358,7 +449,7 @@ function ordersHtml() {
         </span>
       </div></div>`;
   });
-  h += '</div><p class="hint">Pedidos pagam bem mais do que o mercado. Recuse (✖) os que não te interessam.</p>';
+  h += '</div><p class="hint">Pedidos pagam bem mais do que o mercado. Recuse (✖) os que não te interessam. ✉️ A cartinha em cima do quadro de Pedidos avisa quando chega pedido novo.</p>';
   return h;
 }
 
@@ -406,7 +497,7 @@ function renderHud() {
     el.coins.classList.add('bump');
   }
   lastCoins = S.coins;
-  setText(el.coins, core.fmt(S.coins));
+  setText(el.coins, S.god ? '∞' : core.fmt(S.coins));
   setText(el.level, S.level);
   const need = core.xpNeed(S.level);
   el.xpfill.style.width = Math.min(100, (S.xp / need) * 100) + '%';
@@ -486,6 +577,10 @@ export function initUI(h) {
     else if (act === 'field') core.buyField(id);
     else if (act === 'bigfield') core.buyBigField();
     else if (act === 'rod') core.buyRod(+id);
+    else if (act === 'axe') core.buyAxe(+id);
+    else if (act === 'sawmill') core.buySawmill();
+    else if (act === 'bench') core.setBench(id);
+    else if (act === 'tab') { openPanel(id); return; }
     else if (act === 'pet') core.buyPet();
     else if (act === 'petname') {
       const name = prompt('Qual o nome da sua border collie?', core.S.pet.name);

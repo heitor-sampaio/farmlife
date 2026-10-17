@@ -2,6 +2,26 @@
 
 Todas as mudanças do jogo, da mais nova para a mais antiga. Este arquivo é gerado a partir de `js/changelog.js` por `node tools/gerar-versao.mjs`.
 
+## v3.0.0 — Construa a sua fazenda (17/10/2026)
+
+- 🏠 Nova progressão: o jogo começa só com o terreno, a casa e todas as ferramentas (🪓 machado e 🎣 vara inclusos).
+- 🪚 Mesa de carpintaria entre a casa e o celeiro: serre 🪵 troncos em 🟫 tábuas e pregue tábuas em 📏 vigas, na mão (segure a ação ou toque na mesa).
+- 🏗️ O 🛖 Celeiro, o 🐾 Curral e o 🚜 Galpão agora são construídos com madeira: entregue o material no canteiro e veja a obra subir.
+- 🛖 Vender exige o celeiro, 🐾 animais exigem o curral e 🚜 máquinas exigem o galpão. Enquanto isso, os pedidos da vila pagam as contas.
+- 🪚 Nova aba Oficina: escolha a receita da mesa e acompanhe o que falta para cada obra.
+- 🔦 À noite o fazendeiro acende uma lanterna, e as máquinas ligam os faróis quando você dirige.
+- 🎓 Tutorial novo com os passos de cortar, serrar e construir o celeiro. Fazendas antigas mantêm todas as construções.
+- ✉️ Uma cartinha aparece sobre o quadro de Pedidos quando chega pedido novo ou dá para entregar algum, e os pedidos novos ganham o selo "Novo".
+
+## v2.8.0 — Lenha e serraria (17/10/2026)
+
+- 🌲 Bosque com 12 árvores no oeste do mapa, entre o curral e o Campo do Sul.
+- 🪓 Machado e machado de aço na loja: corte as árvores para ganhar 🪵 troncos.
+- 🌳 A árvore balança a cada golpe, cai para longe de você, vira toco e cresce de novo em 5 minutos.
+- 🪚 Serraria na entrada do bosque: transforma cada tronco em 2 tábuas de madeira 🟫, até com o jogo fechado.
+- 🪵 Troncos e tábuas são vendidos no Celeiro e aparecem nos pedidos da vila.
+- 🌈 Correção: o arco-íris agora fica parado no lugar onde aparece, em vez de acompanhar o personagem.
+
 ## v2.6.0 — Clima e mutações (17/10/2026)
 
 - 🌩️ Eventos climáticos raros: chuva, ventania, neve, sol escaldante, tempestade de raios, arco-íris e eclipse, cada um com seu visual.

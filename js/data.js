@@ -115,6 +115,39 @@ export const EVENT_ROUND = 60;    // segundos por rodada (1/3 de um dia do jogo)
 export const EVENT_CHANCE = 0.2;  // chance de evento em cada rodada
 export const EVENT_COOLDOWN = 1;  // rodadas de descanso depois de um evento
 
+// Lenha: árvores do bosque que podem ser cortadas com machado e voltam a crescer
+export const AXES = [
+  null,
+  { name: 'Machado', icon: '🪓', cost: 150, level: 1, hits: 4, bonus: 0, desc: 'Corta as árvores do bosque em 4 golpes.' },
+  { name: 'Machado de aço', icon: '🪓', cost: 1200, level: 4, hits: 2, bonus: 1, desc: 'Corta em 2 golpes e rende 1 tronco a mais por árvore.' },
+];
+export const LOG = { name: 'Tronco', icon: '🪵', sell: 18, xp: 1 };
+export const WOOD = { logs: [2, 3], xp: 3, regrow: 300 }; // troncos por árvore; segundos para a árvore crescer de novo (5 min)
+// Serraria: transforma troncos em tábuas, um tronco por vez
+export const SAWMILL = { name: 'Serraria', icon: '🪚', cost: 1500, level: 3, time: 15, perLog: 2, capacity: 20 };
+export const PLANK = { name: 'Tábuas de madeira', icon: '🟫', sell: 22, xp: 1 };
+// Posições das árvores do bosque (oeste do mapa, entre o curral e o Campo do Sul)
+export const CHOP_TREES = [
+  [-13.2, 6.0], [-11.0, 5.5], [-8.9, 6.3], [-14.2, 8.9],
+  [-12.4, 8.5], [-10.1, 8.9], [-7.9, 8.3],
+  [-13.4, 11.1], [-11.2, 11.7], [-8.8, 11.0], [-6.6, 10.4],
+  [-12.0, 13.5],
+];
+
+// Carpintaria: o jogador transforma troncos à mão em materiais de construção (work = golpes de serrote/martelo)
+export const BEAM = { name: 'Viga', icon: '📏', sell: 75, xp: 2 };
+export const RECIPES = [
+  { id: 'tabuas', name: 'Tábuas', icon: '🟫', verb: 'Serrar tábuas', input: { tronco: 1 }, output: { madeira: 2 }, work: 3, xp: 1, desc: 'Serra um tronco em duas tábuas.' },
+  { id: 'viga',   name: 'Viga',   icon: '📏', verb: 'Pregar a viga', input: { madeira: 3 }, output: { viga: 1 }, work: 5, xp: 2, desc: 'Prega três tábuas numa viga reforçada.' },
+];
+export const CARPENTRY = { name: 'Mesa de carpintaria', icon: '🪚' };
+// Construções feitas com madeira (o jogo começa só com a casa). O material é entregue aos poucos no canteiro.
+export const BUILDINGS = {
+  celeiro: { name: 'Celeiro', icon: '🛖', cost: { madeira: 10, viga: 2 }, desc: 'Libera a venda da colheita, dos produtos e dos peixes.' },
+  curral:  { name: 'Curral',  icon: '🐾', cost: { madeira: 14, viga: 4 }, desc: 'Libera a compra de animais e o cocho.' },
+  galpao:  { name: 'Galpão das máquinas', icon: '🚜', cost: { madeira: 24, viga: 8 }, desc: 'Garagem das máquinas do Campo de Trigo: é preciso para comprá-las.' },
+};
+
 export const WATER_TIME = [40, 70, 110, 180];
 export const GROW_SPEED = [1, 1.2, 1.45, 1.75];
 export const PEN_SIZE = [4, 8, 12];

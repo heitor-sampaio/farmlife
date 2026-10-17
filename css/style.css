@@ -419,6 +419,7 @@ kbd {
 }
 .order.ok { border-color: var(--green); background: #f1fae6; }
 .order .who { font-weight: 700; }
+.new-badge { padding: 1px 7px; border-radius: 99px; background: #ff1744; color: #fff; font-size: 11px; vertical-align: middle; }
 .reqs { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
 .req-item {
   padding: 3px 8px;
@@ -431,6 +432,14 @@ kbd {
 .order-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .reward { font-size: 14px; font-weight: 700; }
 .hint { margin: 10px 0 0; font-size: 12px; color: var(--muted); }
+.progress { height: 8px; margin-top: 5px; border-radius: 5px; background: rgba(0, 0, 0, 0.12); overflow: hidden; }
+.progress i { display: block; height: 100%; border-radius: 5px; background: linear-gradient(90deg, #f5b82e, #e08e1b); }
+.g-cheat { margin-top: 14px; font-size: 13px; color: var(--muted); }
+.g-cheat summary { cursor: pointer; }
+.g-cheat form { display: flex; gap: 6px; margin: 8px 0 4px; }
+.g-cheat input { flex: 1; min-width: 0; padding: 7px 10px; border-radius: 10px; border: 2px solid #e0c98f; font: inherit; }
+.notice { margin: 0 0 10px; padding: 10px 12px; border-radius: 12px; background: #fff3d6; border: 2px dashed #e0b84a; font-size: 13px; line-height: 1.4; }
+.notice .btn { margin-top: 8px; }
 
 /* ---------- Eventos climáticos e mutações ---------- */
 .event-pill {
