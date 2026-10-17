@@ -5,7 +5,7 @@ import {
   WORKERS, WORK_TIME, BIG_FIELD, BIG_CELLS, MACHINES, FISH, RODS, PET,
   MUTATIONS, WEATHER_EVENTS, EVENT_ROUND, EVENT_CHANCE, EVENT_COOLDOWN,
   AXES, LOG, WOOD, CHOP_TREES, SAWMILL, PLANK, BEAM, RECIPES, BUILDINGS, CARPENTRY, HORSE, SADDLE,
-  MANURE, COMPOST, FERTILIZER, BREED, PASTURE,
+  MANURE, COMPOST, FERTILIZER, BREED, PASTURE, CHEESERY, CHEESE,
 } from './data.js';
 
 // ================= Utilidades =================
@@ -40,6 +40,7 @@ ITEMS.tronco = { ...LOG };
 ITEMS.madeira = { ...PLANK };
 ITEMS.viga = { ...BEAM };
 ITEMS.esterco = { name: MANURE.name, icon: MANURE.icon, sell: MANURE.sell, xp: MANURE.xp };
+ITEMS.queijo = { ...CHEESE };
 ITEMS.fertilizante = { name: FERTILIZER.name, icon: FERTILIZER.icon, sell: FERTILIZER.sell, xp: FERTILIZER.xp };
 
 // ================= Ganchos para a interface/cena =================
@@ -130,6 +131,7 @@ function newState() {
     saw: { owned: false, queue: 0, t: 0, ready: 0 }, // serraria: troncos na fila, progresso do atual, tábuas prontas
     pet: { owned: false, name: PET.defaultName, day: 0 },
     char: { chosen: false, gender: 'm', name: '' },
+    cheese: { owned: false, queue: 0, t: 0, ready: 0 }, // queijaria: queijos curando, progresso, prontos
     pasture: false,                          // pasto do gado comprado?
     manure: 0, poopT: 0,                     // montinhos de esterco no curral
     compost: { queue: 0, t: 0, ready: 0 },   // composteira: esterco na fila, progresso, fertilizante pronto // personagem escolhido na primeira vez
@@ -480,6 +482,17 @@ export function update(dt, quiet) {
       if (S.manure < MANURE.max) S.manure++;
     }
   }
+  // Queijaria: cura um queijo por vez (também com o jogo fechado)
+  const ch = S.cheese;
+  if (ch.queue > 0 && built('queijaria')) {
+    ch.t += dt;
+    while (ch.t >= CHEESERY.time && ch.queue > 0) {
+      ch.t -= CHEESERY.time;
+      ch.queue--;
+      ch.ready++;
+    }
+    if (ch.queue === 0) ch.t = 0;
+  }
   // Composteira: um esterco vira um fertilizante (também com o jogo fechado)
   const cp = S.compost;
   if (cp.queue > 0) {
@@ -609,6 +622,7 @@ function availableItems() {
   if (S.wood.axe > 0) ids.push('tronco');
   if (S.saw.owned || built('celeiro')) ids.push('madeira');
   if (built('celeiro')) ids.push('viga');
+  if (built('queijaria') && S.animals.some((a) => a.type === 'vaca')) ids.push('queijo');
   return ids;
 }
 
@@ -1062,10 +1076,13 @@ export function chopTree(i, quiet = false) {
 // ================= Construções de madeira =================
 export const built = (id) => !!(S.build[id] && S.build[id].done);
 
+/** Artigos conforme o gênero da construção (o celeiro, a queijaria). */
+const bw = (b, m, f) => (b.fem ? f : m);
+
 function needBuilt(id, what) {
   if (built(id)) return true;
   const b = BUILDINGS[id];
-  toast(`${b.icon} Construa o ${b.name} com madeira para ${what}.`, 'bad');
+  toast(`${b.icon} Construa ${bw(b, 'o', 'a')} ${b.name} com madeira para ${what}.`, 'bad');
   sfx('error');
   return false;
 }
@@ -1093,6 +1110,11 @@ export function buildDeliver(id) {
   const b = BUILDINGS[id];
   const st = S.build[id];
   if (!b || st.done) return null;
+  if (b.level > S.level) {
+    toast(`${b.icon} A obra ${bw(b, 'do', 'da')} ${b.name} libera no nível ${b.level}.`, 'bad');
+    sfx('error');
+    return null;
+  }
   let delivered = 0;
   for (const { id: m, qty } of buildMissing(id)) {
     const n = Math.min(qty, S.inv[m] || 0);
@@ -1105,7 +1127,7 @@ export function buildDeliver(id) {
   if (!buildMissing(id).length) {
     st.done = true;
     gainXp(15);
-    toast(`${b.icon} ${b.name} construído! ${b.desc}`, 'good');
+    toast(`${b.icon} ${b.name} ${bw(b, 'construído', 'construída')}! ${b.desc}`, 'good');
     sfx('level');
     emit('build', id);
     markDirty('panel', 'toolbar');
@@ -1116,7 +1138,7 @@ export function buildDeliver(id) {
     sfx('chop');
     markDirty('panel');
   } else {
-    toast(`🏗️ Para o ${b.name} falta ${missingText(id)}. Faça na ${CARPENTRY.name}.`, 'bad');
+    toast(`🏗️ Para ${bw(b, 'o', 'a')} ${b.name} falta ${missingText(id)}. Faça na ${CARPENTRY.name}.`, 'bad');
     sfx('error');
   }
   return { delivered, done: false };
@@ -1126,13 +1148,15 @@ const missingText = (id) => buildMissing(id).map((x) => `${x.qty} ${ITEMS[x.id].
 
 export function buildLabel(id) {
   const b = BUILDINGS[id];
+  if (b.level > S.level) return null;
   const can = buildMissing(id).some((x) => (S.inv[x.id] || 0) > 0);
-  return can ? `Entregar madeira no ${b.name}` : `Ver a obra do ${b.name}`;
+  return can ? `Entregar madeira ${bw(b, 'no', 'na')} ${b.name}` : `Ver a obra ${bw(b, 'do', 'da')} ${b.name}`;
 }
 
 export function buildInfo(id) {
   const b = BUILDINGS[id];
-  return `🏗️ Obra do ${b.name} (${Math.round(buildProgress(id) * 100)}%): falta ${missingText(id)}. ${b.desc}`;
+  if (b.level > S.level) return `🏗️ Terreno ${bw(b, 'do', 'da')} ${b.name}: a obra libera no nível ${b.level}. ${b.desc}`;
+  return `🏗️ Obra ${bw(b, 'do', 'da')} ${b.name} (${Math.round(buildProgress(id) * 100)}%): falta ${missingText(id)}. ${b.desc}`;
 }
 
 export const recipe = () => RECIPES.find((x) => x.id === S.bench) || RECIPES[0];
@@ -1175,7 +1199,7 @@ export const MAX_LEVEL = Math.max(
   ...Object.values(MACHINES).map((m) => m.level),
   ...RODS.filter(Boolean).map((r) => r.level),
   ...AXES.filter(Boolean).map((a) => a.level),
-  BIG_FIELD.level, SAWMILL.level, PET.level, HORSE.level, SADDLE.level,
+  BIG_FIELD.level, SAWMILL.level, PET.level, HORSE.level, SADDLE.level, CHEESERY.level,
 );
 
 /** Liga/desliga o godmode. Ao desligar, volta às moedas e ao nível de antes. */
@@ -1206,6 +1230,57 @@ export function cheat(code) {
   toast('🧪 Código desconhecido.', 'bad');
   sfx('error');
   return false;
+}
+
+// ================= Queijaria =================
+/** Usar a queijaria: coleta os queijos prontos e coloca o leite do celeiro para virar queijo. */
+export function cheeseUse() {
+  const ch = S.cheese;
+  if (!built('queijaria')) return null;
+  const collected = ch.ready;
+  if (collected) {
+    addItem('queijo', collected);
+    gainXp(collected * CHEESE.xp);
+    S.stats.cheese = (S.stats.cheese || 0) + collected;
+    ch.ready = 0;
+  }
+  const loaded = Math.min(Math.floor((S.inv.leite || 0) / CHEESERY.milk), CHEESERY.capacity - ch.queue);
+  if (loaded > 0) {
+    S.inv.leite -= loaded * CHEESERY.milk;
+    ch.queue += loaded;
+  }
+  if (collected || loaded) {
+    const parts = [];
+    if (collected) parts.push(`coletou ${collected} ${CHEESE.icon}`);
+    if (loaded) parts.push(`colocou ${loaded * CHEESERY.milk} 🥛 para fazer ${loaded} queijo${loaded > 1 ? 's' : ''}`);
+    toast(`${CHEESERY.icon} Queijaria: ${parts.join(' e ')}.`, 'good');
+    sfx(collected ? 'harvest' : 'water');
+    markDirty('panel');
+  } else if (ch.queue >= CHEESERY.capacity) {
+    toast(`${CHEESERY.icon} A queijaria está cheia (${CHEESERY.capacity} queijos curando).`);
+  } else {
+    toast(`${CHEESERY.icon} Traga ${CHEESERY.milk} 🥛 leite para fazer cada queijo. As vacas dão leite no curral ou no pasto.`);
+  }
+  return { collected, loaded };
+}
+
+export function cheeseLabel() {
+  const ch = S.cheese;
+  if (!built('queijaria')) return null;
+  const canLoad = Math.min(Math.floor((S.inv.leite || 0) / CHEESERY.milk), CHEESERY.capacity - ch.queue);
+  const parts = [];
+  if (ch.ready) parts.push(`Coletar ${ch.ready} ${CHEESE.icon}`);
+  if (canLoad) parts.push(`fazer ${canLoad} queijo${canLoad > 1 ? 's' : ''} (${canLoad * CHEESERY.milk} 🥛)`);
+  if (!parts.length) return null;
+  const txt = parts.join(' e ');
+  return txt[0].toUpperCase() + txt.slice(1);
+}
+
+export function cheeseInfo() {
+  const ch = S.cheese;
+  if (!built('queijaria')) return null;
+  const next = ch.queue ? ` · próximo em ${fmtDuration(Math.ceil(CHEESERY.time - ch.t))}` : '';
+  return `${CHEESERY.icon} Queijaria: ${ch.queue} queijo${ch.queue === 1 ? '' : 's'} curando · ${ch.ready} pronto${ch.ready === 1 ? '' : 's'}${next}. Cada ${CHEESERY.milk} 🥛 viram 1 ${CHEESE.icon} (🪙${CHEESE.sell}).`;
 }
 
 // ================= Esterco e composteira =================
@@ -1617,7 +1692,7 @@ function load() {
       fields: { ...base.fields, ...d.fields },
       machines: { ...base.machines, ...d.machines },
       fishing: { rod: Math.max(1, (d.fishing && d.fishing.rod) || 0) },
-      build: d.build ? Object.fromEntries(Object.keys(BUILDINGS).map((id) => [id, { done: false, got: {}, ...d.build[id] }])) : newBuild(true),
+      build: d.build ? Object.fromEntries(Object.keys(BUILDINGS).map((id) => [id, { done: false, got: {}, ...d.build[id] }])) : { ...newBuild(true), queijaria: { done: false, got: {} } },
       saw: { ...base.saw, ...d.saw },
       wood: {
         axe: Math.max(1, (d.wood && d.wood.axe) || 0),
@@ -1627,6 +1702,7 @@ function load() {
       horse: { ...base.horse, ...d.horse },
       char: { ...base.char, ...d.char },
       compost: { ...base.compost, ...d.compost },
+      cheese: { ...base.cheese, ...d.cheese },
       tutorial: d.tutorial ? { ...base.tutorial, ...d.tutorial, tips: { ...(d.tutorial.tips || {}) } } : { ...base.tutorial, done: true },
       big: d.big && Array.isArray(d.big.s) && d.big.s.length === BIG_CELLS ? d.big : base.big,
     };

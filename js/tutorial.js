@@ -3,7 +3,7 @@ import {
   CROPS, ANIMALS, PRODUCTS, UPGRADES, WORKERS, FIELDS, BIG_FIELD, BIG_CELLS, MACHINES, FISH, RODS, PET, WATER_TIME, PEN_SIZE,
   WEATHER_EVENTS, MUTATIONS, RARITY_COLOR, EVENT_ROUND, EVENT_CHANCE, AXES, LOG, WOOD, SAWMILL, PLANK,
   BEAM, RECIPES, BUILDINGS, CARPENTRY, CHOP_TREES, HORSE, SADDLE, RIDE_MULT,
-  MANURE, COMPOST, FERTILIZER, BREED, PASTURE,
+  MANURE, COMPOST, FERTILIZER, BREED, PASTURE, CHEESERY, CHEESE,
 } from './data.js';
 import * as core from './core.js';
 import { CHANGELOG, VERSION, compareVersions } from './changelog.js';
@@ -170,6 +170,11 @@ const TIPS = {
     title: 'Hora de cortar lenha', target: () => nearestTree(),
     body: () => `Você tem um 🪓 <b>machado</b>! O <b>bosque</b> fica a oeste (siga a seta). Com a 🪓 <b>Machado</b> selecionado, chegue perto de uma árvore e use ${ACT()}, ou ${TAP()} na árvore para o fazendeiro cortar até ela cair.
       Os 🪵 <b>troncos</b> viram tábuas e vigas na ${CARPENTRY.icon} mesa de carpintaria, para construir. A árvore volta a crescer depois de um tempo.`,
+  },
+  'built-queijaria': {
+    title: 'Queijaria pronta!', target: { spot: 'queijaria' },
+    body: () => `Leve o 🥛 leite das vacas até a ${CHEESERY.icon} <b>Queijaria</b> (a seta, ao lado da loja) e use ${ACT()}: cada ${CHEESERY.milk} leites viram 1 ${CHEESE.icon} <b>queijo</b> em ${core.fmtDuration(CHEESERY.time)},
+      até com o jogo fechado. Volte para coletar: o queijo vale 🪙${CHEESE.sell}, bem mais que o leite.`,
   },
   pasture: {
     title: 'Pasto comprado!', target: { pasture: true },
@@ -537,6 +542,7 @@ function roadmap() {
   RODS.forEach((r) => r && add(r.level, `${r.icon} ${r.name}`));
   AXES.forEach((a) => a && add(a.level, `${a.icon} ${a.name}`));
   add(SAWMILL.level, `${SAWMILL.icon} ${SAWMILL.name}`);
+  add(CHEESERY.level, `${CHEESERY.icon} ${CHEESERY.name}`);
   add(PET.level, `${PET.icon} Pet (${PET.breed})`);
   add(HORSE.level, `${HORSE.icon} Cavalo e ${SADDLE.icon} sela`);
   return L;
@@ -636,6 +642,8 @@ const TOPICS = [
         se houver vaga no curral. O filhote herda a cor de um dos pais e vira adulto em ~${Math.round(BREED.grow / 180)} dias.</p>
       <p>${PASTURE.icon} <b>Pasto</b> (🪙${core.fmt(PASTURE.cost)}, nível ${PASTURE.level}${lock(PASTURE.level)}): campo enorme a leste do Campo de Trigo com ${PASTURE.slots} vagas só para o gado.
         Lá vacas, touros e bezerros comem capim e não precisam de trigo, e o curral fica livre para os outros animais.</p>
+      <p>${CHEESERY.icon} <b>Queijaria</b> (obra de madeira, nível ${CHEESERY.level}${lock(CHEESERY.level)}): construa no canteiro entre a loja e o galpão. Use ${ACT()} nela para colocar o 🥛 leite do celeiro e coletar os queijos.
+        Cada ${CHEESERY.milk} leites viram 1 ${CHEESE.icon} queijo (🪙${CHEESE.sell}) em ${core.fmtDuration(CHEESERY.time)}, até com o jogo fechado. Cabem ${CHEESERY.capacity} queijos curando.</p>
       <p>${MANURE.icon} <b>Esterco:</b> cada vaca faz um montinho a cada ~${Math.round(MANURE.every)}s (até ${MANURE.max} no curral). Recolha com ${ACT()} e leve à ${COMPOST.icon} <b>composteira</b>, ao lado do curral:
         cada esterco vira um ${FERTILIZER.icon} fertilizante em ${COMPOST.time}s, até com o jogo fechado. Volte para coletar.</p>`,
   },
@@ -671,7 +679,7 @@ const TOPICS = [
         <li>Leve a madeira até o <b>canteiro 🏗️</b> da obra e use ${ACT()} para entregar. Dá para entregar aos poucos: a obra vai subindo.</li></ol>` +
       table(['Receita', 'Precisa', 'Faz', 'Golpes'], RECIPES.map((rc) => [`${rc.icon} ${rc.name}`, Object.entries(rc.input).map(([id, q]) => `${q} ${core.ITEMS[id].icon}`).join(' + '), Object.entries(rc.output).map(([id, q]) => `${q} ${core.ITEMS[id].icon}`).join(' + '), rc.work])) +
       table(['Construção', 'Custa', 'Libera', 'Onde'], Object.entries(BUILDINGS).map(([id, b]) => [`${b.icon} ${b.name}${core.built(id) ? ' ✔' : ''}`, costTxt(id), b.desc,
-        id === 'celeiro' ? 'Ao lado da loja' : id === 'curral' ? 'Portão do curral, a oeste' : 'Perto do Campo de Trigo, a leste'])) +
+        id === 'celeiro' ? 'Ao lado da loja' : id === 'curral' ? 'Portão do curral, a oeste' : id === 'queijaria' ? `Entre a loja e o galpão (nível ${b.level}${lock(b.level)})` : 'Perto do Campo de Trigo, a leste'])) +
       `<p>💡 Tábuas (🪙${PLANK.sell}) e vigas (🪙${BEAM.sell}) também podem ser vendidas ou entregues em pedidos. A ${SAWMILL.icon} Serraria (nível ${SAWMILL.level}) serra tábuas sozinha.</p>`,
   },
   {

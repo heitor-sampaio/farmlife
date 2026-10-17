@@ -40,6 +40,9 @@ export const ANIMALS = {
 // Filhotes: só fêmeas produzem; com um macho adulto da mesma espécie, cada produção tem chance de nascer um filhote
 // Pasto: campo grande a leste do Campo de Trigo só para o gado (vacas, touros e bezerros), com muito mais vagas.
 // No pasto o gado come capim: não precisa de trigo.
+// Queijaria: transforma o leite das vacas em queijo (2 🥛 → 1 🧀), sozinha, até com o jogo fechado. É uma obra de madeira.
+export const CHEESERY = { name: 'Queijaria', icon: '🧀', level: 5, time: 90, milk: 2, capacity: 10 }; // construída com madeira (BUILDINGS.queijaria)
+export const CHEESE = { name: 'Queijo', icon: '🧀', sell: 560, xp: 35 };
 export const PASTURE = { name: 'Pasto', icon: '🌿', cost: 15000, level: 5, cols: 24, rows: 16, slots: 30 };
 export const BREED = { chance: 0.03, grow: 900 }; // 3% por produção; o filhote vira adulto em 5 dias de jogo
 
@@ -165,6 +168,7 @@ export const BUILDINGS = {
   celeiro: { name: 'Celeiro', icon: '🛖', cost: { madeira: 10, viga: 2 }, desc: 'Libera a venda da colheita, dos produtos e dos peixes.' },
   curral:  { name: 'Curral',  icon: '🐾', cost: { madeira: 14, viga: 4 }, desc: 'Libera a compra de animais e o cocho.' },
   galpao:  { name: 'Galpão das máquinas', icon: '🚜', cost: { madeira: 24, viga: 8 }, desc: 'Garagem das máquinas do Campo de Trigo: é preciso para comprá-las.' },
+  queijaria: { name: 'Queijaria', icon: '🧀', cost: { madeira: 20, viga: 6 }, level: 5, fem: true, desc: 'Transforma o leite das vacas em queijo, sozinha.' },
 };
 
 export const WATER_TIME = [40, 70, 110, 180];

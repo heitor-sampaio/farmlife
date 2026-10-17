@@ -1,6 +1,6 @@
 /* FarmLife — mundo 3D: cena, câmera isométrica, personagem, animais e interações */
 import * as THREE from 'three';
-import { ANIMALS, PRODUCTS, CROPS, WORKERS, FIELDS, TOTAL_PLOTS, fieldOf, BIG_FIELD, BIG_CELLS, MACHINES, FISH, MUTATIONS, CHOP_TREES, SAWMILL, BUILDINGS, RECIPES, CARPENTRY, HORSE, SADDLE, RIDE_MULT, MANURE, COMPOST, FERTILIZER, BREED, PASTURE } from '../data.js';
+import { ANIMALS, PRODUCTS, CROPS, WORKERS, FIELDS, TOTAL_PLOTS, fieldOf, BIG_FIELD, BIG_CELLS, MACHINES, FISH, MUTATIONS, CHOP_TREES, SAWMILL, BUILDINGS, RECIPES, CARPENTRY, HORSE, SADDLE, RIDE_MULT, MANURE, COMPOST, FERTILIZER, BREED, PASTURE, CHEESERY } from '../data.js';
 import { sfx } from '../audio.js';
 import * as core from '../core.js';
 import * as ui from '../ui.js';
@@ -29,6 +29,7 @@ const SPOTS = {
   loja:    { label: '🏪 Loja', at: [6.5, -7.9], labelY: 2.9, point: [6.5, -6.4], r: 1.3, text: 'Abrir a Loja', info: '🏪 Loja: sementes, animais e melhorias.' },
   pedidos: { label: '📦 Pedidos', at: [2.6, -6.9], labelY: 2.4, point: [2.6, -6.0], r: 1.1, text: 'Ver os Pedidos', info: '📦 Quadro de pedidos da vila: entregas pagam mais que o mercado.' },
   casa:    { label: '🏠 Casa', at: [-9.5, -8.4], labelY: 3.9, point: [-8.9, -6.1], r: 1.2, text: 'Dormir até amanhã', info: '🏠 Sua casa. Depois das 18h, durma para pular para a manhã seguinte.' },
+  queijaria: { label: null, site: 'queijaria', at: [12.6, -7.2], labelY: 3.0, point: [12.6, -5.6], r: 1.3, text: '', info: '' },
   serraria: { label: null, at: [-5.4, 7.0], labelY: 3.1, point: [-4.34, 8.06], r: 1.3, text: '', info: '' },
   mesa:    { label: '🪚 Carpintaria', at: [-5.6, -8.0], labelY: 2.0, point: [-4.93, -7.33], r: 1.15, text: '', info: '' },
   'obra:curral': { label: null, at: [-7.2, -0.2], labelY: 1.6, point: [-6.6, -0.2], r: 1.3, build: 'curral', text: '', info: '' },
@@ -66,7 +67,7 @@ const spotActive = (s) => (s.pasture ? !core.S.pasture
   : s.needs ? core.built(s.needs)
   : s.big ? !core.S.big.owned : !s.field || !core.fieldOwned(s.field));
 /** Construção de madeira associada a um ponto (só enquanto está em obra). */
-const siteOf = (key) => (SPOTS[key].build || (key === 'celeiro' ? 'celeiro' : null));
+const siteOf = (key) => (SPOTS[key].build || SPOTS[key].site || (key === 'celeiro' ? 'celeiro' : null));
 const inWork = (key) => { const b = siteOf(key); return b && !core.built(b) ? b : null; };
 
 // Máquinas: onde ficam estacionadas e como se comportam
@@ -258,6 +259,7 @@ export async function initWorld(cv) {
   buildNature();
   buildGrove();
   buildSawmill();
+  buildCheesery();
   buildSites();
   buildCompost();
   buildBench();
@@ -325,6 +327,7 @@ function buildGround() {
   strip(4.3, 10.2, 10.4, 11.4);   // do Sul até o Campo do Lago
   strip(16.8, -1.6, 24, -0.4);    // do Leste até o Campo de Trigo
   strip(16.8, -6.6, 30, -3.4);    // pátio do galpão das máquinas
+  strip(8.5, -5.65, 16.8, -4.35);  // da loja até a queijaria e o galpão
   strip(30, -5.9, 50.2, -4.7);    // do galpão até o pasto
   strip(48.9, -4.7, 51.1, -0.6);  // corredor até o portão do pasto
 
@@ -1028,6 +1031,7 @@ function buildNature() {
     (x > 3.8 && x < 10.9 && z > 9.7 && z < 11.9) ||
     (x > PEN.x1 - 0.5 && x < PEN.x2 + 0.5 && z > PEN.z1 - 0.5 && z < PEN.z2 + 0.5) ||
     (z < -3.8 && z > -10.5 && x > -12 && x < 9) ||
+    (z < -4 && z > -9 && x > 9 && x < 17) ||
     Math.hypot(x - POND.x, z - POND.z) < POND.r + 0.6 ||
     (z > -1.2 && z < 0.8 && x > -8 && x < -4);
   for (let k = 0; k < 150; k++) {
@@ -1907,6 +1911,7 @@ function buildSites() {
   };
   make('celeiro', 'celeiro', 4.2, 3.6, 3.0);
   make('galpao', 'obra:galpao', 7.2, 3.2, 3.0);
+  make('queijaria', 'queijaria', 3.4, 2.4, 3.0);
   // Clique no canteiro do galpão (o do celeiro usa o volume do próprio celeiro)
   const proxy = new THREE.Mesh(M.GEO.box, new THREE.MeshBasicMaterial({ visible: false }));
   proxy.scale.set(7.2, 2.4, 3.2);
@@ -1945,7 +1950,7 @@ function updateSites(dt) {
       st.prog = prog;
       for (const l of st.labels) if (l) l.visible = done;
       if (st.siteLabel) st.siteLabel.visible = !done;
-      if (st.proxy && id !== 'celeiro') st.proxy.visible = !done;
+      if (st.proxy && id !== 'celeiro' && id !== 'queijaria') st.proxy.visible = !done;
       if (st.extras) for (const e of st.extras) e.visible = done;
       if (st.site) {
         st.site.group.visible = !done;
@@ -1961,7 +1966,7 @@ function updateSites(dt) {
       }
       if (finished) {
         st.riseT = 0;
-        const [x, z] = id === 'curral' ? SPOTS['obra:curral'].at : SPOTS[id === 'galpao' ? 'obra:galpao' : 'celeiro'].at;
+        const [x, z] = id === 'curral' ? SPOTS['obra:curral'].at : SPOTS[id === 'galpao' ? 'obra:galpao' : id === 'queijaria' ? 'queijaria' : 'celeiro'].at;
         burst(x, 0.5, z, 0xd7c4a0, 30, { up: 3, spread: 2.2, size: 0.09, life: 1.1 });
         burst(x, 1.5, z, 0xfff3b0, 16, { up: 4, spread: 1.4, size: 0.07, life: 1 });
       }
@@ -1980,7 +1985,7 @@ function deliverBuild(id) {
   const res = core.buildDeliver(id);
   if (res && res.delivered) {
     startAction('collect');
-    const key = id === 'celeiro' ? 'celeiro' : 'obra:' + id;
+    const key = id === 'celeiro' || id === 'queijaria' ? id : 'obra:' + id;
     const [x, z] = SPOTS[key].at;
     burst(x, 0.6, z, 0xd7b98a, 14, { up: 2.4, spread: 1.2, size: 0.07 });
   }
@@ -2373,6 +2378,38 @@ function poseRider() {
   if (!m.torch.visible) m.armL.rotation.x = -0.9;
 }
 
+// ================= Queijaria =================
+let cheesery = null;
+
+function buildCheesery() {
+  const [x, z] = SPOTS.queijaria.at;
+  const root = new THREE.Group();
+  root.position.set(x, 0, z);
+  scene.add(root);
+  const model = M.makeCheesery();
+  root.add(model.group);
+  const label = M.textSprite(`${CHEESERY.icon} ${CHEESERY.name}`, 0.5);
+  label.position.set(x, SPOTS.queijaria.labelY, z);
+  scene.add(label);
+  const proxy = new THREE.Mesh(M.GEO.box, new THREE.MeshBasicMaterial({ visible: false }));
+  proxy.scale.set(3.6, 2.4, 2.4);
+  proxy.position.set(x, 1.2, z);
+  proxy.userData.pick = { kind: 'spot', key: 'queijaria' };
+  scene.add(proxy);
+  pickables.push(proxy);
+  nav.blockRect(x - 1.85, z - 1.05, x + 1.85, z + 1.05, PLAYER_R * 0.6);
+  cheesery = { model };
+  sites.queijaria = { model: model.group, labels: [label] };
+}
+
+function updateCheesery() {
+  if (!cheesery) return;
+  const ch = core.S.cheese;
+  if (!core.built('queijaria')) return;
+  cheesery.model.cans.forEach((c, k) => { c.visible = k < Math.ceil(ch.queue / 2.5); });
+  cheesery.model.wheels.forEach((w, k) => { w.visible = k < ch.ready; });
+}
+
 // ================= Serraria =================
 let sawmill = null;
 const tmpSaw = new THREE.Vector3();
@@ -2614,6 +2651,15 @@ function openSpot(key) {
     }
     return;
   }
+  if (key === 'queijaria') {
+    const res = core.cheeseUse();
+    if (res && (res.collected || res.loaded)) {
+      startAction('collect');
+      const [x, z] = SPOTS.queijaria.at;
+      burst(x, 0.9, z + 1, res.collected ? 0xf5c542 : 0xffffff, 12, { up: 2.2, spread: 0.7, size: 0.06 });
+    }
+    return;
+  }
   if (key === 'serraria') {
     if (!core.S.saw.owned) { ui.openPanel('loja', 'lenha'); return; }
     const res = core.sawmillUse();
@@ -2697,6 +2743,7 @@ function actionLabel(ctx) {
   if (ctx.kind === 'pet') return `Fazer carinho em ${core.S.pet.name.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c])}`;
   if (ctx.kind === 'animal') { const a = core.findAnimal(ctx.id); return a ? core.animalActionLabel(a) : null; }
   if (ctx.kind === 'spot' && ctx.key === 'serraria') return core.sawLabel();
+  if (ctx.kind === 'spot' && ctx.key === 'queijaria') return core.cheeseLabel();
   if (ctx.kind === 'spot' && inWork(ctx.key)) return core.buildLabel(inWork(ctx.key));
   if (ctx.kind === 'spot' && ctx.key === 'mesa') return benchLabel();
   if (ctx.kind === 'spot') {
@@ -2720,6 +2767,7 @@ function infoText(ctx) {
   if (ctx.kind === 'pet') return `🐶 ${core.S.pet.name}, sua border collie. ${petPettedToday() ? 'Já ganhou carinho hoje ❤️' : 'Faça carinho: +10 XP uma vez por dia.'}`;
   if (ctx.kind === 'animal') { const a = core.findAnimal(ctx.id); return a ? core.animalInfo(a) : null; }
   if (ctx.kind === 'spot' && ctx.key === 'serraria') return core.sawInfo();
+  if (ctx.kind === 'spot' && ctx.key === 'queijaria') return core.cheeseInfo();
   if (ctx.kind === 'spot' && inWork(ctx.key)) return core.buildInfo(inWork(ctx.key));
   if (ctx.kind === 'spot' && ctx.key === 'mesa') return benchInfo();
   if (ctx.kind === 'spot') return SPOTS[ctx.key].info;
@@ -3520,6 +3568,7 @@ export function worldFrame(dt) {
   updateMailbox();
   updateGrove(dt);
   updateSawmill(dt);
+  updateCheesery();
   updateSites(dt);
   updateCompost();
   updateBench(dt);

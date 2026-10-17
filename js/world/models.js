@@ -1490,3 +1490,52 @@ export function makeCompost() {
   g.add(box(0.2, 0.06, 0.02, 0x43a047, -0.75, 0.87, 0.495));
   return { group: g, heap, bags };
 }
+
+/** Queijaria: casinha branca de telhado vermelho, placa de queijo, latões de leite e prateleira de queijos. */
+export function makeCheesery() {
+  const g = new THREE.Group();
+  const wall = 0xf4efe2, trim = 0x8d6334, roof = 0xc0392b;
+  g.add(box(2.6, 0.12, 2.0, 0xb8b0a0, 0, 0.06, 0));
+  g.add(box(2.4, 1.5, 1.8, wall, 0, 0.87, 0));
+  for (const x of [-1.2, 1.2]) g.add(box(0.1, 1.5, 1.82, trim, x, 0.87, 0));
+  const r = gableRoof(2.3, 0.9, 2.8, 0xe8d8b0, roof);
+  r.position.set(0, 1.62, 0);
+  r.rotation.y = Math.PI / 2;
+  g.add(r);
+  // Porta, janela e placa com um queijo
+  g.add(box(0.6, 1.0, 0.06, trim, -0.5, 0.62, 0.91));
+  g.add(ball(0.04, 0.04, 0.03, 0xd4af37, -0.32, 0.62, 0.95));
+  g.add(box(0.6, 0.5, 0.05, 0x9fd6f2, 0.55, 1.0, 0.91));
+  g.add(box(0.66, 0.06, 0.08, trim, 0.55, 0.73, 0.93));
+  const sign = new THREE.Group();
+  sign.position.set(0, 1.95, 1.0);
+  sign.add(box(0.9, 0.42, 0.06, 0xc49a63, 0, 0, 0));
+  sign.add(rot(cyl(0.16, 0.08, 0xf5c542, 0.05, 0, 0.05), Math.PI / 2, 0, 0));
+  sign.add(box(0.1, 0.16, 0.09, 0xf5c542, -0.13, 0, 0.05));
+  sign.add(ball(0.03, 0.03, 0.02, 0xd4a017, 0.0, 0.05, 0.1));
+  g.add(sign);
+  // Latões de leite (aparecem com leite na fila)
+  const cans = [];
+  for (let k = 0; k < 4; k++) {
+    const c = new THREE.Group();
+    c.add(cyl(0.12, 0.34, 0xc9d1d9, 0, 0.17, 0));
+    c.add(cyl(0.07, 0.08, 0xaab4bd, 0, 0.38, 0));
+    c.add(cyl(0.125, 0.03, 0x7d8a93, 0, 0.3, 0));
+    c.position.set(-1.55 - (k % 2) * 0.3, 0, 0.3 - Math.floor(k / 2) * 0.32);
+    c.visible = false;
+    g.add(c);
+    cans.push(c);
+  }
+  // Prateleira com queijos prontos
+  g.add(box(0.5, 0.06, 1.2, trim, 1.6, 0.5, 0.15));
+  g.add(box(0.5, 0.06, 1.2, trim, 1.6, 0.95, 0.15));
+  for (const z of [-0.4, 0.7]) g.add(box(0.06, 1.0, 0.06, trim, 1.6, 0.5, z));
+  const wheels = [];
+  for (let k = 0; k < 6; k++) {
+    const w = rot(cyl(0.15, 0.12, 0xf5c542, 1.6, k < 3 ? 0.6 : 1.05, -0.2 + (k % 3) * 0.36), 0, 0, 0);
+    w.visible = false;
+    g.add(w);
+    wheels.push(w);
+  }
+  return { group: g, cans, wheels, lights: [] };
+}

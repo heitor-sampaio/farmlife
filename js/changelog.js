@@ -3,6 +3,14 @@
 
 export const CHANGELOG = [
   {
+    version: '3.8.0', date: '2026-10-17', title: 'Queijaria',
+    items: [
+      '🧀 Queijaria (nível 5), construída com madeira no canteiro entre a loja e o galpão: transforma 2 🥛 leites em 1 queijo a cada 1 min e meio, até com o jogo fechado.',
+      '💰 O queijo vale 🪙560, bem mais que os dois leites, e aparece nos pedidos da vila.',
+      '🥛 Os latões de leite e os queijos prontos aparecem na queijaria conforme ela trabalha.',
+    ],
+  },
+  {
     version: '3.7.0', date: '2026-10-17', title: 'Joystick do seu lado',
     items: [
       '🕹️ No celular, escolha de que lado fica o joystick de andar: agora ele começa à direita.',

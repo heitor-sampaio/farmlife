@@ -1,5 +1,5 @@
 /* FarmLife — interface em HTML sobre a cena 3D (HUD, hotbar, painel, avisos) */
-import { CROPS, ANIMALS, PRODUCTS, UPGRADES, WORKERS, FIELDS, BIG_FIELD, BIG_CELLS, MACHINES, FISH, RODS, PET, MUTATIONS, RARITY_COLOR, WEATHER_EVENTS, AXES, LOG, WOOD, SAWMILL, PLANK, RECIPES, BUILDINGS, CARPENTRY, HORSE, SADDLE, PASTURE } from './data.js';
+import { CROPS, ANIMALS, PRODUCTS, UPGRADES, WORKERS, FIELDS, BIG_FIELD, BIG_CELLS, MACHINES, FISH, RODS, PET, MUTATIONS, RARITY_COLOR, WEATHER_EVENTS, AXES, LOG, WOOD, SAWMILL, PLANK, RECIPES, BUILDINGS, CARPENTRY, HORSE, SADDLE, PASTURE, CHEESERY, CHEESE } from './data.js';
 import * as core from './core.js';
 import { joySide, setJoySide } from './prefs.js';
 import { sfx, settings as audioSettings, setVolume, setMuted, unlockAudio } from './audio.js';
@@ -304,6 +304,24 @@ function shopHtml() {
   }
   h += '</div>';
 
+  {
+    const owned = core.built('queijaria');
+    const locked = !owned && CHEESERY.level > S.level;
+    const prog = Math.round(core.buildProgress('queijaria') * 100);
+    h += `<h3 id="sec-queijaria">${CHEESERY.icon} Laticínios</h3><div class="cards">
+      <div class="card${locked ? ' locked' : ''}${owned ? ' hired' : ''}">
+        <div class="ico">${CHEESERY.icon}</div>
+        <div class="info"><b>${CHEESERY.name}${owned ? ' <small>✔ sua</small>' : ''}</b>
+          <small>Transforma ${CHEESERY.milk} 🥛 leite em 1 ${CHEESE.icon} queijo (🪙${CHEESE.sell}) a cada ${core.fmtDuration(CHEESERY.time)}, até com o jogo fechado. Construída com madeira no canteiro ao lado da loja: ${costText(BUILDINGS.queijaria.cost)}.</small>
+          ${owned || locked ? '' : `<div class="progress"><i style="width:${prog}%"></i></div>`}</div>
+        <div class="btns">${owned
+          ? '<span class="req">✔ Construída</span>'
+          : locked
+            ? `<span class="req">🔒 Nível ${CHEESERY.level}</span>`
+            : `<button class="btn alt" data-act="tab" data-id="oficina">🏗️ Obra ${prog}%</button>`}
+        </div></div></div>`;
+  }
+
   const size = core.penSize();
   const full = core.penCount() >= size;
   const penBuilt = core.built('curral');
@@ -439,7 +457,8 @@ function barnHtml() {
     <div><b>${fmt(S.stats.logs || 0)}</b>troncos</div>
     <div><b>${fmt(S.stats.planks || 0)}</b>tábuas</div>
     <div><b>${fmt(S.stats.crafted || 0)}</b>peças feitas</div>
-    <div><b>${fmt(S.stats.births || 0)}</b>filhotes</div></div>`;
+    <div><b>${fmt(S.stats.births || 0)}</b>filhotes</div>
+    <div><b>${fmt(S.stats.cheese || 0)}</b>queijos</div></div>`;
   return h;
 }
 
@@ -477,7 +496,7 @@ function workshopHtml() {
         <small>${b.desc}</small>
         <small>${done ? 'Pronto!' : `Custa ${io(b.cost)} · falta ${missing.map((x) => `${x.qty} ${core.ITEMS[x.id].icon}`).join(' + ')}`}</small>
         ${done ? '' : `<div class="progress"><i style="width:${Math.round(prog * 100)}%"></i></div>`}</div>
-      <div class="btns">${done ? '<span class="req">✔</span>' : '<span class="req">Entregue no canteiro</span>'}</div></div>`;
+      <div class="btns">${done ? '<span class="req">✔</span>' : b.level > S.level ? `<span class="req">🔒 Nível ${b.level}</span>` : '<span class="req">Entregue no canteiro</span>'}</div></div>`;
   }
   h += `</div><p class="hint">🪓 Corte árvores no bosque (oeste) para ter troncos. Leve a madeira até o canteiro 🏗️ de cada obra e use a ação para entregar: dá para entregar aos poucos.${S.saw.owned ? '' : ` Mais tarde, a ${SAWMILL.icon} Serraria faz tábuas sozinha.`}</p>`;
   return h;
