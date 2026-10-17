@@ -2,6 +2,7 @@
 import {
   COLS, ROWS, DAY_LEN, MAX_OFFLINE, SAVE_KEY,
   CROPS, PRODUCTS, ANIMALS, WATER_TIME, GROW_SPEED, PEN_SIZE, UPGRADES, CUSTOMERS,
+  WORKERS, WORK_TIME,
 } from './data.js';
 
 // ================= Utilidades =================
@@ -39,6 +40,11 @@ const toast = (msg, type) => hooks.toast(msg, type);
 const sfx = (name) => hooks.sfx(name);
 const fx = (target, text, cls) => hooks.fx(target, text, cls);
 const markDirty = (...parts) => hooks.dirty(...parts);
+
+// Avisos gerados durante simulações silenciosas (offline, sono), mostrados depois
+const notices = [];
+const notify = (msg, type, quiet) => (quiet ? notices.push([msg, type]) : toast(msg, type));
+export const takeNotices = () => notices.splice(0);
 
 // ================= Estado =================
 export let S = null;
@@ -80,7 +86,8 @@ function newState() {
     inv: {},
     animals: [],
     nextId: 1,
-    up: { regador: 0, adubo: 0, curral: 0, aspersor: 0 },
+    workers: { colhedor: false, plantador: false, tratador: false },
+    up: { regador: 0, adubo: 0, curral: 0, alimentador: 0, aspersor: 0 },
     weather: 'sol',
     prices: {},
     orders: [],
@@ -136,12 +143,31 @@ function rollPrices() {
 function newDay(day, quiet) {
   rollPrices();
   S.weather = Math.random() < 0.22 ? 'chuva' : 'sol';
+  const paid = payWages(quiet);
   if (!quiet) {
-    if (S.weather === 'chuva') toast(`🌧️ Dia ${day}: está chovendo! Tudo fica regado hoje.`);
-    else toast(`☀️ Dia ${day} começou. Os preços do mercado mudaram!`);
-    markDirty('panel');
+    const wages = paid ? ` · Salários: -🪙${fmt(paid)}` : '';
+    if (S.weather === 'chuva') toast(`🌧️ Dia ${day}: está chovendo! Tudo fica regado hoje.${wages}`);
+    else toast(`☀️ Dia ${day} começou. Os preços do mercado mudaram!${wages}`);
   }
+  markDirty('panel');
 }
+
+function payWages(quiet) {
+  let paid = 0;
+  for (const [id, w] of Object.entries(WORKERS)) {
+    if (!S.workers[id]) continue;
+    if (S.coins >= w.wage) {
+      S.coins -= w.wage;
+      paid += w.wage;
+    } else {
+      S.workers[id] = false;
+      notify(`${w.icon} O ${w.name.toLowerCase()} pediu demissão: faltou dinheiro para o salário.`, 'bad', quiet);
+    }
+  }
+  return paid;
+}
+
+let feederWarned = false;
 
 export function update(dt, quiet) {
   const before = dayOf(S.time);
@@ -161,6 +187,23 @@ export function update(dt, quiet) {
     }
     if (p.w > 0) p.w = Math.max(0, p.w - dt);
   }
+  // Alimentador automático: animais com fome comem o trigo guardado no celeiro
+  if (S.up.alimentador > 0) {
+    let fed = 0;
+    for (const a of S.animals) {
+      if (!a.fed && !a.ready && (S.inv.trigo || 0) > 0) { S.inv.trigo--; a.fed = true; fed++; }
+    }
+    const hungry = S.animals.some((a) => !a.fed && !a.ready);
+    if (fed) markDirty('panel');
+    if (hungry && !quiet && !feederWarned) {
+      toast('⚙️ O alimentador automático ficou sem 🌾 trigo!', 'bad');
+      feederWarned = true;
+    }
+    if (!hungry) feederWarned = false;
+  }
+
+  if (quiet) workersOffline(dt);
+
   for (const a of S.animals) {
     if (a.fed && !a.ready) {
       a.p += dt;
@@ -213,23 +256,26 @@ function addItem(id, n) {
   markDirty('panel');
 }
 
-function gainXp(n) {
+function gainXp(n, silent = false) {
   S.xp += n;
   while (S.xp >= xpNeed(S.level)) {
     S.xp -= xpNeed(S.level);
     S.level++;
-    onLevelUp();
+    onLevelUp(silent);
   }
 }
 
-function onLevelUp() {
+function onLevelUp(silent) {
   const unlocks = [];
   for (const c of Object.values(CROPS)) if (c.level === S.level) unlocks.push(c.icon + ' ' + c.name);
   for (const a of Object.values(ANIMALS)) if (a.level === S.level) unlocks.push(a.icon + ' ' + a.name);
   for (const u of Object.values(UPGRADES)) if (u.req.includes(S.level)) unlocks.push(u.icon + ' ' + u.name);
-  toast(`⭐ Nível ${S.level}!${unlocks.length ? ' Desbloqueado: ' + unlocks.join(', ') : ''}`, 'level');
-  sfx('level');
-  fx({ player: true }, `⭐ Nível ${S.level}`, 'gold');
+  for (const w of Object.values(WORKERS)) if (w.level === S.level) unlocks.push(w.icon + ' ' + w.name);
+  notify(`⭐ Nível ${S.level}!${unlocks.length ? ' Desbloqueado: ' + unlocks.join(', ') : ''}`, 'level', silent);
+  if (!silent) {
+    sfx('level');
+    fx({ player: true }, `⭐ Nível ${S.level}`, 'gold');
+  }
   markDirty('panel', 'toolbar');
 }
 
@@ -341,14 +387,16 @@ export function useTile(i, quiet = false) {
   return null;
 }
 
-function harvest(i) {
+function harvest(i, silent = false) {
   const p = S.plots[i];
   const c = CROPS[p.crop];
   addItem(p.crop, 1);
-  gainXp(c.xp);
+  gainXp(c.xp, silent);
   S.stats.harvest++;
-  fx({ tile: i }, `+1 ${c.icon}`, 'gold');
-  sfx('harvest');
+  if (!silent) {
+    fx({ tile: i }, `+1 ${c.icon}`, 'gold');
+    sfx('harvest');
+  }
   if (c.regrow) {
     p.g = c.time * (1 - c.regrow);
   } else {
@@ -383,10 +431,10 @@ function feedAnimal(a) {
   return true;
 }
 
-function collectAnimal(a) {
+function collectAnimal(a, silent = false) {
   const def = ANIMALS[a.type];
   addItem(def.product, 1);
-  gainXp(PRODUCTS[def.product].xp);
+  gainXp(PRODUCTS[def.product].xp, silent);
   a.ready = false;
   a.fed = false;
   a.p = 0;
@@ -404,7 +452,7 @@ export function animalInfo(a) {
   const def = ANIMALS[a.type];
   const prod = PRODUCTS[def.product];
   if (a.ready) return `${def.icon} ${def.name}: ${prod.icon} ${prod.name} pronto para coletar!`;
-  if (!a.fed) return `${def.icon} ${def.name} com fome. Alimente com 🌾 trigo (você tem ${S.inv.trigo || 0}).`;
+  if (!a.fed) return S.up.alimentador ? `${def.icon} ${def.name} com fome: o alimentador automático está sem 🌾 trigo!` : `${def.icon} ${def.name} com fome. Alimente com 🌾 trigo (você tem ${S.inv.trigo || 0}).`;
   return `${def.icon} ${def.name} produzindo ${prod.icon}… faltam ${fmtDuration(Math.ceil(def.time - a.p))}.`;
 }
 
@@ -445,6 +493,88 @@ export function feedAll() {
   if (fed) { fx({ player: true }, `-${fed} 🌾`); sfx('plant'); }
   if (fed < hungry.length) { toast('🌾 Trigo insuficiente para alimentar todos!', 'bad'); sfx('error'); }
   return fed;
+}
+
+// ================= Funcionários =================
+export const dailyWages = () => Object.entries(WORKERS).reduce((s, [id, w]) => s + (S.workers[id] ? w.wage : 0), 0);
+
+/** Semente que o plantador usa: a selecionada na barra, ou a que houver em maior quantidade. */
+export function pickSeed() {
+  if (tool.startsWith('seed:') && S.seeds[tool.slice(5)] > 0) return tool.slice(5);
+  let best = null;
+  for (const [id, n] of Object.entries(S.seeds)) if (n > 0 && CROPS[id] && (!best || n > S.seeds[best])) best = id;
+  return best;
+}
+
+/** O plantador tem lotes para plantar mas nenhuma semente. */
+export const plantadorSemSementes = () => !pickSeed() && S.plots.some((p) => p.s === 'tilled');
+
+/** Alvos disponíveis para um funcionário: índices de lotes ou ids de animais. */
+export function workerTargets(id) {
+  if (id === 'colhedor') return S.plots.map((p, i) => (isReady(p) ? i : -1)).filter((i) => i >= 0);
+  if (id === 'plantador') return pickSeed() ? S.plots.map((p, i) => (p.s === 'tilled' ? i : -1)).filter((i) => i >= 0) : [];
+  if (id === 'tratador') return S.animals.filter((a) => a.ready).map((a) => a.id);
+  return [];
+}
+
+/** Funcionário executa a tarefa no alvo. Retorna o tipo de ação ou null se não havia o que fazer. */
+export function workerAct(id, target, silent = false) {
+  if (id === 'colhedor') {
+    const p = S.plots[target];
+    if (p && isReady(p)) return harvest(target, silent);
+  } else if (id === 'plantador') {
+    const p = S.plots[target];
+    const seed = pickSeed();
+    if (p && p.s === 'tilled' && seed) {
+      S.seeds[seed]--;
+      p.s = 'planted';
+      p.crop = seed;
+      p.g = 0;
+      if (!silent) { sfx('plant'); fx({ tile: target }, CROPS[seed].icon); }
+      markDirty('toolbar', 'panel');
+      return 'plant';
+    }
+  } else if (id === 'tratador') {
+    const a = findAnimal(target);
+    if (a && a.ready) {
+      const prod = collectAnimal(a, silent);
+      if (!silent) { fx({ animal: target }, `+1 ${PRODUCTS[prod].icon}`, 'gold'); sfx('harvest'); }
+      return 'collect';
+    }
+  }
+  return null;
+}
+
+// Quando o jogo é simulado sem a cena (offline, aba em segundo plano, sono), o trabalho segue em ritmo fixo
+const workTimers = {};
+function workersOffline(dt) {
+  for (const id of Object.keys(WORKERS)) {
+    if (!S.workers[id]) continue;
+    workTimers[id] = (workTimers[id] || 0) + dt;
+    while (workTimers[id] >= WORK_TIME) {
+      workTimers[id] -= WORK_TIME;
+      const targets = workerTargets(id);
+      if (!targets.length) { workTimers[id] = 0; break; }
+      workerAct(id, targets[0], true);
+    }
+  }
+}
+
+export function hireWorker(id) {
+  const w = WORKERS[id];
+  if (S.workers[id] || w.level > S.level) return;
+  if (!spend(w.hire)) return;
+  S.workers[id] = true;
+  toast(`${w.icon} ${w.name} contratado! Salário: 🪙${w.wage} por dia.`, 'good');
+  sfx('coin');
+}
+
+export function fireWorker(id) {
+  const w = WORKERS[id];
+  if (!S.workers[id]) return;
+  S.workers[id] = false;
+  toast(`${w.icon} ${w.name} foi dispensado.`);
+  markDirty('panel');
 }
 
 // ================= Loja / mercado =================
@@ -562,7 +692,7 @@ function load() {
     const d = JSON.parse(raw);
     if (!d || !Array.isArray(d.plots) || d.plots.length !== COLS * ROWS) return null;
     const base = newState();
-    const st = { ...base, ...d, up: { ...base.up, ...d.up }, stats: { ...base.stats, ...d.stats } };
+    const st = { ...base, ...d, up: { ...base.up, ...d.up }, stats: { ...base.stats, ...d.stats }, workers: { ...base.workers, ...d.workers } };
     for (const p of st.plots) if (p.s === 'planted' && !CROPS[p.crop]) { p.s = 'tilled'; p.crop = null; p.g = 0; }
     st.animals = (st.animals || []).filter((a) => ANIMALS[a.type]);
     st.nextId = st.nextId || 1;

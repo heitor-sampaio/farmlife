@@ -19,8 +19,8 @@ Depois acesse http://localhost:5173. Na primeira vez, precisa de internet para b
 
 | Ação | Teclado / mouse | Celular |
 |---|---|---|
-| Andar | `W` `A` `S` `D` ou setas (`Shift` corre) | Tocar no chão |
-| Usar ferramenta no lote à frente | `Espaço` ou `E` (segure e ande para repetir) | Botão ✋ |
+| Andar | `W` `A` `S` `D` ou setas (`Shift` corre) | Arrastar o dedo (joystick; mais longe = mais rápido) |
+| Usar ferramenta no lote à frente | `Espaço` ou `E` (segure e ande para repetir) | Botão ✋ (segure e ande para repetir) |
 | Ir até um lote e agir | Clique no lote (arraste para enfileirar vários) | Tocar no lote |
 | Escolher ferramenta/semente | `1`–`9` | Barra inferior |
 | Zoom | Roda do mouse ou `+` / `-` | Botões ＋ / － |
@@ -30,7 +30,8 @@ Depois acesse http://localhost:5173. Na primeira vez, precisa de internet para b
 
 - **Lavoura**: are a grama, plante, regue e colha. Sem água, nada cresce.
 - **Construções**: Celeiro (vender), Loja (sementes, animais, melhorias), quadro de Pedidos e Casa (dormir à noite).
-- **Curral**: os animais andam livres, comem 🌾 trigo e produzem ovos, lã, leite e trufas. O cocho alimenta todos de uma vez.
+- **Curral**: os animais andam livres, comem 🌾 trigo e produzem ovos, lã, leite e trufas. O cocho alimenta todos de uma vez, e o Alimentador automático (melhoria da loja) faz isso sozinho usando o trigo do celeiro.
+- **Funcionários**: Colhedor, Plantador e Tratador andam pela fazenda e trabalham sozinhos (também enquanto você está fora). Cobram salário no início de cada dia; sem dinheiro, pedem demissão.
 - **Tempo**: dia de 3 minutos com sol que muda as sombras, noite com lampiões e dias de chuva.
 - **Progresso**: níveis desbloqueiam culturas, animais e melhorias; terrenos vizinhos podem ser comprados.
 - **Salvamento**: automático no `localStorage`, com até 8h de progresso enquanto você está fora.

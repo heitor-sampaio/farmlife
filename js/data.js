@@ -43,8 +43,17 @@ export const UPGRADES = {
   regador:  { name: 'Regador reforçado', icon: '🚿', costs: [150, 600, 1800], req: [1, 3, 5], effect: (l) => `Água dura ${WATER_TIME[l]}s` },
   adubo:    { name: 'Adubo orgânico',    icon: '🧪', costs: [400, 1200, 3000], req: [2, 4, 6], effect: (l) => `Crescimento +${Math.round((GROW_SPEED[l] - 1) * 100)}%` },
   curral:   { name: 'Curral maior',      icon: '🏡', costs: [900, 2800],       req: [3, 6],    effect: (l) => `${PEN_SIZE[l]} vagas para animais` },
+  alimentador: { name: 'Alimentador automático', icon: '⚙️', costs: [1500], req: [3], effect: (l) => (l ? 'Animais comem 🌾 do celeiro sozinhos' : 'Alimentação manual') },
   aspersor: { name: 'Aspersores',        icon: '⛲', costs: [4000],            req: [7],       effect: (l) => (l ? 'Rega tudo automaticamente' : 'Rega manual') },
 };
+
+// Funcionários: custo de contratação + salário cobrado no início de cada dia
+export const WORKERS = {
+  colhedor:  { name: 'Colhedor',  icon: '🧺', hire: 800,  wage: 40, level: 3, desc: 'Colhe sozinho todas as plantas prontas.' },
+  plantador: { name: 'Plantador', icon: '🌱', hire: 1000, wage: 50, level: 4, desc: 'Planta nos lotes arados vazios usando a semente selecionada (ou a que você tiver mais).' },
+  tratador:  { name: 'Tratador',  icon: '🐾', hire: 1200, wage: 60, level: 5, desc: 'Coleta ovos, lã, leite e trufas dos animais.' },
+};
+export const WORK_TIME = 2.5; // segundos por tarefa quando o jogo é simulado (aba fechada, sono)
 
 export const CUSTOMERS = [
   '👵 Dona Maria', '👨‍🍳 Chef Paulo', '🧑‍🌾 Seu João', '👧 Aninha',

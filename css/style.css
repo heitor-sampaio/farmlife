@@ -256,7 +256,35 @@ kbd {
   box-shadow: 0 5px 0 #e0b84a, 0 8px 18px rgba(0, 0, 0, .25);
   font-size: 32px;
 }
-.action-btn:active { transform: translateY(3px); box-shadow: 0 2px 0 #e0b84a; }
+.action-btn:active, .action-btn.pressed { transform: translateY(3px); box-shadow: 0 2px 0 #e0b84a; }
+.action-btn { touch-action: none; -webkit-tap-highlight-color: transparent; }
+
+/* Joystick virtual (aparece onde o dedo toca) */
+.joystick {
+  position: fixed;
+  z-index: 14;
+  width: 128px;
+  height: 128px;
+  margin: -64px 0 0 -64px;
+  border: 3px solid rgba(255, 255, 255, .7);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, .12), rgba(40, 26, 12, .28));
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .12s;
+}
+.joystick.on { opacity: 1; }
+.joystick-knob {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 56px;
+  height: 56px;
+  margin: -28px 0 0 -28px;
+  border-radius: 50%;
+  background: #fff3b0;
+  box-shadow: 0 4px 0 #e0b84a, 0 6px 14px rgba(0, 0, 0, .3);
+}
 @media (pointer: coarse) {
   .action-btn { display: block; }
 }
@@ -323,6 +351,7 @@ kbd {
   background: #fffdf6;
 }
 .card.locked { opacity: .55; filter: grayscale(.6); }
+.card.hired { border-color: var(--green); background: #f1fae6; }
 .card .ico { width: 40px; font-size: 30px; text-align: center; flex-shrink: 0; }
 .card .info { display: flex; flex: 1; flex-direction: column; min-width: 0; }
 .card small { color: var(--muted); font-size: 12px; }

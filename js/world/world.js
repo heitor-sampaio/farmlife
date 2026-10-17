@@ -1,6 +1,6 @@
 /* FarmLife — mundo 3D: cena, câmera isométrica, personagem, animais e interações */
 import * as THREE from 'three';
-import { COLS, ROWS, ANIMALS, PRODUCTS, CROPS } from '../data.js';
+import { COLS, ROWS, ANIMALS, PRODUCTS, CROPS, WORKERS } from '../data.js';
 import * as core from '../core.js';
 import * as ui from '../ui.js';
 import * as M from './models.js';
@@ -63,11 +63,17 @@ const animalVis = new Map();
 const pickables = [];
 const particles = [];
 const particlePool = [];
-let hoverRing, targetRing, clickMarker;
+let hoverRing, targetRing, clickMarker, feeder;
 const queueRings = [];
 
 const keys = new Set();
 let lastKeyTile = -1;
+let actionHeld = false;
+
+// Joystick virtual (toque): aparece onde o dedo encosta e some ao soltar
+const JOY_RADIUS = 56;
+const JOY_DEAD = 8;
+const joy = { id: null, sx: 0, sy: 0, x: 0, y: 0, moved: false, el: null, knob: null };
 const ndc = new THREE.Vector2();
 let mouseIn = false;
 let dragging = false;
@@ -304,6 +310,13 @@ function buildPen() {
   scene.add(trough);
   pickables.push(trough);
   nav.blockRect(-13.8, -1.25, -13.2, 0.25, PLAYER_R);
+
+  // Silo do alimentador automático (aparece quando a melhoria é comprada)
+  feeder = M.makeFeeder();
+  feeder.position.set(-13.55, 0, -2.0);
+  feeder.visible = false;
+  scene.add(feeder);
+  nav.blockCircle(-13.55, -2.0, 0.4 + PLAYER_R);
 }
 
 function buildNature() {
@@ -586,7 +599,7 @@ function randomPenPoint() {
   for (let k = 0; k < 20; k++) {
     const x = rand(PEN.x1 + 0.6, PEN.x2 - 0.6);
     const z = rand(PEN.z1 + 0.6, PEN.z2 - 0.6);
-    if (x < -12.6 && z > -1.8 && z < 0.8) continue; // longe do cocho
+    if (x < -12.6 && z > -2.7 && z < 0.8) continue; // longe do cocho e do silo
     return new THREE.Vector3(x, 0, z);
   }
   return new THREE.Vector3((PEN.x1 + PEN.x2) / 2, 0, (PEN.z1 + PEN.z2) / 2);
@@ -597,6 +610,7 @@ const ANIMAL_SPEED = { galinha: 1.0, ovelha: 0.6, vaca: 0.5, porco: 0.65 };
 
 function syncAnimals() {
   const S = core.S;
+  feeder.visible = S.up.alimentador > 0;
   const ids = new Set();
   for (const a of S.animals) {
     ids.add(a.id);
@@ -677,21 +691,22 @@ function moveBy(dx, dz) {
   if (nav.free(p.x, p.z + dz)) p.z += dz;
 }
 
-function followPath(dt, speed) {
-  const p = player.pos;
+/** Segue a rota de uma entidade (personagem ou funcionário). */
+function followPath(e, dt, speed) {
+  const p = e.pos;
   let remaining = speed * dt;
-  while (remaining > 0 && player.path.length) {
-    const t = player.path[0];
+  while (remaining > 0 && e.path.length) {
+    const t = e.path[0];
     const dx = t.x - p.x, dz = t.z - p.z;
     const d = Math.hypot(dx, dz);
-    if (d < 1e-4) { player.path.shift(); continue; }
+    if (d < 1e-4) { e.path.shift(); continue; }
     const step = Math.min(d, remaining);
     p.x += (dx / d) * step;
     p.z += (dz / d) * step;
     remaining -= step;
-    player.heading = Math.atan2(dx, dz);
-    player.moving = true;
-    if (step >= d - 1e-6) player.path.shift();
+    e.heading = Math.atan2(dx, dz);
+    e.moving = true;
+    if (step >= d - 1e-6) e.path.shift();
   }
 }
 
@@ -852,8 +867,12 @@ function keyAction(repeat) {
   }
 }
 
-/** Botão de ação na tela (toque). */
-export function pressAction() { keyAction(false); }
+/** Botão de ação na tela (toque): pressionar age; segurar repete ao passar por novos lotes. */
+export function setActionHeld(held) {
+  actionHeld = held;
+  if (held) keyAction(false);
+  else lastKeyTile = -1;
+}
 
 function updatePlayer(dt) {
   let ix = 0, iz = 0;
@@ -862,8 +881,20 @@ function updatePlayer(dt) {
   if (keys.has('d') || keys.has('arrowright')) { ix += 1; iz -= 1; }
   if (keys.has('a') || keys.has('arrowleft')) { ix -= 1; iz += 1; }
   player.running = keys.has('shift');
-  const speed = player.running ? RUN : WALK;
+  let speed = player.running ? RUN : WALK;
   player.moving = false;
+
+  // Joystick: tela para direita = (1, -1) no mundo, tela para baixo = (1, 1)
+  if (joy.id !== null && joy.moved) {
+    const dx = joy.x - joy.sx, dy = joy.y - joy.sy;
+    const mag = Math.min(1, Math.hypot(dx, dy) / JOY_RADIUS);
+    if (mag * JOY_RADIUS > JOY_DEAD) {
+      ix = dx + dy;
+      iz = dy - dx;
+      speed = mag > 0.85 ? RUN : WALK * Math.max(0.35, mag / 0.85);
+      player.running = mag > 0.85;
+    }
+  }
 
   if (ix || iz) {
     if (player.job || player.queue.length || player.path.length) cancelJobs();
@@ -872,48 +903,179 @@ function updatePlayer(dt) {
     player.heading = Math.atan2(ix, iz);
     player.moving = true;
   } else if (player.path.length && player.busy <= 0) {
-    followPath(dt, speed);
+    followPath(player, dt, speed);
   }
 
   if (player.busy > 0) player.busy -= dt;
   processJobs(dt);
 
   // Segurar Espaço/E repete a ação ao passar por novos lotes
-  if ((keys.has(' ') || keys.has('e')) && player.busy <= 0) {
+  if ((keys.has(' ') || keys.has('e') || actionHeld) && player.busy <= 0) {
     const ctx = getContext();
     if (ctx && ctx.kind === 'tile' && ctx.i !== lastKeyTile) keyAction(true);
   }
 
-  animateFarmer(dt);
+  animateFarmer(player, dt, core.tool.startsWith('seed:') ? 'seed' : core.tool);
 }
 
-function animateFarmer(dt) {
-  const m = player.m;
-  m.root.position.copy(player.pos);
-  m.root.rotation.y = lerpAngle(m.root.rotation.y, player.heading, 1 - Math.exp(-14 * dt));
+/** Anima um fazendeiro (personagem ou funcionário): passos, ferramenta e golpe. */
+function animateFarmer(e, dt, toolKey) {
+  const m = e.m;
+  m.root.position.copy(e.pos);
+  m.root.rotation.y = lerpAngle(m.root.rotation.y, e.heading, 1 - Math.exp(-14 * dt));
 
-  const toolKey = core.tool.startsWith('seed:') ? 'seed' : core.tool;
   for (const [k, t] of Object.entries(m.tools)) t.visible = k === toolKey;
 
-  if (player.moving) player.phase += dt * (player.running ? 15 : 10);
-  const swing = player.moving ? Math.sin(player.phase) * 0.7 : 0;
+  if (e.moving) e.phase += dt * (e.running ? 15 : 10);
+  const swing = e.moving ? Math.sin(e.phase) * 0.7 : 0;
   const ease = Math.min(1, dt * 14);
   m.legL.rotation.x += (swing - m.legL.rotation.x) * ease;
   m.legR.rotation.x += (-swing - m.legR.rotation.x) * ease;
   m.armL.rotation.x += (-swing * 0.8 - m.armL.rotation.x) * ease;
-  m.body.position.y = player.moving ? Math.abs(Math.sin(player.phase)) * 0.05 : Math.sin(clock * 2) * 0.008;
+  m.body.position.y = e.moving ? Math.abs(Math.sin(e.phase)) * 0.05 : Math.sin(clock * 2) * 0.008;
 
   let armR = swing * 0.8;
   let lean = 0;
-  if (player.actionT > 0) {
-    player.actionT -= dt;
-    const k = 1 - Math.max(0, player.actionT) / 0.3;
+  if (e.actionT > 0) {
+    e.actionT -= dt;
+    const k = 1 - Math.max(0, e.actionT) / 0.3;
     const arc = Math.sin(k * Math.PI);
-    armR = player.actionKind === 'water' ? -1.1 * arc : -1.7 * arc;
+    armR = e.actionKind === 'water' ? -1.1 * arc : -1.7 * arc;
     lean = 0.18 * arc;
   }
   m.armR.rotation.x += (armR - m.armR.rotation.x) * Math.min(1, dt * 25);
   m.body.rotation.x = lean;
+}
+
+// ================= Funcionários (NPCs) =================
+const NPC_STYLE = {
+  colhedor: { colors: { shirt: 0x43a047, denim: 0x6d4c41, hat: 0xd4a84f, band: 0x2e7d32, skin: 0xc68642 }, tool: 'mao', home: [1.7, -5.8] },
+  plantador: { colors: { shirt: 0xf9a825, denim: 0x455a64, hat: 0xf3e5c0, band: 0x8e24aa, skin: 0xf1c27d, hair: 0x2b1d14 }, tool: 'seed', home: [3.7, -5.8] },
+  tratador: { colors: { shirt: 0x1e88e5, denim: 0x795548, hat: 0x8d6e63, band: 0x4e342e, skin: 0x8d5524, hair: 0x1b1b1b }, tool: 'mao', home: [-6.9, -2.0] },
+};
+const NPC_SPEED = 2.6;
+const npcs = new Map();
+let seedWarned = false;
+
+function syncWorkers() {
+  const S = core.S;
+  for (const id of Object.keys(WORKERS)) {
+    const hired = S.workers[id];
+    if (hired && !npcs.has(id)) {
+      const m = M.makeFarmer(NPC_STYLE[id].colors);
+      const pos = new THREE.Vector3(SPOTS.celeiro.point[0], 0, SPOTS.celeiro.point[1]); // sai do celeiro
+      m.root.position.copy(pos);
+      scene.add(m.root);
+      const label = M.textSprite(`${WORKERS[id].icon} ${WORKERS[id].name}`, 0.3);
+      scene.add(label);
+      npcs.set(id, {
+        id, m, label, pos, heading: 0, path: [], task: null, busy: 0, actionT: 0, actionKind: null,
+        phase: 0, moving: false, running: false, repath: 0, skip: new Map(), bubble: null, bubbleKey: '',
+      });
+    } else if (!hired && npcs.has(id)) {
+      const n = npcs.get(id);
+      scene.remove(n.m.root, n.label);
+      if (n.bubble) scene.remove(n.bubble);
+      npcs.delete(id);
+    }
+  }
+}
+
+function npcTargetPos(id, t) {
+  if (id === 'tratador') { const v = animalVis.get(t); return v ? { x: v.pos.x, z: v.pos.z } : null; }
+  const p = tilePos(t);
+  return { x: p.x, z: p.z };
+}
+
+/** Escolhe a tarefa mais próxima que o funcionário ainda não desistiu de fazer. */
+function npcPickTask(n) {
+  let best = null, bd = Infinity;
+  for (const t of core.workerTargets(n.id)) {
+    if (n.skip.has(t)) continue;
+    const p = npcTargetPos(n.id, t);
+    if (!p) continue;
+    const d = dist2(n.pos, p.x, p.z);
+    if (d < bd) { bd = d; best = t; }
+  }
+  if (best !== null) { n.task = { t: best, tries: 0 }; n.path = []; n.repath = 0; }
+}
+
+function npcWork(n, dt) {
+  const tp = npcTargetPos(n.id, n.task.t);
+  if (!tp) { n.task = null; return; }
+  const reach = n.id === 'tratador' ? 0.95 : REACH;
+  const d = dist2(n.pos, tp.x, tp.z);
+  if (d <= reach) {
+    n.path = [];
+    n.heading = Math.atan2(tp.x - n.pos.x, tp.z - n.pos.z);
+    const crop = n.id === 'colhedor' ? core.S.plots[n.task.t].crop : null;
+    const res = core.workerAct(n.id, n.task.t);
+    if (res) {
+      n.actionT = 0.3;
+      n.actionKind = res;
+      n.busy = 0.7;
+      actionEffect(res, tp, crop);
+      const v = n.id === 'tratador' && animalVis.get(n.task.t);
+      if (v) v.wait = Math.max(v.wait, 1.2);
+    }
+    n.task = null;
+    return;
+  }
+  n.repath -= dt;
+  if (!n.path.length || (n.id === 'tratador' && n.repath <= 0)) {
+    if (!n.path.length && n.task.tries++ > 3) { n.skip.set(n.task.t, clock + 8); n.task = null; return; }
+    const k = Math.min(d, reach * 0.7);
+    const ax = tp.x - ((tp.x - n.pos.x) / d) * k;
+    const az = tp.z - ((tp.z - n.pos.z) / d) * k;
+    const path = nav.findPath(n.pos.x, n.pos.z, ax, az);
+    if (!path) { n.skip.set(n.task.t, clock + 8); n.task = null; return; }
+    n.path = path;
+    n.repath = 0.6;
+  }
+  followPath(n, dt, NPC_SPEED);
+}
+
+/** Sem tarefas: volta para o seu posto e espera. */
+function npcIdle(n, dt) {
+  const [hx, hz] = NPC_STYLE[n.id].home;
+  if (dist2(n.pos, hx, hz) > 0.5) {
+    if (!n.path.length) n.path = nav.findPath(n.pos.x, n.pos.z, hx, hz) || [];
+    followPath(n, dt, NPC_SPEED * 0.8);
+  } else {
+    n.path = [];
+    n.heading = lerpAngle(n.heading, Math.PI / 4, Math.min(1, dt * 2));
+  }
+}
+
+function updateWorkers(dt) {
+  const semSementes = npcs.has('plantador') && core.plantadorSemSementes();
+  for (const n of npcs.values()) {
+    n.moving = false;
+    for (const [t, until] of n.skip) if (until < clock) n.skip.delete(t);
+    if (n.busy > 0) {
+      n.busy -= dt;
+    } else {
+      // A tarefa pode ter sido feita por outra pessoa no caminho
+      if (n.task && !core.workerTargets(n.id).includes(n.task.t)) { n.task = null; n.path = []; }
+      if (!n.task) npcPickTask(n);
+      if (n.task) npcWork(n, dt);
+      else npcIdle(n, dt);
+    }
+    animateFarmer(n, dt, NPC_STYLE[n.id].tool);
+    n.label.position.set(n.pos.x, 1.62, n.pos.z);
+
+    const resting = !n.task && !n.moving && n.busy <= 0;
+    const bubbleKey = !resting ? '' : n.id === 'plantador' && semSementes ? '❓' : '💤';
+    if (n.bubbleKey !== bubbleKey) {
+      if (n.bubble) scene.remove(n.bubble);
+      n.bubble = bubbleKey ? M.emojiSprite(bubbleKey, 0.34) : null;
+      if (n.bubble) scene.add(n.bubble);
+      n.bubbleKey = bubbleKey;
+    }
+    if (n.bubble) n.bubble.position.set(n.pos.x + 0.25, 2.0 + Math.sin(clock * 2.5) * 0.05, n.pos.z);
+  }
+  if (semSementes && !seedWarned) ui.toast('🌱 O plantador está sem sementes! Compre mais na loja.', 'bad');
+  seedWarned = semSementes;
 }
 
 // ================= Entrada (teclado, mouse e toque) =================
@@ -941,31 +1103,87 @@ function queued(i) {
   return (player.job && player.job.kind === 'tile' && player.job.i === i) || player.queue.some((j) => j.kind === 'tile' && j.i === i);
 }
 
+/** Clique (mouse) ou toque rápido: vai até o alvo e age. Retorna o que foi atingido. */
+function clickAt(e) {
+  setNdc(e);
+  const hit = pick();
+  if (!hit) return null;
+  cancelJobs();
+  if (hit.kind === 'tile') {
+    player.queue.push({ kind: 'tile', i: hit.i });
+  } else if (hit.kind === 'animal') {
+    player.queue.push({ kind: 'animal', id: hit.id });
+  } else if (hit.kind === 'spot') {
+    player.queue.push({ kind: 'spot', key: hit.key });
+  } else {
+    player.queue.push({ kind: 'move', x: hit.x, z: hit.z });
+    clickMarker.position.set(hit.x, 0.03, hit.z);
+    clickMarker.material.opacity = 0.9;
+    clickMarker.scale.setScalar(1);
+  }
+  return hit;
+}
+
+function showJoystick() {
+  if (!joy.el) {
+    joy.el = document.createElement('div');
+    joy.el.className = 'joystick';
+    joy.knob = document.createElement('div');
+    joy.knob.className = 'joystick-knob';
+    joy.el.appendChild(joy.knob);
+    document.body.appendChild(joy.el);
+  }
+  joy.el.style.left = joy.sx + 'px';
+  joy.el.style.top = joy.sy + 'px';
+  joy.el.classList.add('on');
+}
+
+function moveKnob() {
+  let dx = joy.x - joy.sx, dy = joy.y - joy.sy;
+  const d = Math.hypot(dx, dy);
+  if (d > JOY_RADIUS) { dx = (dx / d) * JOY_RADIUS; dy = (dy / d) * JOY_RADIUS; }
+  joy.knob.style.transform = `translate(${dx}px, ${dy}px)`;
+}
+
+function endJoystick(e, tap) {
+  if (tap && !joy.moved) clickAt(e);
+  if (joy.el) joy.el.classList.remove('on');
+  joy.id = null;
+  joy.moved = false;
+}
+
 function bindInput() {
+  canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   canvas.addEventListener('pointerdown', (e) => {
-    if (e.pointerType === 'mouse' && e.button !== 0) return;
-    setNdc(e);
+    if (e.pointerType === 'touch') {
+      if (joy.id !== null) return;
+      try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* ponteiro sintético ou já liberado */ }
+      Object.assign(joy, { id: e.pointerId, sx: e.clientX, sy: e.clientY, x: e.clientX, y: e.clientY, moved: false });
+      return;
+    }
+    if (e.button !== 0) return;
     mouseIn = true;
-    const hit = pick();
+    const hit = clickAt(e);
     if (!hit) return;
-    canvas.setPointerCapture(e.pointerId);
-    cancelJobs();
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* ponteiro sintético ou já liberado */ }
     if (hit.kind === 'tile') {
-      player.queue.push({ kind: 'tile', i: hit.i });
       dragging = true;
       lastDragTile = hit.i;
-    } else if (hit.kind === 'animal') {
-      player.queue.push({ kind: 'animal', id: hit.id });
-    } else if (hit.kind === 'spot') {
-      player.queue.push({ kind: 'spot', key: hit.key });
-    } else {
-      player.queue.push({ kind: 'move', x: hit.x, z: hit.z });
-      clickMarker.position.set(hit.x, 0.03, hit.z);
-      clickMarker.material.opacity = 0.9;
-      clickMarker.scale.setScalar(1);
     }
   });
   canvas.addEventListener('pointermove', (e) => {
+    if (e.pointerId === joy.id) {
+      joy.x = e.clientX;
+      joy.y = e.clientY;
+      if (!joy.moved && Math.hypot(joy.x - joy.sx, joy.y - joy.sy) > 12) {
+        joy.moved = true;
+        cancelJobs();
+        showJoystick();
+      }
+      if (joy.moved) moveKnob();
+      return;
+    }
+    if (e.pointerType === 'touch') return;
     setNdc(e);
     mouseIn = true;
     if (!dragging) return;
@@ -975,10 +1193,15 @@ function bindInput() {
       if (!queued(hit.i) && player.queue.length < 48) player.queue.push({ kind: 'tile', i: hit.i, quiet: true });
     }
   });
-  const stop = () => { dragging = false; };
-  canvas.addEventListener('pointerup', stop);
-  canvas.addEventListener('pointercancel', stop);
-  canvas.addEventListener('pointerleave', () => { mouseIn = false; });
+  canvas.addEventListener('pointerup', (e) => {
+    if (e.pointerId === joy.id) endJoystick(e, true);
+    dragging = false;
+  });
+  canvas.addEventListener('pointercancel', (e) => {
+    if (e.pointerId === joy.id) endJoystick(e, false);
+    dragging = false;
+  });
+  canvas.addEventListener('pointerleave', (e) => { if (e.pointerType !== 'touch') mouseIn = false; });
   canvas.addEventListener('wheel', (e) => { e.preventDefault(); zoomBy(e.deltaY > 0 ? 1.1 : 1 / 1.1); }, { passive: false });
 
   window.addEventListener('keydown', (e) => {
@@ -1078,8 +1301,10 @@ export function worldFrame(dt) {
   clock += dt;
   syncPlots();
   syncAnimals();
+  syncWorkers();
   updatePlayer(dt);
   updateAnimals(dt);
+  updateWorkers(dt);
   animatePlots();
   updateCamera(dt);
   updateSky(dt);
@@ -1089,4 +1314,4 @@ export function worldFrame(dt) {
 }
 
 // Usado pelos testes no console do navegador
-export const debug = { player, animalVis, get zoom() { return zoom; }, tileAt, tilePos, get nav() { return nav; } };
+export const debug = { player, animalVis, npcs, get zoom() { return zoom; }, tileAt, tilePos, get nav() { return nav; } };

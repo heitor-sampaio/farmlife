@@ -1,5 +1,5 @@
 /* FarmLife — interface em HTML sobre a cena 3D (HUD, hotbar, painel, avisos) */
-import { CROPS, ANIMALS, PRODUCTS, UPGRADES, SOUND_KEY } from './data.js';
+import { CROPS, ANIMALS, PRODUCTS, UPGRADES, WORKERS, SOUND_KEY } from './data.js';
 import * as core from './core.js';
 import { Sound, sfx } from './audio.js';
 
@@ -125,6 +125,25 @@ function shopHtml() {
         : full
           ? '<span class="req">Curral cheio</span>'
           : `<button class="btn" data-act="animal" data-id="${id}" ${S.coins < a.cost ? 'disabled' : ''}>🪙${fmt(a.cost)}</button>`}
+      </div></div>`;
+  }
+  h += '</div>';
+
+  const wages = core.dailyWages();
+  h += `<h3>👷 Funcionários${wages ? ` <small>(salários: 🪙${fmt(wages)}/dia)</small>` : ''}</h3><div class="cards">`;
+  for (const [id, w] of Object.entries(WORKERS)) {
+    const locked = w.level > S.level;
+    const hired = S.workers[id];
+    h += `<div class="card${locked ? ' locked' : ''}${hired ? ' hired' : ''}">
+      <div class="ico">${w.icon}</div>
+      <div class="info"><b>${w.name}${hired ? ' <small>✔ trabalhando</small>' : ''}</b>
+        <small>${w.desc}</small>
+        <small>Contratação 🪙${fmt(w.hire)} · salário 🪙${w.wage}/dia</small></div>
+      <div class="btns">${locked
+        ? `<span class="req">🔒 Nível ${w.level}</span>`
+        : hired
+          ? `<button class="btn ghost" data-act="fire" data-id="${id}">Dispensar</button>`
+          : `<button class="btn" data-act="hire" data-id="${id}" ${S.coins < w.hire ? 'disabled' : ''}>Contratar</button>`}
       </div></div>`;
   }
   h += '</div>';
@@ -307,7 +326,18 @@ export function initUI(h) {
   });
   $('#zoom-in').addEventListener('click', () => handlers.onZoom(1 / 1.2));
   $('#zoom-out').addEventListener('click', () => handlers.onZoom(1.2));
-  $('#btn-action').addEventListener('click', () => handlers.onAction());
+  // Botão de ação: segurar repete a ação ao andar sobre novos lotes
+  const btnAction = $('#btn-action');
+  btnAction.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    try { btnAction.setPointerCapture(e.pointerId); } catch (err) { /* ignora */ }
+    btnAction.classList.add('pressed');
+    handlers.onActionHeld(true);
+  });
+  const release = () => { btnAction.classList.remove('pressed'); handlers.onActionHeld(false); };
+  btnAction.addEventListener('pointerup', release);
+  btnAction.addEventListener('pointercancel', release);
+  btnAction.addEventListener('contextmenu', (e) => e.preventDefault());
 
   document.querySelector('.tabs').addEventListener('click', (e) => {
     const b = e.target.closest('[data-tab]');
@@ -323,6 +353,8 @@ export function initUI(h) {
     if (act === 'seed') core.buySeed(id, +b.dataset.q);
     else if (act === 'animal') core.buyAnimal(id);
     else if (act === 'upgrade') core.buyUpgrade(id);
+    else if (act === 'hire') core.hireWorker(id);
+    else if (act === 'fire') core.fireWorker(id);
     else if (act === 'sell') core.sell(id, +b.dataset.q);
     else if (act === 'sellall') core.sellAll();
     else if (act === 'order') core.fulfillOrder(+b.dataset.k);

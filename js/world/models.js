@@ -309,8 +309,11 @@ export function makeCrop(id, stage) {
 }
 
 // ================= Fazendeiro =================
-export function makeFarmer() {
-  const skin = 0xf1c27d, shirt = 0xd9534f, denim = 0x3d5a9e, boot = 0x5a3a22, hat = 0xe7c66a;
+export function makeFarmer(colors = {}) {
+  const {
+    skin = 0xf1c27d, shirt = 0xd9534f, denim = 0x3d5a9e, boot = 0x5a3a22,
+    hat = 0xe7c66a, band = 0xb23a2e, hair = 0x6b4423,
+  } = colors;
   const root = new THREE.Group();
   const body = new THREE.Group();
   root.add(body);
@@ -351,10 +354,10 @@ export function makeFarmer() {
   head.add(box(0.04, 0.05, 0.02, 0x2b1d14, -0.065, 0.02, 0.131));
   head.add(box(0.04, 0.05, 0.02, 0x2b1d14, 0.065, 0.02, 0.131));
   head.add(box(0.05, 0.05, 0.04, 0xe2a76f, 0, -0.03, 0.14));
-  head.add(box(0.29, 0.13, 0.05, 0x6b4423, 0, 0.04, -0.12));
+  head.add(box(0.29, 0.13, 0.05, hair, 0, 0.04, -0.12));
   head.add(cyl(0.28, 0.03, hat, 0, 0.15, 0));
   head.add(cyl(0.16, 0.14, hat, 0, 0.22, 0));
-  head.add(cyl(0.165, 0.035, 0xb23a2e, 0, 0.17, 0));
+  head.add(cyl(0.165, 0.035, band, 0, 0.17, 0));
   body.add(head);
 
   // Ferramentas na mão direita
@@ -577,6 +580,21 @@ export function makeTrough() {
   g.add(box(0.5, 0.35, 1.4, 0x8b5a2b, 0, 0.18, 0));
   g.add(box(0.38, 0.06, 1.25, 0xe0c062, 0, 0.34, 0));
   for (const z of [-0.6, 0.6]) g.add(box(0.56, 0.08, 0.08, 0x6f4825, 0, 0.36, z));
+  return g;
+}
+
+/** Silo do alimentador automático, com calha descendo até o cocho. */
+export function makeFeeder() {
+  const g = new THREE.Group();
+  const metal = 0xb8c4cc, dark = 0x7d8a93;
+  for (const [x, z] of [[-0.22, -0.22], [0.22, -0.22], [-0.22, 0.22], [0.22, 0.22]]) g.add(cyl(0.035, 0.7, dark, x, 0.35, z));
+  g.add(cyl(0.34, 1.0, metal, 0, 1.2, 0));
+  for (const y of [0.85, 1.2, 1.55]) g.add(cyl(0.345, 0.03, dark, 0, y, 0));
+  g.add(cone(0.38, 0.4, 0xb5382b, 0, 1.9, 0));
+  g.add(rot(cone(0.2, 0.25, metal, 0, 0.6, 0), Math.PI, 0, 0));
+  g.add(rot(cyl(0.05, 0.75, dark, 0, 0.45, 0.42), 0.9, 0, 0));
+  g.add(box(0.36, 0.22, 0.02, 0xfffaf0, 0, 1.25, 0.345));
+  g.add(ball(0.06, 0.06, 0.02, 0x5cb85c, 0, 1.25, 0.36));
   return g;
 }
 

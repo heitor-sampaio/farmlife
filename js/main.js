@@ -20,7 +20,7 @@ const away = core.startGame();
 ui.initUI({
   onReset: () => { core.resetGame(); world.onReset(); },
   onZoom: (f) => world.zoomBy(f),
-  onAction: () => world.pressAction(),
+  onActionHeld: (held) => world.setActionHeld(held),
 });
 
 await world.initWorld(document.getElementById('scene'));
@@ -36,6 +36,7 @@ function loop(now) {
   last = now;
   if (dt > 1) core.simulate(Math.min(dt, MAX_OFFLINE), true); // aba ficou em segundo plano
   else if (dt > 0) core.update(dt, false);
+  for (const [msg, type] of core.takeNotices()) ui.toast(msg, type);
   const step = Math.min(dt, 0.1);
   world.worldFrame(step);
   ui.uiFrame(step);
