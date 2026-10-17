@@ -10,7 +10,7 @@ import { CHANGELOG, VERSION, compareVersions } from './changelog.js';
 import { sfx } from './audio.js';
 import { sideWord } from './prefs.js';
 import * as sys from './systems.js';
-import { SEASONS, SEASON_DAYS, SEASON_BONUS, FACTORIES, GOODS, FRUIT_TREES, HIVES, ORCHARD, DECOR, STORAGE, FAIR, FRIEND, QUEST, CROWS } from './data.js';
+import { SEASONS, SEASON_DAYS, SEASON_BONUS, FACTORIES, GOODS, FRUIT_TREES, HIVES, ORCHARD, DECOR, STORAGE, FAIR, FRIEND, QUEST, CROWS, COOP } from './data.js';
 
 const $ = (sel) => document.querySelector(sel);
 let api = null; // funções do mundo e da interface (entregues pelo main.js)
@@ -130,8 +130,8 @@ const PLAY_STEPS = STEPS.filter((s) => !s.intro && !s.final).length;
 // ================= Dicas na hora certa =================
 const TIPS = {
   level2: {
-    title: 'Nível 2: galinhas!', target: { spot: 'loja' },
-    body: () => `Na 🏪 Loja agora você pode comprar 🐔 <b>galinhas</b> (botam 🥚). No nível ${PET.level} dá para adotar uma 🐶 <b>border collie</b>${core.built('curral') ? '' : `, mas antes construa o 🐾 <b>Curral</b> com madeira (${costTxt('curral')}): o canteiro fica no portão do curral, a oeste`}.`,
+    title: 'Nível 2: galinhas!', target: { spot: 'galinheiro' },
+    body: () => `Agora dá para criar 🐔 <b>galinhas</b> (botam 🥚). Elas moram no <b>Galinheiro</b>, ao lado do lago${core.built('galinheiro') ? ': compre na 🏪 Loja.' : `: construa-o com madeira (${costTxt('galinheiro')}) no canteiro marcado pela seta e depois compre as aves na 🏪 Loja.`} No nível ${PET.level} dá para adotar uma 🐶 <b>border collie</b>.`,
   },
   animal: {
     title: 'Cuidando dos animais', target: { spot: 'cocho' },
@@ -247,7 +247,12 @@ const TIPS = {
   },
   'built-curral': {
     title: 'Curral construído!', target: { spot: 'loja' },
-    body: () => `O 🐾 Curral está pronto. Compre animais na 🏪 Loja (as 🐔 galinhas liberam no nível ${ANIMALS.galinha.level}) e alimente com 🌾 trigo no <b>cocho</b>.`,
+    body: () => `O 🐾 Curral está pronto. Compre ovelhas, vacas e porcos na 🏪 Loja (conforme o nível) e alimente com 🌾 trigo no <b>cocho</b>. As 🐔 galinhas moram no galinheiro, ao lado do lago.`,
+  },
+  'built-galinheiro': {
+    title: 'Galinheiro construído!', target: { spot: 'galinheiro' },
+    body: () => `O 🐔 Galinheiro está pronto, com ${COOP.slots} vagas. Compre galinhas (e um galo, para nascerem pintinhos) na 🏪 Loja.
+      Chegue perto da casinha e use ${ACT()}: você coleta todos os 🥚 ovos de uma vez ou alimenta as galinhas com 🌾 trigo.`,
   },
   'built-galpao': {
     title: 'Galpão construído!', target: { spot: 'loja' },
@@ -671,7 +676,7 @@ const TOPICS = [
   },
   {
     id: 'animais', icon: '🐔', title: 'Animais',
-    html: () => `<p>Os animais vivem no <b>Curral</b>, a oeste, que precisa ser construído com madeira (${costTxt('curral')}). Cada um come <b>1 🌾 trigo</b> por ciclo: alimente chegando perto (${ACT()}) ou use o <b>cocho</b> para todos.
+    html: () => `<p>Ovelhas, vacas e porcos vivem no <b>Curral</b>, a oeste (obra de madeira: ${costTxt('curral')}). As 🐔 galinhas moram no <b>Galinheiro</b>, ao lado do lago (${costTxt('galinheiro')}, ${COOP.slots} vagas): lá, chegando perto da casinha com ${ACT()}, você coleta todos os 🥚 ovos de uma vez ou alimenta as galinhas. Cada um come <b>1 🌾 trigo</b> por ciclo: alimente chegando perto (${ACT()}) ou use o <b>cocho</b> para todos.
       Quando o produto aparece em cima dele, colete e venda. O <b>⚙️ alimentador automático</b> (melhoria) alimenta sozinho com o trigo do celeiro.</p>` + table(
       ['', 'Animal', 'Custa', 'Produz', 'A cada', 'Nível'],
       Object.values(ANIMALS).map((a) => [a.icon, `${a.f} / ${a.m}`, `🪙${core.fmt(a.cost)}`, `${PRODUCTS[a.product].icon} ${PRODUCTS[a.product].name} (🪙${PRODUCTS[a.product].sell})`, dur(a.time), `${a.level}${lock(a.level)}`]),
@@ -718,7 +723,7 @@ const TOPICS = [
         <li>Leve a madeira até o <b>canteiro 🏗️</b> da obra e use ${ACT()} para entregar. Dá para entregar aos poucos: a obra vai subindo.</li></ol>` +
       table(['Receita', 'Precisa', 'Faz', 'Golpes'], RECIPES.map((rc) => [`${rc.icon} ${rc.name}`, Object.entries(rc.input).map(([id, q]) => `${q} ${core.ITEMS[id].icon}`).join(' + '), Object.entries(rc.output).map(([id, q]) => `${q} ${core.ITEMS[id].icon}`).join(' + '), rc.work])) +
       table(['Construção', 'Custa', 'Libera', 'Onde'], Object.entries(BUILDINGS).map(([id, b]) => [`${b.icon} ${b.name}${core.built(id) ? ' ✔' : ''}`, costTxt(id), b.desc,
-        id === 'celeiro' ? 'Ao lado da loja' : id === 'curral' ? 'Portão do curral, a oeste' : id === 'queijaria' ? `Entre a loja e o galpão (nível ${b.level}${lock(b.level)})`
+        id === 'celeiro' ? 'Ao lado da loja' : id === 'curral' ? 'Portão do curral, a oeste' : id === 'galinheiro' ? `Ao lado do lago (nível ${b.level}${lock(b.level)})` : id === 'queijaria' ? `Entre a loja e o galpão (nível ${b.level}${lock(b.level)})`
           : id === 'defumadouro' ? `Perto do lago (nível ${b.level}${lock(b.level)})`
           : ['moinho', 'padaria', 'tear'].includes(id) ? `Rua das fábricas, entre o Campo do Leste e o de Trigo (nível ${b.level}${lock(b.level)})`
           : 'Perto do Campo de Trigo, a leste'])) +

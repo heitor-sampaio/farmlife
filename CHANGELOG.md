@@ -2,6 +2,16 @@
 
 Todas as mudanças do jogo, da mais nova para a mais antiga. Este arquivo é gerado a partir de `js/changelog.js` por `node tools/gerar-versao.mjs`.
 
+## v4.3.0 — Galinheiro e estações mais bonitas (17/10/2026)
+
+- 🐔 Galinheiro novo, ao lado do lago: uma obra de madeira (12 🟫 tábuas e 3 📏 vigas, nível 2) com casinha, rampa, ninhos, comedouro e um cercado próprio.
+- 🐣 As galinhas, os galos e os pintinhos moram lá (até 12 aves), e não ocupam mais vaga no curral. Para comprar galinhas, construa o galinheiro primeiro.
+- 🥚 Chegue perto da casinha e use a ação: você coleta todos os ovos de uma vez ou alimenta todas as galinhas com fome. Os ovos prontos aparecem na cesta da porta.
+- 🏡 Quem já tinha galinhas no curral: elas se mudam sozinhas assim que o galinheiro fica pronto.
+- 🍂 No outono cada árvore ganha a sua cor (amarelo, laranja ou vermelho) e as folhas caem balançando ao vento perto de você.
+- 🌸 Na primavera as árvores se enchem de florzinhas rosas e brancas.
+- ❄️ Quando neva, a neve vai se acumulando no topo das árvores e nos telhados das casas, e derrete devagar depois que a nevasca passa.
+
 ## v4.2.1 — Barra de cima fixa (17/10/2026)
 
 - 📱 No celular e em telas menores, a barra de cima agora tem duas linhas fixas: moedas, nível e hora em cima; Loja, Celeiro, Pedidos, Oficina e os botões redondos embaixo. Os botões não mudam mais de lugar quando as moedas crescem, o dia muda ou um evento aparece.

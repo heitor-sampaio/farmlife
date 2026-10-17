@@ -21,6 +21,8 @@ const SPAWN = new THREE.Vector3(0, 0, 4.6);
 
 const PEN = { x1: -14.2, x2: -7.8, z1: -4.5, z2: 3.5, gate: [-1.0, 0.6] };
 const POND = { x: 8.3, z: 4.6, r: 1.8 };
+// Galinheiro: cercado entre o lago, o Campo do Leste e o do Lago; portão para a rua das fábricas
+const COOP_YARD = { x1: 11.0, x2: 16.5, z1: 2.0, z2: 6.9, gate: [4.0, 5.2], house: [12.35, 2.95] };
 
 // Centro de cada campo no mapa
 const FIELD_POS = { principal: [0, 0], leste: [13.6, -1.0], sul: [0, 10.8], lago: [13.6, 10.2] };
@@ -34,6 +36,7 @@ const SPOTS = {
   serraria: { label: null, at: [-5.4, 7.0], labelY: 3.1, point: [-4.34, 8.06], r: 1.3, text: '', info: '' },
   mesa:    { label: '🪚 Carpintaria', at: [-5.6, -8.0], labelY: 2.0, point: [-4.93, -7.33], r: 1.15, text: '', info: '' },
   'obra:curral': { label: null, at: [-7.25, 1.55], labelY: 1.6, point: [-6.6, 1.2], r: 1.3, build: 'curral', text: '', info: '' },
+  galinheiro: { label: null, site: 'galinheiro', at: COOP_YARD.house, labelY: 2.5, point: [12.6, 4.7], r: 1.4, text: '', info: '' },
   compost: { label: null, needs: 'curral', at: [-6.6, -5.0], labelY: 1.5, point: [-6.0, -4.4], r: 1.1, text: '', info: '' },
   cocho:   { label: null, needs: 'curral', at: [-13.5, -0.5], point: [-12.8, -0.5], r: 1.1, text: 'Alimentar todos no cocho', info: '🪵 Cocho: alimenta de uma vez todos os animais com fome (1 🌾 cada).' },
 };
@@ -106,6 +109,17 @@ ORCHARD_POS.forEach(([x, z], k) => {
     },
   };
 });
+SPOT_HOOKS.galinheiro = {
+  label: () => core.coopLabel(),
+  info: () => core.coopInfo(),
+  open: () => {
+    const res = core.coopUse();
+    if (!res) return;
+    startAction(res);
+    const [x, z] = COOP_YARD.house;
+    burst(x + 0.45, 0.4, z + 1.05, res === 'collect' ? 0xfff4e0 : 0xe8c25a, 12, { up: 2, spread: 0.6, size: 0.05 });
+  },
+};
 SPOT_HOOKS.colmeias = {
   label: () => sys.hiveLabel(),
   info: () => sys.hiveInfo(),
@@ -319,6 +333,7 @@ export async function initWorld(cv) {
   buildGrove();
   buildSawmill();
   buildCheesery();
+  buildCoop();
   buildFactories();
   buildOrchard();
   buildSites();
@@ -393,6 +408,7 @@ function buildGround() {
   strip(8.5, -5.65, 16.8, -4.35);  // da loja até a queijaria e o galpão
   strip(17.2, -0.4, 18.4, 13.4);   // rua das fábricas (moinho, padaria e tear)
   strip(0.6, 6.4, 3.0, 7.2);       // até o defumadouro
+  strip(16.5, 4.0, 17.2, 5.2);     // portão do galinheiro
   strip(30, -5.9, 50.2, -4.7);    // do galpão até o pasto
   strip(48.9, -4.7, 51.1, -0.6);  // corredor até o portão do pasto
 
@@ -615,6 +631,7 @@ function buildPasture() {
     const t = M.makeTree('round', 1.25);
     t.position.set(tx, 0, tz);
     extras.add(t);
+    leafTrees.push({ x: tx, z: tz, h: 2.4, pasture: true });
     nav.blockCircle(tx, tz, 0.4 + PLAYER_R);
   }
   scene.add(extras);
@@ -657,8 +674,8 @@ function randomPasturePoint() {
   }
   return new THREE.Vector3((PAST.x0 + PAST.x1) / 2, 0, (PAST.z0 + PAST.z1) / 2);
 }
-/** Onde o animal vive: gado no pasto (se comprado), o resto no curral. */
-const pointFor = (a) => (core.inPasture(a) ? randomPasturePoint() : randomPenPoint());
+/** Onde o animal vive: gado no pasto (se comprado), aves no galinheiro (se construído), o resto no curral. */
+const pointFor = (a) => { const h = core.homeOf(a); return h === 'pasto' ? randomPasturePoint() : h === 'galinheiro' ? randomCoopPoint() : randomPenPoint(); };
 
 // ================= Campo de Trigo e galpão =================
 let bigTex, bigTexData, bigWheat, bigSign, bigProxy, bigOwnedShown = null;
@@ -1008,6 +1025,73 @@ function machineInfo() {
   return `🌾 ${v.def.verb} 5 faixas · trigo maduro: ${sum.maduro} · crescendo: ${sum.crescendo}`;
 }
 
+/** Cerca de um cercado com portão no lado leste; enquanto é obra, aparecem as estacas com a cordinha. */
+function fencedArea({ x1, x2, z1, z2, gate }) {
+  const lines = [[x1, z1, x2, z1], [x1, z2, x2, z2], [x1, z1, x1, z2], [x2, z1, x2, gate[0]], [x2, gate[1], x2, z2]];
+  const parts = [];
+  const rope = new THREE.Group();
+  for (const [a, b, c, d] of lines) {
+    const fence = M.makeFence(a, b, c, d);
+    scene.add(fence);
+    parts.push(...fence.children);
+    nav.blockLine(a, b, c, d, 0.08 + PLAYER_R);
+    const n = Math.max(1, Math.round(Math.hypot(c - a, d - b) / 2));
+    for (let k = 0; k <= n; k++) {
+      const st = M.makeStake();
+      st.position.set(a + ((c - a) * k) / n, 0, b + ((d - b) * k) / n);
+      rope.add(st);
+    }
+    const line = M.box(Math.abs(c - a) || 0.02, 0.02, Math.abs(d - b) || 0.02, 0xf2f2f2, (a + c) / 2, 0.4, (b + d) / 2);
+    line.castShadow = false;
+    rope.add(line);
+  }
+  scene.add(rope);
+  return { parts, rope };
+}
+
+let coopModel = null;
+function buildCoop() {
+  const { x1, x2, z1, z2, house } = COOP_YARD;
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(x2 - x1, z2 - z1),
+    new THREE.MeshStandardMaterial({ color: 0xcfb57a, roughness: 1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }),
+  );
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.set((x1 + x2) / 2, 0.011, (z1 + z2) / 2);
+  ground.receiveShadow = true;
+  scene.add(ground);
+  const { parts, rope } = fencedArea(COOP_YARD);
+  const [hx, hz] = house;
+  const m = M.makeCoop();
+  m.group.position.set(hx, 0, hz);
+  scene.add(m.group);
+  nav.blockRect(hx - 1.15, hz - 0.8, hx + 1.65, hz + 0.75, PLAYER_R * 0.6);
+  const label = M.textSprite('🐔 Galinheiro', 0.42);
+  label.position.set(hx, SPOTS.galinheiro.labelY, hz);
+  scene.add(label);
+  const proxy = new THREE.Mesh(M.GEO.box, new THREE.MeshBasicMaterial({ visible: false }));
+  proxy.scale.set(2.8, 2.0, 1.8);
+  proxy.position.set(hx + 0.2, 1.0, hz);
+  proxy.userData.pick = { kind: 'spot', key: 'galinheiro' };
+  scene.add(proxy);
+  pickables.push(proxy);
+  const feeder = M.makeChickenFeeder();
+  feeder.position.set(15.2, 0, 2.65);
+  feeder.userData.pick = { kind: 'spot', key: 'galinheiro' };
+  scene.add(feeder);
+  pickables.push(feeder);
+  nav.blockRect(14.6, 2.4, 16.2, 2.9, PLAYER_R * 0.6);
+  coopModel = m;
+  sites.galinheiro = { parts, rope, sign: new THREE.Group(), labels: [label], model: m.group, extras: [feeder] };
+}
+
+/** Ovos prontos aparecem na cesta da porta do galinheiro. */
+function updateCoop() {
+  if (!coopModel) return;
+  const n = core.built('galinheiro') ? core.S.animals.filter((a) => core.inCoop(a) && a.ready).length : 0;
+  coopModel.eggs.forEach((e, k) => { e.visible = k < n; });
+}
+
 function buildPen() {
   const { x1, x2, z1, z2, gate } = PEN;
   const ground = new THREE.Mesh(
@@ -1019,28 +1103,7 @@ function buildPen() {
   ground.receiveShadow = true;
   scene.add(ground);
 
-  const lines = [[x1, z1, x2, z1], [x1, z2, x2, z2], [x1, z1, x1, z2], [x2, z1, x2, gate[0]], [x2, gate[1], x2, z2]];
-  const parts = [];
-  const rope = new THREE.Group();
-  for (const [a, b, c, d] of lines) {
-    const fence = M.makeFence(a, b, c, d);
-    scene.add(fence);
-    parts.push(...fence.children);
-    nav.blockLine(a, b, c, d, 0.08 + PLAYER_R);
-    // Cordinha da obra: estacas e fio por onde a cerca vai passar
-    const len = Math.hypot(c - a, d - b);
-    const n = Math.max(1, Math.round(len / 2));
-    for (let k = 0; k <= n; k++) {
-      const st = M.makeStake();
-      st.position.set(a + ((c - a) * k) / n, 0, b + ((d - b) * k) / n);
-      rope.add(st);
-    }
-    const line = M.box(Math.abs(c - a) || 0.02, 0.02, Math.abs(d - b) || 0.02, 0xf2f2f2, (a + c) / 2, 0.4, (b + d) / 2);
-    line.castShadow = false;
-    rope.add(line);
-  }
-  // Ordem em que a cerca sobe: ao longo de cada lado
-  scene.add(rope);
+  const { parts, rope } = fencedArea(PEN);
   const label = M.textSprite('🐾 Curral', 0.42);
   label.position.set(x2, 1.4, (gate[0] + gate[1]) / 2);
   scene.add(label);
@@ -1069,11 +1132,15 @@ function buildNature() {
     return obj;
   };
   // Árvores altas só no fundo e à esquerda (não escondem o personagem)
-  for (let x = -24; x <= 86; x += rand(1.6, 2.6)) put(M.makeTree(Math.random() < 0.55 ? 'pine' : 'round', rand(0.9, 1.35)), x, rand(-13.2, -11.4));
-  for (let x = -22; x <= 86; x += rand(2.2, 3.4)) put(M.makeTree(Math.random() < 0.5 ? 'pine' : 'round', rand(1.0, 1.5)), x, rand(-16.5, -14.5));
-  for (let z = -10; z <= 4; z += rand(1.6, 2.4)) put(M.makeTree(Math.random() < 0.6 ? 'pine' : 'round', rand(0.9, 1.3)), rand(-17.8, -16.2), z);
-  put(M.makeTree('apple', 1.1), -13.3, -8.6);
-  put(M.makeTree('apple', 1.0), 9.8, -9.2);
+  const tree = (kind, s, x, z) => {
+    put(M.makeTree(kind, s), x, z);
+    if (kind !== 'pine') leafTrees.push({ x, z, h: 1.9 * s });
+  };
+  for (let x = -24; x <= 86; x += rand(1.6, 2.6)) tree(Math.random() < 0.55 ? 'pine' : 'round', rand(0.9, 1.35), x, rand(-13.2, -11.4));
+  for (let x = -22; x <= 86; x += rand(2.2, 3.4)) tree(Math.random() < 0.5 ? 'pine' : 'round', rand(1.0, 1.5), x, rand(-16.5, -14.5));
+  for (let z = -10; z <= 4; z += rand(1.6, 2.4)) tree(Math.random() < 0.6 ? 'pine' : 'round', rand(0.9, 1.3), rand(-17.8, -16.2), z);
+  tree('apple', 1.1, -13.3, -8.6);
+  tree('apple', 1.0, 9.8, -9.2);
   nav.blockCircle(-13.3, -8.6, 0.35 + PLAYER_R);
   nav.blockCircle(9.8, -9.2, 0.35 + PLAYER_R);
 
@@ -1096,6 +1163,7 @@ function buildNature() {
     (x > -1.1 && x < 1.1 && z > 2.7 && z < 9.2) ||
     (x > 3.8 && x < 10.9 && z > 9.7 && z < 11.9) ||
     (x > PEN.x1 - 0.5 && x < PEN.x2 + 0.5 && z > PEN.z1 - 0.5 && z < PEN.z2 + 0.5) ||
+    (x > COOP_YARD.x1 - 0.6 && x < COOP_YARD.x2 + 0.8 && z > COOP_YARD.z1 - 0.6 && z < COOP_YARD.z2 + 0.6) ||
     (z < -3.8 && z > -10.5 && x > -12 && x < 9) ||
     (z < -4 && z > -9 && x > 9 && x < 17) ||
     (x > 17 && x < 24 && z > 0.5 && z < 14) ||
@@ -1199,6 +1267,22 @@ function fadeTo(current, target, dt, speed = 1.5) {
   return current + (target - current) * Math.min(1, dt * speed);
 }
 
+// Neve acumulada no topo das árvores e nos telhados: junta enquanto neva e derrete devagar depois
+let snowCap = 0;
+function updateSnowCaps(dt, snowOn) {
+  const winter = sys.season().id === 'inverno';
+  const rate = snowOn ? 1 / 25 : winter ? 1 / 90 : 1 / 20;
+  const target = snowOn ? 1 : 0;
+  const next = snowCap + Math.max(-rate * dt, Math.min(rate * dt, target - snowCap));
+  if (next === snowCap) return;
+  snowCap = next;
+  const m = M.SNOW_MAT;
+  m.opacity = snowCap;
+  m.visible = snowCap > 0.01;
+  const transparent = snowCap < 0.99;
+  if (m.transparent !== transparent) { m.transparent = transparent; m.needsUpdate = true; }
+}
+
 function updateWeatherFx(dt, evId) {
   // Neve
   const snowOn = evId === 'neve';
@@ -1217,6 +1301,7 @@ function updateWeatherFx(dt, evId) {
     }
     snow.geometry.attributes.position.needsUpdate = true;
   }
+  updateSnowCaps(dt, snowOn);
   // O chão vai ficando branco durante a neve e derrete depois
   // No inverno fica uma camada fina de neve mesmo sem nevar
   const winter = sys.season().id === 'inverno' ? 0.28 : 0;
@@ -1439,6 +1524,7 @@ function updateGuide(dt) {
 function inFieldOrPond(x, z) {
   if (FIELDS.some((f) => { const q = fieldRect(f, 0.6); return x > q.x1 && x < q.x2 && z > q.z1 && z < q.z2; })) return true;
   if (x > PEN.x1 - 0.5 && x < PEN.x2 + 0.5 && z > PEN.z1 - 0.5 && z < PEN.z2 + 0.5) return true;
+  if (x > COOP_YARD.x1 - 0.5 && x < COOP_YARD.x2 + 0.5 && z > COOP_YARD.z1 - 0.5 && z < COOP_YARD.z2 + 0.5) return true;
   if (x > BIG_X0 - 1 && z > BIG_Z0 - 1 && z < BIG_Z0 + BIG_FIELD.rows + 1) return true; // (inclui o pasto, mais a leste)
   return Math.hypot(x - POND.x, z - POND.z) < POND.r + 0.8;
 }
@@ -1765,6 +1851,17 @@ function randomPenPoint() {
   return new THREE.Vector3((PEN.x1 + PEN.x2) / 2, 0, (PEN.z1 + PEN.z2) / 2);
 }
 
+function randomCoopPoint() {
+  const { x1, x2, z1, z2 } = COOP_YARD;
+  for (let k = 0; k < 20; k++) {
+    const x = rand(x1 + 0.5, x2 - 0.5), z = rand(z1 + 0.5, z2 - 0.5);
+    if (x < 14.3 && z < 4.4) continue; // casinha e rampa
+    if (x > 14.4 && z < 3.3) continue; // comedouro
+    return new THREE.Vector3(x, 0, z);
+  }
+  return new THREE.Vector3(14.6, 0, 5.6);
+}
+
 const ANIMAL_H = { galinha: 0.7, ovelha: 1.05, vaca: 1.3, porco: 0.85 };
 const ANIMAL_SPEED = { galinha: 1.0, ovelha: 0.6, vaca: 0.5, porco: 0.65 };
 
@@ -1787,7 +1884,7 @@ function syncAnimals() {
     m.root.userData.pick = { kind: 'animal', id: a.id };
     scene.add(m.root);
     pickables.push(m.root);
-    animalVis.set(a.id, { id: a.id, type: a.type, m, pos, loc: core.inPasture(a), target: pointFor(a), wait: rand(0, 2), heading: rand(0, 6.28), phase: 0, ind: null, indKey: '' });
+    animalVis.set(a.id, { id: a.id, type: a.type, m, pos, loc: core.homeOf(a), target: pointFor(a), wait: rand(0, 2), heading: rand(0, 6.28), phase: 0, ind: null, indKey: '' });
   }
   for (const [id, v] of animalVis) {
     if (ids.has(id)) continue;
@@ -1802,9 +1899,9 @@ function updateAnimals(dt) {
   for (const v of animalVis.values()) {
     const a = core.findAnimal(v.id);
     if (!a) continue;
-    // Comprou o pasto: o gado muda para lá
-    if (v.loc !== core.inPasture(a)) {
-      v.loc = core.inPasture(a);
+    // Comprou o pasto ou terminou o galinheiro: o animal muda para lá
+    if (v.loc !== core.homeOf(a)) {
+      v.loc = core.homeOf(a);
       v.pos.copy(pointFor(a));
       v.target = pointFor(a);
     }
@@ -1986,6 +2083,7 @@ function buildSites() {
   make('celeiro', 'celeiro', 4.2, 3.6, 3.0);
   make('galpao', 'obra:galpao', 7.2, 3.2, 3.0);
   make('queijaria', 'queijaria', 3.4, 2.4, 3.0);
+  make('galinheiro', 'galinheiro', 2.9, 1.8, 2.6);
   for (const [id, f] of Object.entries(FACTORIES)) make(id, id, f.size[0] + 0.3, f.size[1] + 0.3, 3.0);
   // Clique no canteiro do galpão (o do celeiro usa o volume do próprio celeiro)
   const proxy = new THREE.Mesh(M.GEO.box, new THREE.MeshBasicMaterial({ visible: false }));
@@ -2528,7 +2626,8 @@ function updateFactoryVis(dt) {
 
 // ================= Estações do ano (cores do chão e das folhas) =================
 const seasonMats = [];                 // chão e capim: recebem o tom da estação
-const LEAF_COLORS = [0x5aa845, 0x67b852, 0x4f9a3d, 0x5fae47, 0x468a35]; // copas redondas, arbustos e mato
+const LEAF_COLORS = [0x5fae47, 0x468a35]; // arbustos e mato (as copas usam M.LEAF_SETS)
+const AUTUMN_TONES = [0xe8761c, 0xf5c22a, 0xd23a26]; // cada conjunto de copa: laranja, amarelo ou vermelho
 const PINE_COLORS = [0x3f8f46, 0x48a04f, 0x54ad5a];
 const tmpSeason = new THREE.Color();
 let seasonShown = null;
@@ -2537,6 +2636,14 @@ let seasonFrom = null;
 
 function seasonTargets(sz) {
   const out = new Map();
+  M.LEAF_SETS.forEach((set, k) => {
+    const leaf = sz.id === 'outono' ? [AUTUMN_TONES[k], 0.86] : sz.leaf;
+    for (const c of set) {
+      const col = new THREE.Color(c);
+      if (leaf) col.lerp(new THREE.Color(leaf[0]), leaf[1]);
+      out.set(M.mat(c), col);
+    }
+  });
   for (const c of LEAF_COLORS) {
     const col = new THREE.Color(c);
     if (sz.leaf) col.lerp(new THREE.Color(sz.leaf[0]), sz.leaf[1]);
@@ -2562,6 +2669,7 @@ function updateSeason(dt) {
     seasonFrom = new Map();
     for (const [m] of seasonTargets(sz)) seasonFrom.set(m, m.color.clone());
     seasonShown = sz.id;
+    for (const c of M.BLOSSOM_COLORS) M.mat(c).visible = sz.id === 'primavera';
     seasonBlend = seasonFrom.size && seasonShown !== null && clock > 1 ? 0 : 1;
     if (seasonBlend >= 1) for (const [m, col] of seasonTargets(sz)) m.color.copy(col);
     else updateSeason.targets = seasonTargets(sz);
@@ -2569,6 +2677,54 @@ function updateSeason(dt) {
   if (seasonBlend < 1 && updateSeason.targets) {
     seasonBlend = Math.min(1, seasonBlend + dt / 4);
     for (const [m, col] of updateSeason.targets) m.color.copy(seasonFrom.get(m)).lerp(col, seasonBlend);
+  }
+}
+
+// ================= Folhas caindo (outono) =================
+const leafTrees = [];      // copas redondas: { x, z, h, grove?, pasture? }
+const fallingLeaves = [];
+let leafSpawnT = 0;
+
+function updateLeaves(dt) {
+  leafSpawnT -= dt;
+  if (seasonShown === 'outono' && leafSpawnT <= 0 && fallingLeaves.length < 26) {
+    leafSpawnT = rand(0.12, 0.35);
+    const p = player.pos;
+    const near = leafTrees.filter((t) => Math.abs(t.x - p.x) < 16 && Math.abs(t.z - p.z) < 12
+      && (t.grove == null || grove[t.grove].state === 'up') && (!t.pasture || core.S.pasture));
+    if (near.length) {
+      const t = near[Math.floor(Math.random() * near.length)];
+      const m = M.box(0.13, 0.012, 0.09, AUTUMN_TONES[Math.floor(Math.random() * AUTUMN_TONES.length)]);
+      m.castShadow = false;
+      const a = rand(0, Math.PI * 2), r = rand(0.2, 0.75) * (t.h / 1.9);
+      m.position.set(t.x + Math.cos(a) * r, t.h * rand(0.7, 1.05), t.z + Math.sin(a) * r);
+      m.rotation.set(rand(-1, 1), rand(0, 6.28), rand(-1, 1));
+      scene.add(m);
+      fallingLeaves.push({ m, t: 0, ph: rand(0, 6.28), fall: rand(0.45, 0.7), rest: 0 });
+    }
+  }
+  const wind = sys.season().id === 'outono' && core.S.event && core.S.event.id === 'ventania' ? 1.6 : 0.35;
+  for (let k = fallingLeaves.length - 1; k >= 0; k--) {
+    const l = fallingLeaves[k];
+    const m = l.m;
+    l.t += dt;
+    if (m.position.y > 0.03) {
+      // Balança de um lado para o outro enquanto cai
+      m.position.y = Math.max(0.03, m.position.y - l.fall * dt);
+      m.position.x += (Math.sin(l.t * 2.4 + l.ph) * 0.7 + wind) * dt;
+      m.position.z += Math.cos(l.t * 1.9 + l.ph) * 0.35 * dt;
+      m.rotation.x = Math.sin(l.t * 3 + l.ph) * 0.8;
+      m.rotation.z = Math.cos(l.t * 2.6 + l.ph) * 0.8;
+    } else {
+      // Pousou: fica um pouco no chão e some
+      m.rotation.x = m.rotation.z = 0;
+      l.rest += dt;
+      if (l.rest > 2.5) m.scale.setScalar(Math.max(0.01, 1 - (l.rest - 2.5) * 2));
+      if (l.rest > 3) {
+        scene.remove(m);
+        fallingLeaves.splice(k, 1);
+      }
+    }
   }
 }
 
@@ -2581,6 +2737,7 @@ export function mapPlaces() {
     { id: 'loja', icon: '🏪', name: 'Loja', x: 6.5, z: -6.2 },
     { id: 'celeiro', icon: '🛖', name: 'Celeiro', x: -1.5, z: -5.9 },
     { id: 'curral', icon: '🐾', name: 'Curral', x: -6.6, z: -0.2 },
+    { id: 'galinheiro', icon: '🐔', name: 'Galinheiro', x: 17.0, z: 4.6 },
     { id: 'bosque', icon: '🌲', name: 'Bosque', x: -9.6, z: 7.4 },
     { id: 'lago', icon: '🎣', name: 'Lago', x: POND.x - 2.5, z: POND.z - 1.6 },
     { id: 'fabricas', icon: '🏭', name: 'Fábricas', x: 17.8, z: 6.0 },
@@ -2625,6 +2782,7 @@ export function drawMap(ctx, W, H) {
   rect(BIG_X0, BIG_Z0, BIG_X0 + BIG_FIELD.cols, BIG_Z0 + BIG_FIELD.rows, core.S.big.owned ? '#e3c770' : 'rgba(227,199,112,.35)', '#b89a4a');
   rect(PAST.x0, PAST.z0, PAST.x1, PAST.z1, core.S.pasture ? '#a8de7f' : 'rgba(168,222,127,.4)', '#6f9a4a');
   rect(PEN.x1, PEN.z1, PEN.x2, PEN.z2, core.built('curral') ? '#d8c27e' : 'rgba(216,194,126,.45)', '#8d6334');
+  rect(COOP_YARD.x1, COOP_YARD.z1, COOP_YARD.x2, COOP_YARD.z2, core.built('galinheiro') ? '#cfb57a' : 'rgba(207,181,122,.45)', '#8d6334');
   // Lago e bosque
   ctx.fillStyle = '#5fb4e6';
   ctx.beginPath();
@@ -2635,7 +2793,7 @@ export function drawMap(ctx, W, H) {
   for (const [x, z] of ORCHARD_POS) { ctx.beginPath(); ctx.arc(X(x), Z(z), 4, 0, Math.PI * 2); ctx.fill(); }
   // Construções
   ctx.fillStyle = '#4a3220';
-  for (const [key, icon] of [['casa', '🏠'], ['celeiro', '🛖'], ['loja', '🏪'], ['pedidos', '📦'], ['mesa', '🪚'], ['queijaria', '🧀'], ['serraria', '🪚'], ['compost', '♻️'], ['moinho', '🌬️'], ['padaria', '🥖'], ['tear', '🧶'], ['defumadouro', '🔥'], ['colmeias', '🐝']]) {
+  for (const [key, icon] of [['casa', '🏠'], ['celeiro', '🛖'], ['loja', '🏪'], ['pedidos', '📦'], ['mesa', '🪚'], ['queijaria', '🧀'], ['galinheiro', '🐔'], ['serraria', '🪚'], ['compost', '♻️'], ['moinho', '🌬️'], ['padaria', '🥖'], ['tear', '🧶'], ['defumadouro', '🔥'], ['colmeias', '🐝']]) {
     const sp = SPOTS[key];
     if (sp) label(icon, sp.at[0], sp.at[1], 14);
   }
@@ -3096,6 +3254,7 @@ function buildGrove() {
     const s = 0.78 + ((i * 37) % 10) / 50;
     const tree = M.makeTree(i % 3 === 0 ? 'round' : 'pine', s);
     tree.rotation.y = i * 1.7;
+    if (i % 3 === 0) leafTrees.push({ x, z, h: 1.9 * s, grove: i });
     pivot.add(tree);
     const stump = M.makeStump(s);
     stump.visible = false;
@@ -3292,6 +3451,9 @@ function getContext() {
   if (fishing.state !== 'idle') return { kind: 'fish' };
   const pk = nearestPoop(0.75);
   if (pk >= 0) return { kind: 'poop', k: pk };
+  // Na porta do galinheiro, a ação é com todas as galinhas de uma vez (não com a ave que passa)
+  const cs = SPOTS.galinheiro;
+  if (core.built('galinheiro') && dist2(player.pos, cs.point[0], cs.point[1]) < cs.r && core.coopLabel()) return { kind: 'spot', key: 'galinheiro' };
   let best = null;
   let bd = 1.25;
   for (const v of animalVis.values()) {
@@ -4192,11 +4354,13 @@ export function worldFrame(dt) {
   updateGrove(dt);
   updateSawmill(dt);
   updateCheesery();
+  updateCoop();
   updateFactoryVis(dt);
   updateOrchard(dt);
   updateDecor(dt);
   updateCrows(dt);
   updateSeason(dt);
+  updateLeaves(dt);
   updateSites(dt);
   updateCompost();
   updateBench(dt);
@@ -4217,4 +4381,4 @@ export function worldFrame(dt) {
 }
 
 // Usado pelos testes no console do navegador
-export const debug = { player, animalVis, npcs, machines, fishing, fishAction, startCast, pet, petInteract, randomSpot, fauna, get driving() { return driving; }, get riding() { return riding; }, poopPos, crows, spawnCrow, get horse() { return horse; }, mountHorse, dismountHorse, enterMachine, exitMachine, bigCellAt, bigCellCenter, get zoom() { return zoom; }, get zoomMult() { return zoomMult; }, get camH() { return camera.top - camera.bottom; }, tileAt, tilePos, get nav() { return nav; } };
+export const debug = { player, animalVis, npcs, machines, fishing, fishAction, startCast, pet, petInteract, randomSpot, fauna, get driving() { return driving; }, get riding() { return riding; }, get snowCap() { return snowCap; }, poopPos, crows, spawnCrow, get horse() { return horse; }, mountHorse, dismountHorse, enterMachine, exitMachine, bigCellAt, bigCellCenter, get zoom() { return zoom; }, get zoomMult() { return zoomMult; }, get camH() { return camera.top - camera.bottom; }, tileAt, tilePos, get nav() { return nav; } };

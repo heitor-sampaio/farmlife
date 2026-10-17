@@ -1,5 +1,5 @@
 /* FarmLife — interface em HTML sobre a cena 3D (HUD, hotbar, painel, avisos) */
-import { CROPS, ANIMALS, PRODUCTS, UPGRADES, WORKERS, FIELDS, BIG_FIELD, BIG_CELLS, MACHINES, FISH, RODS, PET, MUTATIONS, RARITY_COLOR, WEATHER_EVENTS, AXES, LOG, WOOD, SAWMILL, PLANK, RECIPES, BUILDINGS, CARPENTRY, HORSE, SADDLE, PASTURE, CHEESERY, CHEESE, FACTORIES, ORCHARD, FRUIT_TREES, HIVES, GOODS, FAIR, FRIEND, CUSTOMERS, DECOR, STORAGE } from './data.js';
+import { CROPS, ANIMALS, PRODUCTS, UPGRADES, WORKERS, FIELDS, BIG_FIELD, BIG_CELLS, MACHINES, FISH, RODS, PET, MUTATIONS, RARITY_COLOR, WEATHER_EVENTS, AXES, LOG, WOOD, SAWMILL, PLANK, RECIPES, BUILDINGS, CARPENTRY, HORSE, SADDLE, PASTURE, CHEESERY, CHEESE, FACTORIES, ORCHARD, FRUIT_TREES, HIVES, GOODS, FAIR, FRIEND, CUSTOMERS, DECOR, STORAGE, COOP } from './data.js';
 import * as sys from './systems.js';
 import * as core from './core.js';
 import { joySide, setJoySide } from './prefs.js';
@@ -374,16 +374,18 @@ function shopHtml() {
   h += '</div><p class="hint">Depois de comprar, escolha o lugar no mapa. Para mudar algo de lugar, chegue perto e use a ação (Mover).</p>';
 
   const size = core.penSize();
-  const full = core.penCount() >= size;
-  const penBuilt = core.built('curral');
-  h += `<h3>🐾 Animais <small>(${penBuilt ? `${core.penCount()}/${size} no curral${S.pasture ? ` · ${core.pastureCount()}/${PASTURE.slots} no pasto` : ''}` : 'construa o curral primeiro'})</small></h3><div class="cards">`;
+  const homes = [];
+  if (core.built('curral')) homes.push(`${core.penCount()}/${size} no curral`);
+  if (S.pasture) homes.push(`${core.pastureCount()}/${PASTURE.slots} no pasto`);
+  if (core.built('galinheiro')) homes.push(`${core.coopCount()}/${COOP.slots} no galinheiro`);
+  h += `<h3>🐾 Animais <small>(${homes.length ? homes.join(' · ') : 'construa o curral ou o galinheiro primeiro'})</small></h3><div class="cards">`;
   for (const [id, a] of Object.entries(ANIMALS)) {
     const locked = a.level > S.level;
     const prod = PRODUCTS[a.product];
     const mine = S.animals.filter((x) => x.type === id);
     const count = (f) => mine.filter(f).length;
     const herd = mine.length
-      ? `<small>No ${S.pasture && id === 'vaca' ? 'pasto' : 'curral'}: ♀ ${count((x) => x.sex !== 'm' && !core.isBaby(x))} · ♂ ${count((x) => x.sex === 'm' && !core.isBaby(x))}${count(core.isBaby) ? ` · ${a.babyIcon} ${count(core.isBaby)}` : ''}</small>`
+      ? `<small>No ${core.homeOf(mine[0])}: ♀ ${count((x) => x.sex !== 'm' && !core.isBaby(x))} · ♂ ${count((x) => x.sex === 'm' && !core.isBaby(x))}${count(core.isBaby) ? ` · ${a.babyIcon} ${count(core.isBaby)}` : ''}</small>`
       : '';
     h += `<div class="card${locked ? ' locked' : ''}">
       <div class="ico">${a.icon}</div>
@@ -391,10 +393,10 @@ function shopHtml() {
         <small>A ${a.f.toLowerCase()} produz ${prod.icon} ${prod.name} (🪙${prod.sell}) a cada ${core.fmtDuration(a.time)} · come 🌾. O ${a.m.toLowerCase()} não produz, mas com ela nascem ${a.baby.toLowerCase()}s. Cor sorteada.</small>${herd}</div>
       <div class="btns">${locked
         ? `<span class="req">🔒 Nível ${a.level}</span>`
-        : !penBuilt
-          ? '<span class="req">🏗️ Construa o curral</span>'
+        : !core.built(id === 'galinha' ? 'galinheiro' : 'curral')
+          ? `<span class="req">🏗️ Construa o ${id === 'galinha' ? 'galinheiro' : 'curral'}</span>`
           : !core.hasRoom(id)
-          ? `<span class="req">${S.pasture && id === 'vaca' ? 'Pasto cheio' : 'Curral cheio'}</span>`
+          ? `<span class="req">${id === 'galinha' ? 'Galinheiro cheio' : S.pasture && id === 'vaca' ? 'Pasto cheio' : 'Curral cheio'}</span>`
           : `<button class="btn" data-act="animal" data-id="${id}" data-sex="f" title="Comprar ${a.f.toLowerCase()} (fêmea)" ${S.coins < a.cost ? 'disabled' : ''}>♀ 🪙${fmt(a.cost)}</button>
              <button class="btn alt" data-act="animal" data-id="${id}" data-sex="m" title="Comprar ${a.m.toLowerCase()} (macho)" ${S.coins < a.cost ? 'disabled' : ''}>♂ 🪙${fmt(a.cost)}</button>`}
       </div></div>`;

@@ -58,6 +58,7 @@ Depois acesse http://localhost:5173. Na primeira vez, precisa de internet para b
 - **Decoração e celeiro**: decorações colocadas livremente; o celeiro tem limite de espaço e os baús aumentam.
 - **Corvos e pet**: corvos bicam as plantas se ninguém espantar; espantalhos protegem e o pet corre atrás deles e cava achados todo dia.
 - **Mapa e foto**: mapa com viagem rápida (M) e modo foto (P).
+- **Galinheiro**: obra de madeira (nível 2) ao lado do lago, onde moram as galinhas (até 12 aves). Na casinha, uma ação coleta todos os ovos ou alimenta todas as galinhas.
 - **Pasto**: campo grande a leste do Campo de Trigo, com 30 vagas só para o gado (vacas, touros e bezerros), que come capim e não precisa de trigo.
 - **Esterco e fertilizante**: as vacas fazem cocô no curral; recolha o esterco e leve à composteira, que o transforma em fertilizante. Com a ferramenta Adubar, uma planta crescendo tem 60% de chance de ficar gigante (maior e vale o dobro).
 - **Pet**: uma border collie (nível 3) que segue o jogador, senta quando ele para, corre atrás dos passarinhos e ganha carinho (+10 XP por dia). Dá para trocar o nome.

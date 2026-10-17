@@ -5,7 +5,7 @@ import {
   WORKERS, WORK_TIME, BIG_FIELD, BIG_CELLS, MACHINES, FISH, RODS, PET,
   MUTATIONS, WEATHER_EVENTS, EVENT_ROUND, EVENT_CHANCE, EVENT_COOLDOWN,
   AXES, LOG, WOOD, CHOP_TREES, SAWMILL, PLANK, BEAM, RECIPES, BUILDINGS, CARPENTRY, HORSE, SADDLE,
-  MANURE, COMPOST, FERTILIZER, BREED, PASTURE, CHEESERY, CHEESE, GOODS, FACTORIES, ORCHARD, STORAGE,
+  MANURE, COMPOST, FERTILIZER, BREED, PASTURE, COOP, CHEESERY, CHEESE, GOODS, FACTORIES, ORCHARD, STORAGE,
 } from './data.js';
 
 // ================= Utilidades =================
@@ -189,10 +189,16 @@ export const plotCost = () => Math.round(80 * Math.pow(1.2, S.bought));
 export const penSize = () => PEN_SIZE[S.up.curral];
 /** O gado (vacas, touros e bezerros) vive no pasto quando ele existe. */
 export const inPasture = (a) => S.pasture && a.type === 'vaca';
-export const penCount = () => S.animals.filter((a) => !inPasture(a)).length;
+/** As galinhas (e os galos e pintinhos) moram no galinheiro quando ele está pronto. */
+export const inCoop = (a) => a.type === 'galinha' && built('galinheiro');
+export const penCount = () => S.animals.filter((a) => !inPasture(a) && !inCoop(a)).length;
 export const pastureCount = () => S.animals.filter(inPasture).length;
-/** Tem vaga para um animal deste tipo (no curral ou no pasto)? */
-export const hasRoom = (type) => (S.pasture && type === 'vaca' ? pastureCount() < PASTURE.slots : penCount() < penSize());
+export const coopCount = () => S.animals.filter(inCoop).length;
+/** Onde o animal mora: 'pasto', 'galinheiro' ou 'curral'. */
+export const homeOf = (a) => (inPasture(a) ? 'pasto' : inCoop(a) ? 'galinheiro' : 'curral');
+/** Tem vaga para um animal deste tipo (no curral, no pasto ou no galinheiro)? */
+export const hasRoom = (type) => (type === 'galinha' && built('galinheiro') ? coopCount() < COOP.slots
+  : S.pasture && type === 'vaca' ? pastureCount() < PASTURE.slots : penCount() < penSize());
 
 export function buyPasture() {
   if (S.pasture || PASTURE.level > S.level) return;
@@ -865,7 +871,7 @@ export function animalInfo(a) {
   if (isBaby(a)) return `${def.babyIcon} ${who} (${sexWord(a)}): ainda é filhote, vira adulto em ${fmtDuration(a.age)}.`;
   if (a.sex === 'm') {
     const mates = S.animals.some((b) => b.type === a.type && producer(b));
-    return `${def.icon} ${who}: não produz ${prod.icon}, mas ${mates ? `com as ${def.f.toLowerCase()}s do curral pode nascer um ${def.baby.toLowerCase()}` : `compre uma ${def.f.toLowerCase()} para nascerem filhotes`}.`;
+    return `${def.icon} ${who}: não produz ${prod.icon}, mas ${mates ? `com as ${def.f.toLowerCase()}s do ${homeOf(a)} pode nascer um ${def.baby.toLowerCase()}` : `compre uma ${def.f.toLowerCase()} para nascerem filhotes`}.`;
   }
   if (a.ready) return `${def.icon} ${who}: ${prod.icon} ${prod.name} pronto para coletar!`;
   if (inPasture(a) && !a.ready) return `${def.icon} ${who} pastando: ${prod.icon} ${prod.name} em ${fmtDuration(Math.ceil(def.time - a.p))}. No pasto o gado come capim.`;
@@ -903,6 +909,57 @@ export function interactAnimal(id, quiet = false) {
   }
   if (!quiet) toast(animalInfo(a));
   return null;
+}
+
+// ================= Galinheiro =================
+const coopHens = () => S.animals.filter((a) => inCoop(a) && producer(a));
+
+export function coopLabel() {
+  const hens = coopHens();
+  const eggs = hens.filter((a) => a.ready).length;
+  if (eggs) return `Coletar ${eggs} ${PRODUCTS.ovo.icon} ${eggs > 1 ? 'ovos' : 'ovo'}`;
+  const hungry = hens.filter((a) => !a.fed).length;
+  if (hungry) return `Alimentar ${hungry > 1 ? `as ${hungry} galinhas` : 'a galinha'} (${hungry} 🌾)`;
+  return null;
+}
+
+export function coopInfo() {
+  const n = coopCount();
+  if (!n) return `🐔 Galinheiro: ${COOP.slots} vagas para galinhas e galos. Compre na 🏪 Loja.`;
+  const hens = coopHens();
+  const eggs = hens.filter((a) => a.ready).length;
+  const hungry = hens.filter((a) => !a.fed && !a.ready).length;
+  const parts = [`${n}/${COOP.slots} aves`];
+  if (eggs) parts.push(`${eggs} ${PRODUCTS.ovo.icon} para coletar`);
+  if (hungry) parts.push(S.up.alimentador ? `${hungry} com fome (o alimentador está sem 🌾)` : `${hungry} com fome`);
+  if (!eggs && !hungry && hens.length) parts.push('todas botando ovos');
+  return `🐔 Galinheiro: ${parts.join(' · ')}.`;
+}
+
+/** Chegou no galinheiro: coleta todos os ovos prontos ou alimenta as galinhas com fome. */
+export function coopUse() {
+  const hens = coopHens();
+  const ready = hens.filter((a) => a.ready);
+  if (ready.length) {
+    let n = 0;
+    for (const a of ready) {
+      if (!canStore()) { fullWarn(false); break; }
+      collectAnimal(a);
+      n++;
+    }
+    if (!n) return null;
+    fx({ player: true }, `+${n} ${PRODUCTS.ovo.icon}`, 'gold');
+    sfx('harvest');
+    markDirty('panel');
+    return 'collect';
+  }
+  const hungry = hens.filter((a) => !a.fed);
+  if (!hungry.length) { toast(coopInfo()); return null; }
+  let fed = 0;
+  for (const a of hungry) if (feedAnimal(a)) fed++;
+  if (fed) { fx({ player: true }, `-${fed} 🌾`); sfx('plant'); }
+  if (fed < hungry.length) { toast('🌾 Trigo insuficiente para alimentar todas as galinhas!', 'bad'); sfx('error'); }
+  return fed ? 'feed' : null;
 }
 
 /** Cocho: alimenta todos os animais com fome. */
@@ -1151,7 +1208,8 @@ export function buildDeliver(id) {
   if (!buildMissing(id).length) {
     st.done = true;
     gainXp(15);
-    toast(`${b.icon} ${b.name} ${bw(b, 'construído', 'construída')}! ${b.desc}`, 'good');
+    const moved = id === 'galinheiro' ? coopCount() : 0;
+    toast(`${b.icon} ${b.name} ${bw(b, 'construído', 'construída')}! ${b.desc}${moved === 1 ? ' Sua ave saiu do curral e já está lá.' : moved ? ` Suas ${moved} aves saíram do curral e já estão lá.` : ''}`, 'good');
     sfx('level');
     emit('build', id);
     markDirty('panel', 'toolbar');
@@ -1591,9 +1649,9 @@ export function buySeed(id, qty) {
 export function buyAnimal(type, sex = 'f') {
   const def = ANIMALS[type];
   if (def.level > S.level) return;
-  if (!needBuilt('curral', 'comprar animais')) return;
+  if (type === 'galinha' ? !needBuilt('galinheiro', 'comprar galinhas') : !needBuilt('curral', 'comprar animais')) return;
   if (!hasRoom(type)) {
-    toast(S.pasture && type === 'vaca' ? `${PASTURE.icon} O pasto está cheio (${PASTURE.slots} cabeças).` : `🏡 Curral cheio! Compre a melhoria "Curral maior"${type === 'vaca' && !S.pasture ? ` ou o ${PASTURE.icon} Pasto` : ''}.`, 'bad');
+    toast(type === 'galinha' ? `🐔 O galinheiro está cheio (${COOP.slots} aves).` : S.pasture && type === 'vaca' ? `${PASTURE.icon} O pasto está cheio (${PASTURE.slots} cabeças).` : `🏡 Curral cheio! Compre a melhoria "Curral maior"${type === 'vaca' && !S.pasture ? ` ou o ${PASTURE.icon} Pasto` : ''}.`, 'bad');
     sfx('error');
     return;
   }
@@ -1602,9 +1660,10 @@ export function buyAnimal(type, sex = 'f') {
   S.animals.push(a);
   emit('animal', type);
   if (a.sex === 'm') emit('male', type);
+  const home = { curral: 'ao curral', pasto: 'ao pasto', galinheiro: 'ao galinheiro' }[homeOf(a)];
   toast(a.sex === 'm'
-    ? `${def.icon} Um ${def.m.toLowerCase()} ${animalColor(a).toLowerCase()} chegou ao curral! Com uma ${def.f.toLowerCase()}, podem nascer filhotes.`
-    : `${def.icon} Uma ${def.f.toLowerCase()} ${animalColor(a).toLowerCase()} chegou ao curral! Alimente-a com 🌾 trigo.`, 'good');
+    ? `${def.icon} Um ${def.m.toLowerCase()} ${animalColor(a).toLowerCase()} chegou ${home}! Com uma ${def.f.toLowerCase()}, podem nascer filhotes.`
+    : `${def.icon} Uma ${def.f.toLowerCase()} ${animalColor(a).toLowerCase()} chegou ${home}! Alimente-a com 🌾 trigo.`, 'good');
   sfx('coin');
 }
 

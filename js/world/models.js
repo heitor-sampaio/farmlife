@@ -39,6 +39,19 @@ export const cone = (r, h, c, x = 0, y = 0, z = 0) => mesh(GEO.cone, c, r, h, r,
 
 export function rot(m, x = 0, y = 0, z = 0) { m.rotation.set(x, y, z); return m; }
 
+// ================= Neve acumulada (telhados e copas) =================
+/** Um material só para toda a neve acumulada: o mundo controla a opacidade (0 = sem neve). */
+export const SNOW_MAT = new THREE.MeshStandardMaterial({ color: 0xf5f9ff, flatShading: true, roughness: 1, transparent: true, opacity: 0 });
+SNOW_MAT.visible = false;
+const HIDDEN_MAT = new THREE.MeshBasicMaterial({ visible: false });
+// Faixa de neve nas camadas do pinheiro: tronco de cone aberto, com a mesma inclinação das camadas
+const PINE_SNOW_GEO = new THREE.CylinderGeometry(0.71, 1, 1, 6, 1, true);
+function snowPiece(geo, sx, sy, sz, x, y, z) {
+  const m = mesh(geo, SNOW_MAT, sx, sy, sz, x, y, z);
+  m.castShadow = false;
+  return m;
+}
+
 /** Telhado de duas águas (prisma triangular) com cumeeira ao longo de z. */
 function gableRoof(width, height, depth, capColor, roofColor) {
   const shape = new THREE.Shape();
@@ -51,6 +64,12 @@ function gableRoof(width, height, depth, capColor, roofColor) {
   const m = new THREE.Mesh(geo, [mat(capColor), mat(roofColor)]);
   m.castShadow = true;
   m.receiveShadow = true;
+  // Camada de neve sobre as duas águas (as pontas triangulares ficam de fora)
+  const snow = new THREE.Mesh(geo, [HIDDEN_MAT, SNOW_MAT]);
+  snow.scale.set(1.05, 1.06, 1.03);
+  snow.position.y = 0.035;
+  snow.receiveShadow = true;
+  m.add(snow);
   return m;
 }
 
@@ -786,6 +805,7 @@ export function makeShop() {
   awning.rotation.x = 0.22;
   awning.castShadow = true;
   g.add(awning);
+  g.add(rot(snowPiece(GEO.box, 2.92, 0.06, 1.72, 0, 2.39, 0.1), 0.22, 0, 0));
   // Caixotes com produtos
   const crate = (x, color, n) => {
     g.add(box(0.5, 0.22, 0.4, 0xc49a63, x, 1.09, 0.3));
@@ -901,6 +921,41 @@ export function makeFence(x1, z1, x2, z2) {
 }
 
 // ================= Natureza =================
+// Copas: três tons de verde quase iguais (cada árvore sorteia um), para no outono cada uma ganhar a sua cor
+export const LEAF_SETS = [
+  [0x5aa845, 0x67b852, 0x4f9a3d],
+  [0x5ba946, 0x68b953, 0x509b3e],
+  [0x59a744, 0x66b751, 0x4e993c],
+];
+// Flores da primavera: rosa e branco (cores só delas, para o mundo ligar e desligar o material)
+export const BLOSSOM_COLORS = [0xffb3cf, 0xfff0f6];
+let blossomGeo = null;
+/** Florzinhas espalhadas pela copa, numa geometria só (uma peça por árvore). */
+function blossomGeometry() {
+  if (blossomGeo) return blossomGeo;
+  const src = new THREE.IcosahedronGeometry(0.1, 0).toNonIndexed().getAttribute('position').array;
+  const pts = [];
+  const n = 24;
+  for (let k = 0; k < n; k++) {
+    const phi = Math.acos(1 - ((k + 0.5) / n) * 1.3); // do alto da copa até um pouco abaixo do meio
+    const th = k * 2.39996;
+    pts.push([Math.sin(phi) * Math.cos(th) * 0.86, 1.65 + Math.cos(phi) * 0.76, Math.sin(phi) * Math.sin(th) * 0.86]);
+  }
+  pts.push([0.45, 2.53, 0.22], [0.82, 2.15, 0.36], [-0.4, 2.38, -0.25], [-0.82, 2.0, -0.33]);
+  const arr = new Float32Array(src.length * pts.length);
+  pts.forEach(([x, y, z], k) => {
+    for (let i = 0; i < src.length; i += 3) {
+      arr[k * src.length + i] = src[i] + x;
+      arr[k * src.length + i + 1] = src[i + 1] + y;
+      arr[k * src.length + i + 2] = src[i + 2] + z;
+    }
+  });
+  blossomGeo = new THREE.BufferGeometry();
+  blossomGeo.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+  blossomGeo.computeVertexNormals();
+  return blossomGeo;
+}
+
 export function makeTree(kind, s = 1) {
   const g = new THREE.Group();
   if (kind === 'pine') {
@@ -908,11 +963,24 @@ export function makeTree(kind, s = 1) {
     g.add(cone(0.95, 1.3, 0x3f8f46, 0, 1.3, 0));
     g.add(cone(0.72, 1.1, 0x48a04f, 0, 1.95, 0));
     g.add(cone(0.46, 0.9, 0x54ad5a, 0, 2.5, 0));
+    g.add(snowPiece(GEO.cone, 0.29, 0.52, 0.29, 0, 2.73, 0));
+    g.add(snowPiece(PINE_SNOW_GEO, 0.652, 0.3, 0.652, 0, 1.7, 0));
+    g.add(snowPiece(PINE_SNOW_GEO, 0.797, 0.3, 0.797, 0, 1.05, 0));
   } else {
+    const [a, b, c] = LEAF_SETS[Math.floor(Math.random() * LEAF_SETS.length)];
     g.add(cyl(0.15, 1.1, 0x7a5230, 0, 0.55, 0));
-    g.add(ball(0.85, 0.75, 0.85, 0x5aa845, 0, 1.65, 0));
-    g.add(ball(0.55, 0.5, 0.55, 0x67b852, 0.45, 2.05, 0.2));
-    g.add(ball(0.5, 0.45, 0.5, 0x4f9a3d, -0.4, 1.95, -0.25));
+    g.add(ball(0.85, 0.75, 0.85, a, 0, 1.65, 0));
+    g.add(ball(0.55, 0.5, 0.55, b, 0.45, 2.05, 0.2));
+    g.add(ball(0.5, 0.45, 0.5, c, -0.4, 1.95, -0.25));
+    g.add(snowPiece(GEO.ball, 0.62, 0.25, 0.62, 0, 2.2, 0));
+    g.add(snowPiece(GEO.ball, 0.4, 0.16, 0.4, 0.45, 2.43, 0.2));
+    g.add(snowPiece(GEO.ball, 0.36, 0.14, 0.36, -0.4, 2.3, -0.25));
+    if (Math.random() < 0.75) {
+      const fl = mesh(blossomGeometry(), BLOSSOM_COLORS[Math.random() < 0.6 ? 0 : 1], 1, 1, 1, 0, 0, 0);
+      fl.castShadow = false;
+      fl.rotation.y = Math.random() * Math.PI * 2;
+      g.add(fl);
+    }
     if (kind === 'apple') {
       for (const [x, y, z] of [[0.6, 1.5, 0.5], [-0.5, 1.7, 0.6], [0.2, 1.3, 0.8], [0.8, 1.9, -0.1]]) g.add(ball(0.08, 0.08, 0.08, 0xe53935, x, y, z));
     }
@@ -1133,6 +1201,7 @@ export function makeShed() {
   for (const x of [-3.6, 3.6]) g.add(box(0.15, 2.8, 3.2, wall, x, 1.4, 0));
   for (const x of [-3.6, -1.2, 1.2, 3.6]) g.add(cyl(0.08, 3.1, 0x6f4825, x, 1.55, 1.55));
   g.add(rot(box(7.8, 0.14, 3.8, roof, 0, 3.15, 0), -0.12, 0, 0));
+  g.add(rot(snowPiece(GEO.box, 7.82, 0.07, 3.82, 0, 3.24, 0), -0.12, 0, 0));
   g.add(box(7.4, 0.08, 0.08, MY, 0, 2.95, 1.6));
   for (const [x, z] of [[-3, -1.2], [-2.6, -1.25]]) g.add(box(0.5, 0.6, 0.4, 0xa0703c, x, 0.3, z));
   g.add(cyl(0.25, 0.8, 0xc0392b, 3.1, 0.4, -1.1));
@@ -1398,6 +1467,7 @@ export function makeSawmill() {
   g.add(box(2.7, 0.12, 2.0, 0x8d6334, 0, 0.06, 0));
   for (const [x, z] of [[-1.25, -0.9], [1.25, -0.9], [-1.25, 0.9], [1.25, 0.9]]) g.add(cyl(0.07, 2.1, dark, x, 1.05, z));
   g.add(rot(box(3.0, 0.1, 2.4, 0x7b5a46, 0, 2.15, -0.05), -0.14, 0, 0));
+  g.add(rot(snowPiece(GEO.box, 3.02, 0.06, 2.42, 0, 2.22, -0.05), -0.14, 0, 0));
   g.add(box(3.02, 0.06, 0.06, 0xd9473b, 0, 2.0, 1.15));
   g.add(box(2.6, 1.2, 0.08, wood, 0, 0.7, -0.95));
   // Bancada com a serra circular
@@ -1691,6 +1761,67 @@ export function makeCheesery() {
   return { group: g, cans, wheels, lights: [] };
 }
 
+// ================= Galinheiro =================
+/** Casinha das galinhas sobre pés, com rampa, ninhos na lateral e cesta de ovos (frente para +z). */
+export function makeCoop() {
+  const g = new THREE.Group();
+  const wood = 0xc8874a, trim = 0x7a4f2a, roofC = 0xb5432f;
+  for (const [x, z] of [[-0.95, -0.6], [0.95, -0.6], [-0.95, 0.6], [0.95, 0.6]]) g.add(box(0.12, 0.5, 0.12, trim, x, 0.25, z));
+  g.add(box(2.25, 0.08, 1.55, trim, 0, 0.52, 0));
+  g.add(box(2.1, 0.95, 1.4, wood, 0, 1.03, 0));
+  // Tábuas da frente
+  for (let k = -3; k <= 3; k++) g.add(box(0.03, 0.95, 0.02, trim, k * 0.3, 1.03, 0.71));
+  for (const x of [-1.05, 1.05]) g.add(box(0.08, 0.97, 1.42, trim, x, 1.03, 0));
+  const r = gableRoof(1.9, 0.6, 2.5, 0xe8d8b0, roofC);
+  r.position.set(0, 1.5, 0);
+  r.rotation.y = Math.PI / 2;
+  g.add(r);
+  // Portinhola e rampa com degraus
+  g.add(box(0.42, 0.48, 0.05, 0x3b2616, -0.45, 0.82, 0.72));
+  const ramp = new THREE.Group();
+  ramp.add(box(0.42, 0.04, 1.05, trim, 0, 0, 0));
+  for (let k = -2; k <= 2; k++) ramp.add(box(0.42, 0.03, 0.04, 0x5c3a1e, 0, 0.03, k * 0.2));
+  ramp.position.set(-0.45, 0.29, 1.17);
+  ramp.rotation.x = 0.57;
+  g.add(ramp);
+  // Janelinha
+  g.add(box(0.4, 0.32, 0.05, 0xf3e3b0, 0.5, 1.15, 0.72));
+  g.add(box(0.46, 0.05, 0.07, trim, 0.5, 0.97, 0.74));
+  g.add(box(0.04, 0.32, 0.07, trim, 0.5, 1.15, 0.74));
+  // Caixa de ninhos na lateral, com palha
+  g.add(box(0.5, 0.5, 1.1, wood, 1.32, 0.95, 0));
+  const lid = box(0.62, 0.06, 1.22, roofC, 1.36, 1.26, 0);
+  lid.rotation.z = -0.32;
+  g.add(lid);
+  for (const z of [-0.3, 0.3]) g.add(box(0.06, 0.3, 0.42, 0xe8c25a, 1.58, 0.92, z));
+  // Cesta com os ovos prontos (aparecem conforme as galinhas botam)
+  const basket = new THREE.Group();
+  basket.position.set(0.45, 0, 1.05);
+  basket.add(cyl(0.24, 0.14, 0xb07a3c, 0, 0.07, 0));
+  basket.add(cyl(0.2, 0.02, 0xe8c25a, 0, 0.14, 0));
+  g.add(basket);
+  const eggs = [];
+  for (let k = 0; k < 6; k++) {
+    const a = (k / 6) * Math.PI * 2;
+    const e = ball(0.055, 0.075, 0.055, 0xfff4e0, Math.cos(a) * (k % 2 ? 0.1 : 0.05), 0.2, Math.sin(a) * (k % 2 ? 0.1 : 0.05));
+    e.visible = false;
+    basket.add(e);
+    eggs.push(e);
+  }
+  return { group: g, eggs };
+}
+
+/** Comedouro comprido de milho e bebedouro das galinhas. */
+export function makeChickenFeeder() {
+  const g = new THREE.Group();
+  g.add(box(1.1, 0.16, 0.32, 0x9a6a3a, 0, 0.1, 0));
+  g.add(box(1.0, 0.04, 0.22, 0xe8c25a, 0, 0.17, 0));
+  for (const x of [-0.5, 0.5]) g.add(box(0.06, 0.28, 0.36, 0x7a4f2a, x, 0.14, 0));
+  g.add(cyl(0.2, 0.08, 0x8fa7b8, 0.85, 0.04, 0));
+  g.add(cyl(0.16, 0.02, 0x7fc4ec, 0.85, 0.085, 0));
+  return g;
+}
+
 // ================= Fábricas =================
 /** Casinha básica das fábricas (frente para +z). */
 function workshop(g, w, d, wallColor, roofColor, h = 1.4) {
@@ -1721,6 +1852,7 @@ export function makeWindmill() {
   g.add(tower);
   for (const y of [0.9, 1.9, 2.8]) g.add(cyl(1.27 - y * 0.13, 0.08, 0x8d6334, 0, y, 0));
   g.add(cone(1.15, 1.1, 0x8d3a2b, 0, 3.85, 0));
+  g.add(snowPiece(GEO.cone, 0.74, 0.74, 0.74, 0, 4.1, 0));
   g.add(box(0.55, 0.9, 0.08, 0x7a4f2a, 0, 0.57, 1.18));
   g.add(box(0.36, 0.36, 0.06, 0x9fd6f2, 0, 2.2, 0.98));
   const spin = new THREE.Group();

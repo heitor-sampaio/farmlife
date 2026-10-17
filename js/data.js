@@ -175,9 +175,13 @@ export const RECIPES = [
 ];
 export const CARPENTRY = { name: 'Mesa de carpintaria', icon: '🪚' };
 // Construções feitas com madeira (o jogo começa só com a casa). O material é entregue aos poucos no canteiro.
+// Galinheiro: casa das galinhas (e dos galos e pintinhos), ao lado do lago
+export const COOP = { slots: 12 };
+
 export const BUILDINGS = {
   celeiro: { name: 'Celeiro', icon: '🛖', cost: { madeira: 10, viga: 2 }, desc: 'Libera a venda da colheita, dos produtos e dos peixes.' },
-  curral:  { name: 'Curral',  icon: '🐾', cost: { madeira: 14, viga: 4 }, desc: 'Libera a compra de animais e o cocho.' },
+  curral:  { name: 'Curral',  icon: '🐾', cost: { madeira: 14, viga: 4 }, desc: 'Libera a compra de ovelhas, vacas e porcos, e o cocho.' },
+  galinheiro: { name: 'Galinheiro', icon: '🐔', cost: { madeira: 12, viga: 3 }, level: 2, desc: `Casa das galinhas, ao lado do lago: até ${COOP.slots} aves, com ninhos e comedouro próprio.` },
   galpao:  { name: 'Galpão das máquinas', icon: '🚜', cost: { madeira: 24, viga: 8 }, level: 12, desc: 'Garagem das máquinas do Campo de Trigo: é preciso para comprá-las.' },
   queijaria: { name: 'Queijaria', icon: '🧀', cost: { madeira: 20, viga: 6 }, level: 8, fem: true, desc: 'Transforma o leite das vacas em queijo, sozinha.' },
 };
