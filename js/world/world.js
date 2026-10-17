@@ -33,7 +33,7 @@ const SPOTS = {
   queijaria: { label: null, site: 'queijaria', at: [12.6, -7.2], labelY: 3.0, point: [12.6, -5.6], r: 1.3, text: '', info: '' },
   serraria: { label: null, at: [-5.4, 7.0], labelY: 3.1, point: [-4.34, 8.06], r: 1.3, text: '', info: '' },
   mesa:    { label: '🪚 Carpintaria', at: [-5.6, -8.0], labelY: 2.0, point: [-4.93, -7.33], r: 1.15, text: '', info: '' },
-  'obra:curral': { label: null, at: [-7.2, -0.2], labelY: 1.6, point: [-6.6, -0.2], r: 1.3, build: 'curral', text: '', info: '' },
+  'obra:curral': { label: null, at: [-7.25, 1.55], labelY: 1.6, point: [-6.6, 1.2], r: 1.3, build: 'curral', text: '', info: '' },
   compost: { label: null, needs: 'curral', at: [-6.6, -5.0], labelY: 1.5, point: [-6.0, -4.4], r: 1.1, text: '', info: '' },
   cocho:   { label: null, needs: 'curral', at: [-13.5, -0.5], point: [-12.8, -0.5], r: 1.1, text: 'Alimentar todos no cocho', info: '🪵 Cocho: alimenta de uma vez todos os animais com fome (1 🌾 cada).' },
 };
@@ -1629,7 +1629,8 @@ function updateParticles(dt) {
   }
 }
 
-const CROP_COLOR = { trigo: 0xf3d77a, cenoura: 0xf07c22, tomate: 0xe0372d, milho: 0xf5d23f, morango: 0xe8264a, berinjela: 0x5b2a86, abobora: 0xf08a24, girassol: 0xffcf1f };
+const CROP_COLOR = { trigo: 0xf3d77a, cenoura: 0xf07c22, tomate: 0xe0372d, milho: 0xf5d23f, morango: 0xe8264a, berinjela: 0x5b2a86, abobora: 0xf08a24, girassol: 0xffcf1f,
+  alface: 0x8bc34a, batata: 0xc8a165, cebola: 0xd6b8c8, pimentao: 0x43a047, feijao: 0x8d4b2b, algodao: 0xffffff, cana: 0xb5d06b, melancia: 0xe53950, uva: 0x7b3fa0, cafe: 0xc62828, abacaxi: 0xf2c14e };
 
 function actionEffect(kind, pos, extra) {
   const { x, z } = pos;
@@ -2011,7 +2012,7 @@ function buildSites() {
   scene.add(signProxy);
   pickables.push(signProxy);
   st.proxy = signProxy;
-  nav.blockCircle(x, z, 0.15 + PLAYER_R);
+  // (sem bloquear a navegação: a placa fica ao lado do portão e some quando a obra termina)
 }
 
 function updateSites(dt) {

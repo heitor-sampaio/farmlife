@@ -38,6 +38,7 @@ Depois acesse http://localhost:5173. Na primeira vez, precisa de internet para b
 ## Mecânicas
 
 - **Personagem**: na primeira vez, escolha entre fazendeiro e fazendeira (com prévia 3D) e o seu nome. Dá para trocar depois pelo Guia.
+- **Culturas**: 19 culturas, de alface e trigo a café e abacaxi, cada uma com a sua estação; algumas rebrotam depois da colheita.
 - **Lavoura**: are a grama, plante, regue e colha. Sem água, nada cresce.
 - **Construções**: o jogo começa só com a Casa (dormir à noite), a Loja, o quadro de Pedidos e todas as ferramentas. O Celeiro (libera a venda), o Curral (libera os animais) e o Galpão (libera as máquinas) são construídos com madeira, entregue aos poucos no canteiro de cada obra.
 - **Lenha e carpintaria**: corte as árvores do bosque com o machado para ganhar troncos; na mesa de carpintaria, serre troncos em tábuas e pregue tábuas em vigas, na mão. A Serraria (nível 3) serra tábuas sozinha, até com o jogo fechado.

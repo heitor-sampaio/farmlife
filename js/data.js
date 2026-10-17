@@ -20,6 +20,17 @@ export const CROPS = {
   berinjela: { name: 'Berinjela', icon: '🍆', seed: 90,  sell: 210, time: 180, xp: 20, level: 5 },
   abobora:   { name: 'Abóbora',   icon: '🎃', seed: 130, sell: 320, time: 240, xp: 30, level: 6 },
   girassol:  { name: 'Girassol',  icon: '🌻', seed: 200, sell: 480, time: 300, xp: 45, level: 8 },
+  alface:    { name: 'Alface',    icon: '🥬', seed: 8,   sell: 20,  time: 30,  xp: 3,  level: 1 },
+  batata:    { name: 'Batata',    icon: '🥔', seed: 20,  sell: 50,  time: 70,  xp: 6,  level: 2 },
+  cebola:    { name: 'Cebola',    icon: '🧅', seed: 25,  sell: 60,  time: 80,  xp: 7,  level: 2 },
+  pimentao:  { name: 'Pimentão',  icon: '🫑', seed: 50,  sell: 35,  time: 90,  xp: 4,  level: 3, regrow: 0.55 },
+  feijao:    { name: 'Feijão',    icon: '🫘', seed: 45,  sell: 110, time: 110, xp: 11, level: 3 },
+  algodao:   { name: 'Algodão',   icon: '☁️', seed: 70,  sell: 150, time: 140, xp: 14, level: 4 },
+  cana:      { name: 'Cana',      icon: '🎋', seed: 85,  sell: 190, time: 170, xp: 18, level: 5 },
+  melancia:  { name: 'Melancia',  icon: '🍉', seed: 110, sell: 280, time: 220, xp: 26, level: 5 },
+  uva:       { name: 'Uva',       icon: '🍇', seed: 160, sell: 90,  time: 200, xp: 9,  level: 6, regrow: 0.5 },
+  cafe:      { name: 'Café',      icon: '☕', seed: 180, sell: 130, time: 240, xp: 14, level: 7, regrow: 0.5 },
+  abacaxi:   { name: 'Abacaxi',   icon: '🍍', seed: 220, sell: 560, time: 330, xp: 50, level: 8 },
 };
 
 export const PRODUCTS = {
@@ -212,23 +223,32 @@ export const GOODS = {
   tecido:   { name: 'Tecido',          icon: '🧵', sell: 340, xp: 18 },
   roupa:    { name: 'Roupa',           icon: '👕', sell: 860, xp: 45 },
   defumado: { name: 'Peixe defumado',  icon: '🍢', sell: 150, xp: 10 },
+  acucar:   { name: 'Açúcar',          icon: '🍬', sell: 700, xp: 35 },
+  cafezinho:{ name: 'Café torrado',    icon: '🫖', sell: 480, xp: 25 },
+  vinho:    { name: 'Suco de uva',     icon: '🍷', sell: 320, xp: 16 },
 };
 // Fábricas: obras de madeira que transformam produtos sozinhas (até com o jogo fechado).
 // recipes[].in: o que gasta ('peixe' = qualquer peixe); out: o que faz; time: segundos por unidade
 export const FACTORIES = {
-  moinho:      { name: 'Moinho',      icon: '🌬️', level: 3, at: [20.6, 2.6],  size: [3.2, 3.2], cost: { madeira: 16, viga: 4 }, capacity: 12, desc: 'Mói o trigo em farinha.',
-    recipes: [{ id: 'farinha', in: { trigo: 3 }, out: 'farinha', time: 25 }] },
-  padaria:     { name: 'Padaria',     icon: '🥖', level: 4, at: [20.6, 7.6],  size: [3.4, 2.8], cost: { madeira: 22, viga: 6 }, capacity: 10, fem: true, desc: 'Faz pão, tortas, sucos, geleias e bolos.',
+  moinho:      { name: 'Moinho',      icon: '🌬️', level: 3, at: [20.6, 2.6],  size: [3.2, 3.2], cost: { madeira: 16, viga: 4 }, capacity: 12, desc: 'Mói o trigo em farinha e a cana em açúcar.',
+    recipes: [
+      { id: 'farinha', in: { trigo: 3 }, out: 'farinha', time: 25 },
+      { id: 'acucar',  in: { cana: 3 },  out: 'acucar',  time: 70 },
+    ] },
+  padaria:     { name: 'Padaria',     icon: '🥖', level: 4, at: [20.6, 7.6],  size: [3.4, 2.8], cost: { madeira: 22, viga: 6 }, capacity: 10, fem: true, desc: 'Faz pão, tortas, sucos, geleias, bolos e torra café.',
     recipes: [
       { id: 'pao',    in: { farinha: 2 },                   out: 'pao',    time: 40 },
       { id: 'torta',  in: { farinha: 1, maca: 3 },          out: 'torta',  time: 60 },
       { id: 'suco',   in: { laranja: 3 },                   out: 'suco',   time: 45 },
       { id: 'geleia', in: { manga: 3, mel: 1 },             out: 'geleia', time: 75 },
       { id: 'bolo',   in: { farinha: 2, ovo: 2, leite: 1 }, out: 'bolo',   time: 90 },
+      { id: 'vinho',  in: { uva: 3 },                       out: 'vinho',  time: 60 },
+      { id: 'cafezinho', in: { cafe: 3 },                   out: 'cafezinho', time: 80 },
     ] },
-  tear:        { name: 'Tear',        icon: '🧶', level: 5, at: [20.6, 12.3], size: [3.2, 2.6], cost: { madeira: 20, viga: 6 }, capacity: 8, desc: 'Tece a lã em tecido e costura roupas.',
+  tear:        { name: 'Tear',        icon: '🧶', level: 5, at: [20.6, 12.3], size: [3.2, 2.6], cost: { madeira: 20, viga: 6 }, capacity: 8, desc: 'Tece lã ou algodão em tecido e costura roupas.',
     recipes: [
       { id: 'tecido', in: { la: 2 },     out: 'tecido', time: 60 },
+      { id: 'tecido2', in: { algodao: 3 }, out: 'tecido', time: 70 },
       { id: 'roupa',  in: { tecido: 2 }, out: 'roupa',  time: 120 },
     ] },
   defumadouro: { name: 'Defumadouro', icon: '🔥', level: 3, at: [4.2, 6.7],   size: [2.4, 2.2], cost: { madeira: 12, viga: 3 }, capacity: 10, desc: 'Defuma os peixes do lago (2 peixes quaisquer → 1 defumado).',
@@ -254,16 +274,16 @@ export const HIVES = { name: 'Colmeia', icon: '🐝', cost: 800, level: 4, max: 
 // weather: multiplica a chance de cada evento climático; fruit: ritmo do pomar; growOff: culturas fora de época.
 export const SEASON_DAYS = 7;
 export const SEASONS = [
-  { id: 'primavera', name: 'Primavera', icon: '🌸', crops: ['cenoura', 'morango', 'girassol'], fruit: 1,   growOff: 1,
+  { id: 'primavera', name: 'Primavera', icon: '🌸', crops: ['cenoura', 'morango', 'girassol', 'alface', 'cebola', 'feijao'], fruit: 1,   growOff: 1,
     weather: { chuva: 1.6, ventania: 0.8, neve: 0, calor: 0.6, tempestade: 1, arcoiris: 2.5, eclipse: 1 },
     tint: [1, 1, 1], leaf: null, desc: 'Chove mais e o arco-íris aparece com frequência.' },
-  { id: 'verao', name: 'Verão', icon: '☀️', crops: ['trigo', 'tomate', 'milho', 'berinjela', 'girassol'], fruit: 1.2, growOff: 1,
+  { id: 'verao', name: 'Verão', icon: '☀️', crops: ['trigo', 'tomate', 'milho', 'berinjela', 'girassol', 'pimentao', 'algodao', 'melancia', 'abacaxi'], fruit: 1.2, growOff: 1,
     weather: { chuva: 0.8, ventania: 0.7, neve: 0, calor: 3, tempestade: 1.6, arcoiris: 1, eclipse: 1 },
     tint: [1.06, 1.02, 0.82], leaf: null, desc: 'Sol escaldante e tempestades de raios são mais comuns.' },
-  { id: 'outono', name: 'Outono', icon: '🍂', crops: ['trigo', 'cenoura', 'abobora'], fruit: 1.3, growOff: 1,
+  { id: 'outono', name: 'Outono', icon: '🍂', crops: ['trigo', 'cenoura', 'abobora', 'batata', 'cana', 'uva'], fruit: 1.3, growOff: 1,
     weather: { chuva: 1.3, ventania: 2.5, neve: 0.2, calor: 0.5, tempestade: 0.8, arcoiris: 0.8, eclipse: 1.5 },
     tint: [1.12, 0.92, 0.62], leaf: [0xd9822b, 0.65], desc: 'Folhas alaranjadas, ventanias e eclipses mais frequentes. O pomar rende mais.' },
-  { id: 'inverno', name: 'Inverno', icon: '❄️', crops: ['cenoura'], fruit: 0, growOff: 0.7,
+  { id: 'inverno', name: 'Inverno', icon: '❄️', crops: ['cenoura', 'alface', 'cebola', 'cafe'], fruit: 0, growOff: 0.7,
     weather: { chuva: 0.6, ventania: 1, neve: 4, calor: 0, tempestade: 0.4, arcoiris: 0.5, eclipse: 1 },
     tint: [1.3, 1.36, 1.45], leaf: [0x8d7b6a, 0.7], desc: 'Neva bastante, o pomar descansa e as culturas fora de época crescem mais devagar.' },
 ];

@@ -156,6 +156,9 @@ const C = {
   carrot: 0xf07c22, tomato: 0xe0372d, unripe: 0x9ccc65, corn: 0xf5d23f, husk: 0xa5d06b, berry: 0xe8264a,
   flower: 0xfffdf0, eggplant: 0x5b2a86, lilac: 0xb39ddb, pumpkin: 0xf08a24, pumpkinGreen: 0x8bc34a,
   petal: 0xffcf1f, disk: 0x5d4037, stake: 0x9b6a3a,
+  lettuce: 0x9ccc65, lettuceDark: 0x7cb342, potato: 0xc8a165, onion: 0xe8d5e0, onionPurple: 0xa05a8c, pepper: 0x43a047, pepperRed: 0xd32f2f,
+  pod: 0x7cb342, bean: 0x8d4b2b, cotton: 0xffffff, cane: 0xb5d06b, caneJoint: 0x8a9a4a, melon: 0x2e7d32, melonStripe: 0x66bb6a,
+  grape: 0x7b3fa0, coffee: 0xc62828, coffeeLeaf: 0x2e6b24, pineapple: 0xe0a83a, crown: 0x4f9a3d,
 };
 
 const GRID3 = [];
@@ -297,6 +300,154 @@ const CROP_MODELS = {
     },
   },
 };
+
+// Culturas novas
+Object.assign(CROP_MODELS, {
+  alface: {
+    spots: GRID2, height: 0.3,
+    build(g, s) {
+      const k = [0, 0.55, 0.8, 1][s];
+      for (const [x, z] of this.spots) {
+        g.add(ball(0.13 * k, 0.07 * k, 0.13 * k, C.lettuceDark, x, 0.06 * k, z));
+        g.add(ball(0.1 * k, 0.08 * k, 0.1 * k, C.lettuce, x, 0.1 * k, z));
+        if (s === 3) g.add(ball(0.06, 0.06, 0.06, 0xc5e1a5, x, 0.15, z));
+      }
+    },
+  },
+  batata: {
+    spots: GRID2, height: 0.35,
+    build(g, s) {
+      const k = [0, 0.6, 0.9, 1][s];
+      for (const [x, z] of this.spots) {
+        g.add(ball(0.12 * k, 0.1 * k, 0.12 * k, C.leafDark, x, 0.14 * k, z));
+        g.add(ball(0.08 * k, 0.07 * k, 0.08 * k, C.leaf, x + 0.05, 0.2 * k, z));
+        if (s === 2) g.add(ball(0.02, 0.02, 0.02, 0xffffff, x - 0.04, 0.24, z + 0.04));
+        if (s === 3) for (const [dx, dz] of [[0.12, 0.05], [-0.1, 0.1]]) g.add(ball(0.06, 0.045, 0.05, C.potato, x + dx, 0.03, z + dz));
+      }
+    },
+  },
+  cebola: {
+    spots: GRID3, height: 0.4, sprout: 0.8,
+    build(g, s) {
+      const k = [0, 0.6, 0.85, 1][s];
+      for (const [x, z] of this.spots) {
+        blades(g, x, z, 0.3 * k, C.leaf, 3);
+        if (s >= 2) g.add(ball(0.06 * k, 0.055 * k, 0.06 * k, s === 3 ? C.onionPurple : C.onion, x, 0.04, z));
+      }
+    },
+  },
+  pimentao: {
+    spots: CENTER, height: 0.7,
+    build(g, s) {
+      const k = [0, 0.55, 0.85, 1][s];
+      g.add(ball(0.22 * k, 0.24 * k, 0.22 * k, C.leafDark, 0, 0.28 * k, 0));
+      g.add(ball(0.15 * k, 0.16 * k, 0.15 * k, C.leaf, 0.07, 0.45 * k, 0.04));
+      if (s >= 2) {
+        for (const [x, y, z] of [[0.18, 0.25, 0.1], [-0.15, 0.3, 0.15], [0.05, 0.42, -0.18], [-0.12, 0.2, -0.12]].slice(0, s === 3 ? 4 : 2)) {
+          g.add(box(0.09, 0.11, 0.09, s === 3 ? (x > 0 ? C.pepperRed : C.pepper) : C.unripe, x * k, y * k, z * k));
+        }
+      }
+    },
+  },
+  feijao: {
+    spots: CENTER, height: 0.95,
+    build(g, s) {
+      const k = [0, 0.55, 0.85, 1][s];
+      g.add(cyl(0.018, 0.9 * k, C.stake, 0, 0.45 * k, 0));
+      for (let i = 0; i < 4; i++) {
+        const y = (0.18 + i * 0.18) * k, a = i * 1.7;
+        g.add(rot(ball(0.1 * k, 0.025, 0.07 * k, i % 2 ? C.leaf : C.leafDark, Math.cos(a) * 0.08, y, Math.sin(a) * 0.08), 0, a, 0.3));
+      }
+      if (s === 2) g.add(ball(0.025, 0.025, 0.025, C.lilac, 0.08, 0.5, 0.06));
+      if (s === 3) for (const [x, y, z] of [[0.1, 0.35, 0.06], [-0.08, 0.55, 0.08], [0.06, 0.7, -0.1]]) g.add(rot(cyl(0.022, 0.16, C.pod, x, y, z), 0.3, 0, 0.25));
+    },
+  },
+  algodao: {
+    spots: GRID2, height: 0.55,
+    build(g, s) {
+      const k = [0, 0.6, 0.85, 1][s];
+      for (const [x, z] of this.spots) {
+        g.add(cyl(0.015, 0.4 * k, C.stem, x, 0.2 * k, z));
+        g.add(ball(0.1 * k, 0.08 * k, 0.1 * k, C.leafDark, x, 0.3 * k, z));
+        if (s === 2) g.add(ball(0.03, 0.03, 0.03, 0xfff59d, x + 0.06, 0.38, z));
+        if (s === 3) for (const [dx, dy, dz] of [[0.06, 0.42, 0], [-0.06, 0.38, 0.05], [0, 0.46, -0.05]]) g.add(ball(0.055, 0.05, 0.055, C.cotton, x + dx, dy, z + dz));
+      }
+    },
+  },
+  cana: {
+    spots: GRID2, height: 1.4,
+    build(g, s) {
+      const h = [0, 0.4, 0.9, 1.25][s];
+      for (const [x, z] of this.spots) {
+        g.add(cyl(0.03, h, s === 3 ? C.cane : C.stem, x, h / 2, z));
+        for (let y = 0.25; y < h; y += 0.25) g.add(cyl(0.034, 0.03, C.caneJoint, x, y, z));
+        g.add(rot(cone(0.03, h * 0.6, C.leaf, x + 0.08, h * 0.75, z), 0, 0, -0.8));
+        g.add(rot(cone(0.03, h * 0.55, C.leafDark, x - 0.08, h * 0.85, z), 0, 0, 0.8));
+      }
+    },
+  },
+  melancia: {
+    spots: CENTER, height: 0.5,
+    build(g, s) {
+      const k = [0, 0.6, 0.85, 1][s];
+      for (const [x, z] of [[0.27, 0.12], [-0.25, 0.16], [0.08, -0.28], [-0.18, -0.22]]) g.add(ball(0.16 * k, 0.035, 0.13 * k, C.leaf, x * k, 0.05, z * k));
+      if (s === 2) g.add(ball(0.12, 0.09, 0.1, C.melonStripe, 0, 0.09, 0.04));
+      if (s === 3) {
+        g.add(mesh(GEO.ballHi, C.melon, 0.34, 0.22, 0.26, 0, 0.2, 0.04));
+        // Listras: fatias finas um pouco maiores que a melancia
+        for (const x of [-0.2, 0, 0.2]) {
+          const f = Math.sqrt(1 - (x / 0.34) ** 2);
+          g.add(ball(0.035, 0.22 * f + 0.006, 0.26 * f + 0.006, C.melonStripe, x, 0.2, 0.04));
+        }
+      }
+    },
+  },
+  uva: {
+    spots: CENTER, height: 1.0,
+    build(g, s) {
+      const k = [0, 0.6, 0.85, 1][s];
+      for (const x of [-0.32, 0.32]) g.add(cyl(0.02, 0.9, C.stake, x, 0.45, 0));
+      g.add(box(0.72, 0.03, 0.03, C.stake, 0, 0.88, 0));
+      for (const x of [-0.24, -0.08, 0.08, 0.24]) g.add(ball(0.11 * k, 0.09 * k, 0.09 * k, x < 0 ? C.leafDark : C.leaf, x, 0.8, 0.02));
+      if (s === 3) {
+        for (const x of [-0.18, 0.04, 0.2]) {
+          for (let i = 0; i < 6; i++) g.add(ball(0.035, 0.035, 0.035, C.grape, x + ((i % 2) - 0.5) * 0.06, 0.66 - Math.floor(i / 2) * 0.06, 0.06));
+        }
+      }
+      if (s === 2) for (const x of [-0.18, 0.2]) g.add(ball(0.03, 0.05, 0.03, C.unripe, x, 0.68, 0.06));
+    },
+  },
+  cafe: {
+    spots: CENTER, height: 0.9,
+    build(g, s) {
+      const k = [0, 0.55, 0.85, 1][s];
+      g.add(cyl(0.03, 0.4 * k, 0x6d4c41, 0, 0.2 * k, 0));
+      g.add(ball(0.22 * k, 0.32 * k, 0.22 * k, C.coffeeLeaf, 0, 0.5 * k, 0));
+      g.add(ball(0.16 * k, 0.2 * k, 0.16 * k, C.leafDark, 0.08, 0.72 * k, 0.05));
+      if (s >= 2) for (const [x, y, z] of [[0.18, 0.45, 0.1], [-0.14, 0.55, 0.15], [0.05, 0.7, -0.17], [-0.16, 0.38, -0.1], [0.14, 0.62, -0.08]]) {
+        g.add(ball(0.03, 0.03, 0.03, s === 3 ? C.coffee : C.unripe, x * k, y * k, z * k));
+      }
+    },
+  },
+  abacaxi: {
+    spots: CENTER, height: 0.75,
+    build(g, s) {
+      const k = [0, 0.6, 0.85, 1][s];
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2;
+        g.add(rot(cone(0.035, 0.42 * k, i % 2 ? C.leaf : C.leafDark, Math.cos(a) * 0.1, 0.18 * k, Math.sin(a) * 0.1), Math.sin(a) * 0.7, 0, -Math.cos(a) * 0.7));
+      }
+      if (s >= 2) {
+        const f = s === 3 ? 1 : 0.6;
+        g.add(ball(0.1 * f, 0.15 * f, 0.1 * f, s === 3 ? C.pineapple : C.unripe, 0, 0.32 * f + 0.05, 0));
+        for (let i = 0; i < 5; i++) {
+          const a = (i / 5) * Math.PI * 2;
+          g.add(rot(cone(0.02, 0.14 * f, C.crown, Math.cos(a) * 0.02, 0.5 * f + 0.05, Math.sin(a) * 0.02), Math.sin(a) * 0.4, 0, -Math.cos(a) * 0.4));
+        }
+      }
+    },
+  },
+});
 
 export const cropHeight = (id) => CROP_MODELS[id].height;
 

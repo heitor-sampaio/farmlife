@@ -2,6 +2,13 @@
 
 Todas as mudanças do jogo, da mais nova para a mais antiga. Este arquivo é gerado a partir de `js/changelog.js` por `node tools/gerar-versao.mjs`.
 
+## v4.1.0 — Mais plantas (17/10/2026)
+
+- 🌱 11 culturas novas: 🥬 alface, 🥔 batata, 🧅 cebola, 🫑 pimentão (rebrota), 🫘 feijão, ☁️ algodão, 🎋 cana, 🍉 melancia, 🍇 uva (rebrota), ☕ café (rebrota) e 🍍 abacaxi.
+- 🍂 Cada uma tem a sua estação: alface e cebola até no inverno, café no inverno, melancia e abacaxi no verão, batata, cana e uva no outono.
+- 🏭 Receitas novas: açúcar de cana no moinho, tecido de algodão no tear, suco de uva e café torrado na padaria.
+- 🐾 Corrigido: a placa da obra do curral continuava bloqueando o portão depois da construção. Agora ela fica ao lado do portão.
+
 ## v4.0.0 — A fazenda cresceu (17/10/2026)
 
 - 🏭 Fábricas de madeira: 🌬️ moinho (farinha), 🥖 padaria (pão, torta, suco, geleia e bolo), 🧶 tear (tecido e roupas) e 🔥 defumadouro (peixe defumado). Escolha as receitas na Oficina.
