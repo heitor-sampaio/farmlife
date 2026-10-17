@@ -34,7 +34,8 @@ Depois acesse http://localhost:5173. Na primeira vez, precisa de internet para b
 - **Funcionários**: Colhedor, Plantador e Tratador andam pela fazenda e trabalham sozinhos (também enquanto você está fora). Cobram salário no início de cada dia; sem dinheiro, pedem demissão.
 - **Tempo**: dia de 3 minutos com sol que muda as sombras, noite com lampiões e dias de chuva.
 - **Expansão**: no campo principal, compre lotes vizinhos um a um; na loja, compre campos inteiros novos (Leste, Sul e Lago, com 24 a 32 lotes cada), marcados no mapa com placas de venda.
-- **Progresso**: níveis desbloqueiam culturas, animais, melhorias e campos.
+- **Lavoura mecanizada**: um Campo de Trigo de 384 lotes trabalhado com máquinas que você dirige (trator com arado de 3 faixas, trator com plantadeira de 4 e colheitadeira de 5), guardadas num galpão. Entre e saia com `Espaço`/`E` ou ✋; dirija com `WASD` ou o joystick.
+- **Progresso**: níveis desbloqueiam culturas, animais, melhorias, campos e máquinas.
 - **Salvamento**: automático no `localStorage`, com até 8h de progresso enquanto você está fora.
 
 ## Estrutura

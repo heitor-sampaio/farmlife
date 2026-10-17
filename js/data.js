@@ -57,6 +57,18 @@ export function fieldOf(i) {
   return null;
 }
 
+// Lavoura mecanizada: um campo enorme só de trigo, trabalhado com máquinas que o jogador dirige
+export const BIG_FIELD = {
+  name: 'Campo de Trigo', icon: '🌾', cols: 24, rows: 16, cost: 20000, level: 6,
+  time: 90, // segundos para o trigo amadurecer (não precisa de rega)
+};
+export const BIG_CELLS = BIG_FIELD.cols * BIG_FIELD.rows;
+export const MACHINES = {
+  arado:         { name: 'Trator com arado',       icon: '🚜', cost: 5000,  level: 6, desc: 'Ara 3 faixas de terra por onde passa.' },
+  plantadeira:   { name: 'Trator com plantadeira', icon: '🚜', cost: 7000,  level: 6, desc: 'Planta trigo em 4 faixas (usa suas sementes de trigo).' },
+  colheitadeira: { name: 'Colheitadeira',          icon: '🌾', cost: 12000, level: 7, desc: 'Colhe 5 faixas de trigo maduro de uma vez.' },
+};
+
 export const WATER_TIME = [40, 70, 110, 180];
 export const GROW_SPEED = [1, 1.2, 1.45, 1.75];
 export const PEN_SIZE = [4, 8, 12];

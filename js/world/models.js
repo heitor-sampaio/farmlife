@@ -688,3 +688,217 @@ export function makeGrassTuft() {
   }
   return g;
 }
+
+// ================= Máquinas agrícolas (verde e amarelo) =================
+const MG = 0x367c2b;     // verde
+const MY = 0xffd100;     // amarelo
+const TIRE = 0x1f1f1f;
+const STEEL = 0x8f979e;
+const DARK = 0x262626;
+const glassMat = new THREE.MeshStandardMaterial({ color: 0xbfe6ff, transparent: true, opacity: 0.32, roughness: 0.1, metalness: 0.2 });
+const lampMat = () => mat(0xfff2b0, { emissive: 0xfff2b0, emissiveIntensity: 0.5 });
+
+/** Roda com pneu de cravos e aro amarelo. Gira pelo grupo `spin` em torno do eixo x. */
+function wheel(r, w, x, y, z) {
+  const g = new THREE.Group();
+  g.position.set(x, y, z);
+  const spin = new THREE.Group();
+  g.add(spin);
+  const part = (geo, color) => {
+    const m = new THREE.Mesh(geo, mat(color));
+    m.rotation.z = Math.PI / 2;
+    m.castShadow = true;
+    m.receiveShadow = true;
+    spin.add(m);
+  };
+  part(new THREE.CylinderGeometry(r, r, w, 16), TIRE);
+  part(new THREE.CylinderGeometry(r * 0.62, r * 0.62, w + 0.02, 12), MY);
+  part(new THREE.CylinderGeometry(r * 0.2, r * 0.2, w + 0.05, 8), MG);
+  for (let k = 0; k < 10; k++) {
+    const a = (k / 10) * Math.PI * 2;
+    const lug = box(w * 1.04, r * 0.12, r * 0.22, TIRE, 0, Math.cos(a) * r, Math.sin(a) * r);
+    lug.rotation.x = a;
+    spin.add(lug);
+  }
+  return { g, spin, r };
+}
+
+/** Fazendeiro sentado (motorista), escondido até alguém dirigir. */
+function makeDriver(y, z) {
+  const f = makeFarmer();
+  f.legL.rotation.x = -1.45;
+  f.legR.rotation.x = -1.45;
+  f.armL.rotation.x = -1.0;
+  f.armR.rotation.x = -1.0;
+  for (const t of Object.values(f.tools)) t.visible = false;
+  f.root.position.set(0, y, z);
+  f.root.scale.setScalar(0.9);
+  f.root.visible = false;
+  return f.root;
+}
+
+function cabin(g, w, h, d, x, y, z, roofColor = MG) {
+  for (const [px, pz] of [[-w / 2, -d / 2], [w / 2, -d / 2], [-w / 2, d / 2], [w / 2, d / 2]]) {
+    g.add(box(0.05, h, 0.05, DARK, x + px, y, z + pz));
+  }
+  const glass = new THREE.Mesh(GEO.box, glassMat);
+  glass.scale.set(w - 0.04, h - 0.04, d - 0.04);
+  glass.position.set(x, y, z);
+  g.add(glass);
+  g.add(box(w + 0.12, 0.1, d + 0.12, roofColor, x, y + h / 2 + 0.05, z));
+  g.add(box(w + 0.14, 0.03, d + 0.14, MY, x, y + h / 2 - 0.01, z));
+}
+
+/** Trator base (frente para +z). */
+function tractorBody() {
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  root.add(body);
+  body.add(box(0.5, 0.22, 1.7, DARK, 0, 0.42, 0.05));
+  body.add(box(0.56, 0.46, 0.95, MG, 0, 0.74, 0.5));
+  for (const x of [-0.285, 0.285]) body.add(box(0.02, 0.06, 0.9, MY, x, 0.88, 0.5));
+  body.add(box(0.5, 0.36, 0.03, 0x1b1b1b, 0, 0.72, 0.985));
+  for (const x of [-0.17, 0.17]) body.add(box(0.12, 0.08, 0.03, lampMat(), x, 0.86, 0.99));
+  body.add(cyl(0.035, 0.55, 0x1b1b1b, 0.17, 1.22, 0.75));
+  body.add(box(1.0, 0.22, 0.9, MG, 0, 0.88, -0.38));
+  cabin(body, 0.9, 0.78, 0.84, 0, 1.38, -0.38);
+  for (const x of [-0.62, 0.62]) body.add(box(0.34, 0.06, 1.05, MG, x, 1.07, -0.45));
+  body.add(box(0.12, 0.12, 0.6, DARK, 0, 0.45, -1.05));
+  const wheels = [wheel(0.52, 0.3, -0.63, 0.52, -0.45), wheel(0.52, 0.3, 0.63, 0.52, -0.45), wheel(0.3, 0.2, -0.43, 0.3, 0.7), wheel(0.3, 0.2, 0.43, 0.3, 0.7)];
+  for (const w of wheels) root.add(w.g);
+  const driver = makeDriver(0.52, -0.42);
+  body.add(driver);
+  return { root, body, wheels, driver };
+}
+
+/** Trator com arado de 4 aivecas atrás (trabalha 3 faixas). */
+export function makePlowTractor() {
+  const t = tractorBody();
+  const imp = new THREE.Group();
+  imp.position.set(0, 0, -1.6);
+  imp.add(box(3.0, 0.12, 0.22, MG, 0, 0.55, 0));
+  imp.add(box(0.16, 0.12, 0.6, MG, 0, 0.55, 0.35));
+  for (let k = 0; k < 4; k++) {
+    const x = -1.1 + k * 0.73;
+    imp.add(box(0.08, 0.45, 0.08, MG, x, 0.32, -0.04));
+    imp.add(rot(box(0.1, 0.28, 0.48, STEEL, x + 0.06, 0.12, -0.14), 0, 0.5, 0));
+  }
+  imp.add(box(0.08, 0.5, 0.08, MY, -1.45, 0.75, 0));
+  imp.add(box(0.08, 0.5, 0.08, MY, 1.45, 0.75, 0));
+  t.root.add(imp);
+  return { ...t, implement: imp };
+}
+
+/** Trator com plantadeira de 4 linhas (caixas de semente amarelas). */
+export function makeSeederTractor() {
+  const t = tractorBody();
+  const imp = new THREE.Group();
+  imp.position.set(0, 0, -1.75);
+  imp.add(box(4.0, 0.12, 0.26, MG, 0, 0.5, 0));
+  imp.add(box(0.16, 0.12, 0.7, MG, 0, 0.5, 0.42));
+  for (let k = 0; k < 4; k++) {
+    const x = -1.5 + k;
+    imp.add(box(0.5, 0.45, 0.45, MY, x, 0.85, -0.05));
+    imp.add(box(0.54, 0.05, 0.49, MG, x, 1.1, -0.05));
+    imp.add(rot(cyl(0.16, 0.04, STEEL, x, 0.18, 0.12), 0, 0, Math.PI / 2));
+    imp.add(rot(cyl(0.11, 0.1, TIRE, x, 0.11, -0.35), 0, 0, Math.PI / 2));
+    imp.add(box(0.06, 0.4, 0.06, MG, x, 0.32, -0.15));
+  }
+  for (const x of [-2.05, 2.05]) imp.add(box(0.06, 0.9, 0.06, MY, x, 0.95, 0));
+  t.root.add(imp);
+  return { ...t, implement: imp };
+}
+
+/** Colheitadeira com plataforma larga e molinete giratório. */
+export function makeCombine() {
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  root.add(body);
+  body.add(box(1.5, 1.3, 2.5, MG, 0, 1.25, -0.35));
+  body.add(box(1.52, 0.08, 2.4, MY, 0, 1.05, -0.35));
+  body.add(box(1.35, 0.5, 1.3, MG, 0, 2.15, -0.75));
+  body.add(box(1.4, 0.06, 1.35, 0x2e6b24, 0, 2.42, -0.75));
+  for (const x of [-0.68, 0.68]) body.add(box(0.02, 0.08, 1.3, MY, x, 2.3, -0.75));
+  body.add(box(1.1, 0.3, 0.9, MG, 0, 2.03, 0.55));
+  cabin(body, 1.0, 0.78, 0.86, 0, 2.57, 0.6, 0xf2f2ee);
+  body.add(box(1.2, 0.5, 0.03, 0x1b1b1b, 0, 1.5, -1.61));
+  body.add(cyl(0.05, 0.7, 0x1b1b1b, 0.45, 2.55, -1.25));
+  for (const x of [-0.3, 0.3]) body.add(box(0.14, 0.08, 0.03, lampMat(), x, 2.9, 1.06));
+  // Tubo de descarga dobrado ao lado
+  body.add(rot(cyl(0.08, 2.3, MG, -0.82, 2.2, -0.1), Math.PI / 2, 0, 0));
+  body.add(rot(cone(0.1, 0.25, MG, -0.82, 2.1, 1.1), Math.PI, 0, 0));
+  // Canal alimentador e plataforma de corte
+  body.add(rot(box(1.0, 0.55, 0.95, MG, 0, 0.75, 1.3), 0.25, 0, 0));
+  const header = new THREE.Group();
+  header.position.set(0, 0, 2.0);
+  header.add(box(5.2, 0.12, 0.85, MG, 0, 0.3, 0));
+  header.add(box(5.2, 0.5, 0.08, MG, 0, 0.55, -0.42));
+  header.add(box(5.1, 0.05, 0.08, STEEL, 0, 0.27, 0.44));
+  for (const x of [-2.6, 2.6]) {
+    header.add(box(0.08, 0.55, 0.9, MY, x, 0.5, 0));
+    header.add(rot(cone(0.08, 0.4, MY, x, 0.32, 0.55), Math.PI / 2, 0, 0));
+    header.add(box(0.06, 0.65, 0.06, MG, x * 0.93, 0.7, -0.1));
+  }
+  const reel = new THREE.Group();
+  reel.position.set(0, 1.0, 0.15);
+  reel.add(rot(cyl(0.05, 5.0, MY, 0, 0, 0), 0, 0, Math.PI / 2));
+  for (let k = 0; k < 6; k++) {
+    const a = (k / 6) * Math.PI * 2;
+    reel.add(box(5.0, 0.04, 0.05, MY, 0, Math.cos(a) * 0.32, Math.sin(a) * 0.32));
+    for (const x of [-2.3, 0, 2.3]) {
+      const spoke = box(0.03, 0.32, 0.03, MY, x, Math.cos(a) * 0.16, Math.sin(a) * 0.16);
+      spoke.rotation.x = -a;
+      reel.add(spoke);
+    }
+  }
+  header.add(reel);
+  root.add(header);
+  const wheels = [wheel(0.62, 0.38, -0.95, 0.62, 0.45), wheel(0.62, 0.38, 0.95, 0.62, 0.45), wheel(0.36, 0.22, -0.68, 0.36, -1.35), wheel(0.36, 0.22, 0.68, 0.36, -1.35)];
+  for (const w of wheels) root.add(w.g);
+  const driver = makeDriver(1.72, 0.62);
+  body.add(driver);
+  return { root, body, wheels, driver, reel, implement: header };
+}
+
+/** Galpão aberto onde as máquinas ficam guardadas. */
+export function makeShed() {
+  const g = new THREE.Group();
+  const roof = 0x5d6d7e, wall = 0xb0a48a;
+  g.add(box(7.2, 2.8, 0.15, wall, 0, 1.4, -1.6));
+  for (const x of [-3.6, 3.6]) g.add(box(0.15, 2.8, 3.2, wall, x, 1.4, 0));
+  for (const x of [-3.6, -1.2, 1.2, 3.6]) g.add(cyl(0.08, 3.1, 0x6f4825, x, 1.55, 1.55));
+  g.add(rot(box(7.8, 0.14, 3.8, roof, 0, 3.15, 0), -0.12, 0, 0));
+  g.add(box(7.4, 0.08, 0.08, MY, 0, 2.95, 1.6));
+  for (const [x, z] of [[-3, -1.2], [-2.6, -1.25]]) g.add(box(0.5, 0.6, 0.4, 0xa0703c, x, 0.3, z));
+  g.add(cyl(0.25, 0.8, 0xc0392b, 3.1, 0.4, -1.1));
+  return g;
+}
+
+/** Tufo de trigo (vários colmos com espiga) numa célula 1×1, altura 1. Usado com InstancedMesh. */
+export function makeWheatTuftGeometry() {
+  const parts = [];
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  for (let k = 0; k < 7; k++) {
+    const x = rnd(-0.38, 0.38), z = rnd(-0.38, 0.38), h = rnd(0.75, 1.0);
+    const stalk = new THREE.CylinderGeometry(0.018, 0.026, h, 4);
+    stalk.translate(x, h / 2, z);
+    const head = new THREE.SphereGeometry(0.06, 4, 3);
+    head.scale(1, 2.3, 1);
+    head.translate(x, h + 0.06, z);
+    const leaf = new THREE.ConeGeometry(0.025, h * 0.5, 3);
+    leaf.rotateZ(rnd(-0.7, 0.7));
+    leaf.translate(x + 0.03, h * 0.3, z);
+    parts.push(stalk, head, leaf);
+  }
+  // Junta tudo numa geometria só (não indexada)
+  const pos = [], nor = [];
+  for (const p of parts) {
+    const g = p.index ? p.toNonIndexed() : p;
+    pos.push(...g.attributes.position.array);
+    nor.push(...g.attributes.normal.array);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  return geo;
+}

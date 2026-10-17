@@ -1,5 +1,5 @@
 /* FarmLife — interface em HTML sobre a cena 3D (HUD, hotbar, painel, avisos) */
-import { CROPS, ANIMALS, PRODUCTS, UPGRADES, WORKERS, FIELDS, SOUND_KEY } from './data.js';
+import { CROPS, ANIMALS, PRODUCTS, UPGRADES, WORKERS, FIELDS, BIG_FIELD, BIG_CELLS, MACHINES, SOUND_KEY } from './data.js';
 import * as core from './core.js';
 import { Sound, sfx } from './audio.js';
 
@@ -108,7 +108,8 @@ function shopHtml() {
       <div class="btns">${locked
         ? `<span class="req">🔒 Nível ${c.level}</span>`
         : `<button class="btn" data-act="seed" data-id="${id}" data-q="1" ${S.coins < c.seed ? 'disabled' : ''}>🪙${c.seed}</button>
-           <button class="btn alt" data-act="seed" data-id="${id}" data-q="5" ${S.coins < c.seed * 5 ? 'disabled' : ''} title="Comprar 5 por 🪙${c.seed * 5}">×5</button>`}
+           <button class="btn alt" data-act="seed" data-id="${id}" data-q="5" ${S.coins < c.seed * 5 ? 'disabled' : ''} title="Comprar 5 por 🪙${c.seed * 5}">×5</button>
+           ${id === 'trigo' ? `<button class="btn alt" data-act="seed" data-id="trigo" data-q="50" ${S.coins < c.seed * 50 ? 'disabled' : ''} title="Saco com 50 sementes por 🪙${c.seed * 50}">×50</button>` : ''}`}
       </div></div>`;
   }
   h += '</div>';
@@ -127,6 +128,37 @@ function shopHtml() {
         : locked
           ? `<span class="req">🔒 Nível ${f.level}</span>`
           : `<button class="btn alt" data-act="field" data-id="${f.id}" ${S.coins < f.cost ? 'disabled' : ''}>🪙${fmt(f.cost)}</button>`}
+      </div></div>`;
+  }
+  h += '</div>';
+
+  const big = S.big.owned;
+  const bigLocked = !big && BIG_FIELD.level > S.level;
+  h += `<h3 id="sec-maquinas">🚜 Lavoura mecanizada</h3><div class="cards">
+    <div class="card${bigLocked ? ' locked' : ''}${big ? ' hired' : ''}">
+      <div class="ico">${BIG_FIELD.icon}</div>
+      <div class="info"><b>${BIG_FIELD.name}${big ? ' <small>✔ seu</small>' : ''}</b>
+        <small>${BIG_FIELD.cols}×${BIG_FIELD.rows} = ${BIG_CELLS} lotes só de trigo, a leste do mapa. Cresce sem rega; trabalhe com as máquinas.</small></div>
+      <div class="btns">${big
+        ? '<span class="req">✔ Comprado</span>'
+        : bigLocked
+          ? `<span class="req">🔒 Nível ${BIG_FIELD.level}</span>`
+          : `<button class="btn alt" data-act="bigfield" ${S.coins < BIG_FIELD.cost ? 'disabled' : ''}>🪙${fmt(BIG_FIELD.cost)}</button>`}
+      </div></div>`;
+  for (const [id, m] of Object.entries(MACHINES)) {
+    const owned = !!S.machines[id];
+    const locked = !owned && m.level > S.level;
+    h += `<div class="card${locked ? ' locked' : ''}${owned ? ' hired' : ''}">
+      <div class="ico">${m.icon}</div>
+      <div class="info"><b>${m.name}${owned ? ' <small>✔ na fazenda</small>' : ''}</b>
+        <small>${m.desc}</small></div>
+      <div class="btns">${owned
+        ? '<span class="req">✔ Comprado</span>'
+        : locked
+          ? `<span class="req">🔒 Nível ${m.level}</span>`
+          : !big
+            ? '<span class="req">Compre o campo</span>'
+            : `<button class="btn alt" data-act="machine" data-id="${id}" ${S.coins < m.cost ? 'disabled' : ''}>🪙${fmt(m.cost)}</button>`}
       </div></div>`;
   }
   h += '</div>';
@@ -377,6 +409,8 @@ export function initUI(h) {
     else if (act === 'hire') core.hireWorker(id);
     else if (act === 'fire') core.fireWorker(id);
     else if (act === 'field') core.buyField(id);
+    else if (act === 'bigfield') core.buyBigField();
+    else if (act === 'machine') core.buyMachine(id);
     else if (act === 'sell') core.sell(id, +b.dataset.q);
     else if (act === 'sellall') core.sellAll();
     else if (act === 'order') core.fulfillOrder(+b.dataset.k);

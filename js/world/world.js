@@ -1,6 +1,7 @@
 /* FarmLife — mundo 3D: cena, câmera isométrica, personagem, animais e interações */
 import * as THREE from 'three';
-import { ANIMALS, PRODUCTS, CROPS, WORKERS, FIELDS, TOTAL_PLOTS, fieldOf } from '../data.js';
+import { ANIMALS, PRODUCTS, CROPS, WORKERS, FIELDS, TOTAL_PLOTS, fieldOf, BIG_FIELD, BIG_CELLS, MACHINES } from '../data.js';
+import { sfx } from '../audio.js';
 import * as core from '../core.js';
 import * as ui from '../ui.js';
 import * as M from './models.js';
@@ -8,7 +9,7 @@ import { NavGrid } from './nav.js';
 
 // ================= Layout do mundo =================
 const TILE = 1.08;
-const BOUNDS = { minX: -15, maxX: 18.5, minZ: -10.3, maxZ: 14.5 };
+const BOUNDS = { minX: -15, maxX: 50, minZ: -10.3, maxZ: 14.5 };
 const PLAYER_R = 0.28;
 const WALK = 3.4;
 const RUN = 5.6;
@@ -37,7 +38,34 @@ for (const f of FIELDS) {
     info: `${f.icon} ${f.name} à venda: ${f.count} lotes por 🪙${f.cost.toLocaleString('pt-BR')} (nível ${f.level}). Compre na loja.`,
   };
 }
-const spotActive = (s) => !s.field || !core.fieldOwned(s.field);
+// Campo de Trigo (lavoura mecanizada): células de 1×1 a leste do mapa
+const BIG = { cx: 36, cz: 4.5 };
+const BIG_X0 = BIG.cx - BIG_FIELD.cols / 2;
+const BIG_Z0 = BIG.cz - BIG_FIELD.rows / 2;
+const SHED = [21, -8.3];
+SPOTS['campo:trigo'] = {
+  label: null, at: [BIG_X0 + 1.6, BIG.cz], point: [BIG_X0 + 1.6, BIG.cz + 0.9], r: 1.4, big: true,
+  text: `Ver o ${BIG_FIELD.name}`,
+  info: `${BIG_FIELD.icon} ${BIG_FIELD.name} à venda: ${BIG_CELLS} lotes por 🪙${BIG_FIELD.cost.toLocaleString('pt-BR')} (nível ${BIG_FIELD.level}). Compre na loja.`,
+};
+const spotActive = (s) => (s.big ? !core.S.big.owned : !s.field || !core.fieldOwned(s.field));
+
+// Máquinas: onde ficam estacionadas e como se comportam
+const PARK = { arado: [18.4, -4.6, 0], plantadeira: [22.4, -4.6, 0], colheitadeira: [27.6, -7.0, 0] };
+const MDEF = {
+  arado:         { make: () => M.makePlowTractor(),   speed: 4.6, turn: 1.9, width: 3, workZ: -1.6,  front: 1.0, reach: 1.9, exhaust: [0.17, 1.55, 0.75], verb: 'Arando' },
+  plantadeira:   { make: () => M.makeSeederTractor(), speed: 4.2, turn: 1.8, width: 4, workZ: -1.75, front: 1.0, reach: 1.9, exhaust: [0.17, 1.55, 0.75], verb: 'Plantando' },
+  colheitadeira: { make: () => M.makeCombine(),       speed: 3.3, turn: 1.4, width: 5, workZ: 2.05,  front: 2.3, reach: 2.4, exhaust: [0.45, 2.95, -1.25], verb: 'Colhendo' },
+};
+
+function bigCellAt(x, z) {
+  const c = Math.floor(x - BIG_X0), r = Math.floor(z - BIG_Z0);
+  if (c < 0 || c >= BIG_FIELD.cols || r < 0 || r >= BIG_FIELD.rows) return -1;
+  return r * BIG_FIELD.cols + c;
+}
+function bigCellCenter(k) {
+  return { x: BIG_X0 + (k % BIG_FIELD.cols) + 0.5, z: BIG_Z0 + Math.floor(k / BIG_FIELD.cols) + 0.5 };
+}
 
 export function tilePos(i) {
   const { field: f, r, c } = fieldOf(i);
@@ -168,6 +196,7 @@ export async function initWorld(cv) {
   buildFarm();
   buildBuildings();
   buildPen();
+  buildBigField();
   buildNature();
   buildRain();
   buildHelpers();
@@ -214,6 +243,8 @@ function buildGround() {
   strip(4.3, -1.6, 10.4, -0.4);   // até o Campo do Leste
   strip(-0.6, 3.2, 0.6, 8.7);     // até o Campo do Sul
   strip(4.3, 10.2, 10.4, 11.4);   // do Sul até o Campo do Lago
+  strip(16.8, -1.6, 24, -0.4);    // do Leste até o Campo de Trigo
+  strip(16.8, -6.6, 30, -3.4);    // pátio do galpão das máquinas
 
   // Borda de terra em volta de cada campo
   const borderMat = new THREE.MeshStandardMaterial({ color: 0x8a6a45, roughness: 1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
@@ -343,6 +374,334 @@ function buildBuildings() {
   lamps.push(lampBarn, lampHouse, lampShop);
 }
 
+// ================= Campo de Trigo e galpão =================
+let bigTex, bigTexData, bigWheat, bigSign, bigProxy, bigOwnedShown = null;
+const bigTexKeys = new Uint8Array(BIG_CELLS).fill(255);
+const bigStage = new Int8Array(BIG_CELLS).fill(-2);
+const bigRot = new Float32Array(BIG_CELLS).map(() => Math.random() * Math.PI * 2);
+const bigShade = new Float32Array(BIG_CELLS).map(() => Math.random());
+
+function buildBigField() {
+  const { cols, rows } = BIG_FIELD;
+  const x1 = BIG_X0 + cols, z1 = BIG_Z0 + rows;
+
+  const border = new THREE.Mesh(
+    new THREE.PlaneGeometry(cols + 0.8, rows + 0.8),
+    new THREE.MeshStandardMaterial({ color: 0x8a6a45, roughness: 1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }),
+  );
+  border.rotation.x = -Math.PI / 2;
+  border.position.set(BIG.cx, 0.012, BIG.cz);
+  border.receiveShadow = true;
+  scene.add(border);
+
+  // Uma textura com 1 pixel por célula pinta o chão inteiro (palha, arado, plantado)
+  bigTexData = new Uint8Array(BIG_CELLS * 4);
+  bigTex = new THREE.DataTexture(bigTexData, cols, rows);
+  bigTex.magFilter = THREE.NearestFilter;
+  bigTex.minFilter = THREE.NearestFilter;
+  bigTex.colorSpace = THREE.SRGBColorSpace;
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(cols, rows),
+    new THREE.MeshStandardMaterial({ map: bigTex, roughness: 1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
+  );
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.set(BIG.cx, 0.02, BIG.cz);
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  // Trigo: um tufo instanciado por célula
+  bigWheat = new THREE.InstancedMesh(M.makeWheatTuftGeometry(), new THREE.MeshStandardMaterial({ flatShading: true, roughness: 0.9 }), BIG_CELLS);
+  bigWheat.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  bigWheat.castShadow = true;
+  bigWheat.receiveShadow = true;
+  bigWheat.frustumCulled = false;
+  const zero = new THREE.Matrix4().makeScale(0, 0, 0);
+  for (let k = 0; k < BIG_CELLS; k++) {
+    bigWheat.setMatrixAt(k, zero);
+    bigWheat.setColorAt(k, C_WHEAT_GREEN);
+  }
+  scene.add(bigWheat);
+
+  // Cerca nos lados norte, leste e sul. O oeste e o começo do norte (em frente ao galpão) ficam abertos para as máquinas
+  const fences = [[BIG_X0 + 7, BIG_Z0 - 0.4, x1 + 0.4, BIG_Z0 - 0.4], [x1 + 0.4, BIG_Z0 - 0.4, x1 + 0.4, z1 + 0.4], [BIG_X0 - 0.4, z1 + 0.4, x1 + 0.4, z1 + 0.4]];
+  for (const [a, b, c, d] of fences) {
+    scene.add(M.makeFence(a, b, c, d));
+    nav.blockLine(a, b, c, d, 0.08 + PLAYER_R);
+  }
+
+  // Placa de venda
+  const [sx, sz] = SPOTS['campo:trigo'].at;
+  bigSign = new THREE.Group();
+  const sign = M.makeSaleSign();
+  sign.position.set(sx, 0, sz);
+  sign.rotation.y = Math.PI / 4;
+  bigSign.add(sign);
+  const label = M.textSprite(`🪧 ${BIG_FIELD.name} · 🪙${BIG_FIELD.cost.toLocaleString('pt-BR')}`, 0.45);
+  label.position.set(sx, 1.7, sz);
+  bigSign.add(label);
+  scene.add(bigSign);
+  bigProxy = new THREE.Mesh(M.GEO.box, new THREE.MeshBasicMaterial({ visible: false }));
+  bigProxy.scale.set(1.3, 1.6, 0.6);
+  bigProxy.position.set(sx, 0.8, sz);
+  bigProxy.userData.pick = { kind: 'spot', key: 'campo:trigo' };
+  scene.add(bigProxy);
+
+  // Galpão das máquinas
+  const shed = M.makeShed();
+  shed.position.set(SHED[0], 0, SHED[1]);
+  scene.add(shed);
+  const shedLabel = M.textSprite('🚜 Galpão', 0.45);
+  shedLabel.position.set(SHED[0], 3.9, SHED[1]);
+  scene.add(shedLabel);
+  nav.blockLine(SHED[0] - 3.6, SHED[1] - 1.6, SHED[0] + 3.6, SHED[1] - 1.6, 0.1 + PLAYER_R);
+  nav.blockLine(SHED[0] - 3.6, SHED[1] - 1.6, SHED[0] - 3.6, SHED[1] + 1.6, 0.1 + PLAYER_R);
+  nav.blockLine(SHED[0] + 3.6, SHED[1] - 1.6, SHED[0] + 3.6, SHED[1] + 1.6, 0.1 + PLAYER_R);
+  for (const x of [-1.2, 1.2]) nav.blockCircle(SHED[0] + x, SHED[1] + 1.55, 0.1 + PLAYER_R);
+}
+
+const C_WHEAT_GREEN = new THREE.Color(0x6fbf3a);
+const C_WHEAT_GOLD = new THREE.Color(0xe9c35a);
+const C_WHEAT_RIPE = new THREE.Color(0xf6d36b);
+const BIG_SOIL = [
+  [0xc9b46e, 0xbca763], // palha
+  [0x7a5232, 0x6c472a], // arado (sulcos alternados)
+  [0x5e3d22, 0x553720], // plantado
+];
+const tmpM = new THREE.Matrix4();
+const tmpQ = new THREE.Quaternion();
+const tmpV = new THREE.Vector3();
+const tmpS = new THREE.Vector3();
+const UP = new THREE.Vector3(0, 1, 0);
+
+/** Atualiza só o que mudou no Campo de Trigo: cor do chão e altura/cor do trigo. */
+function syncBig() {
+  const b = core.S.big;
+  if (bigOwnedShown !== b.owned) {
+    bigOwnedShown = b.owned;
+    bigSign.visible = !b.owned;
+    const k = pickables.indexOf(bigProxy);
+    if (b.owned && k >= 0) pickables.splice(k, 1);
+    if (!b.owned && k < 0) pickables.push(bigProxy);
+  }
+  let texDirty = false, instDirty = false;
+  const T = BIG_FIELD.time;
+  for (let k = 0; k < BIG_CELLS; k++) {
+    const st = b.s[k];
+    if (bigTexKeys[k] !== st) {
+      bigTexKeys[k] = st;
+      const row = Math.floor(k / BIG_FIELD.cols);
+      const col = BIG_SOIL[st][st === 0 ? (bigShade[k] > 0.5 ? 1 : 0) : row % 2];
+      const py = BIG_FIELD.rows - 1 - row; // a linha 0 da textura fica no sul (z maior)
+      const o = (py * BIG_FIELD.cols + (k % BIG_FIELD.cols)) * 4;
+      bigTexData[o] = (col >> 16) & 255;
+      bigTexData[o + 1] = (col >> 8) & 255;
+      bigTexData[o + 2] = col & 255;
+      bigTexData[o + 3] = 255;
+      texDirty = true;
+    }
+    const stage = st === 2 ? (b.g[k] >= T ? 11 : Math.floor((b.g[k] / T) * 10)) : -1;
+    if (bigStage[k] !== stage) {
+      bigStage[k] = stage;
+      const c = bigCellCenter(k);
+      if (stage < 0) {
+        tmpS.set(0, 0, 0);
+      } else {
+        const h = stage === 11 ? 0.8 : 0.12 + 0.58 * (stage / 10);
+        const w = stage === 11 ? 1 : 0.55 + 0.45 * (stage / 10);
+        tmpS.set(w, h, w);
+      }
+      tmpQ.setFromAxisAngle(UP, bigRot[k]);
+      tmpM.compose(tmpV.set(c.x, 0.02, c.z), tmpQ, tmpS);
+      bigWheat.setMatrixAt(k, tmpM);
+      if (stage >= 0) bigWheat.setColorAt(k, stage === 11 ? C_WHEAT_RIPE : tmpColor.copy(C_WHEAT_GREEN).lerp(C_WHEAT_GOLD, stage / 12));
+      instDirty = true;
+    }
+  }
+  if (texDirty) bigTex.needsUpdate = true;
+  if (instDirty) {
+    bigWheat.instanceMatrix.needsUpdate = true;
+    bigWheat.instanceColor.needsUpdate = true;
+  }
+}
+
+// ================= Máquinas (o jogador dirige) =================
+const machines = new Map();
+let driving = null;
+let zoomMult = 1;
+let seedlessWarned = false;
+
+function syncMachines() {
+  for (const id of Object.keys(MACHINES)) {
+    const st = core.S.machines[id];
+    if (st && !machines.has(id)) {
+      const def = MDEF[id];
+      const m = def.make();
+      const parked = st.x == null;
+      const pos = new THREE.Vector3(parked ? PARK[id][0] : st.x, 0, parked ? PARK[id][1] : st.z);
+      const heading = parked ? PARK[id][2] : st.h;
+      if (parked) Object.assign(st, { x: pos.x, z: pos.z, h: heading });
+      m.root.position.copy(pos);
+      m.root.rotation.y = heading;
+      m.root.userData.pick = { kind: 'machine', id };
+      scene.add(m.root);
+      pickables.push(m.root);
+      // Retângulo claro mostrando a faixa que o implemento trabalha
+      const area = new THREE.Mesh(
+        new THREE.PlaneGeometry(def.width, 0.9),
+        new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.22, depthWrite: false }),
+      );
+      area.rotation.x = -Math.PI / 2;
+      area.position.set(0, 0.07, def.workZ);
+      area.visible = false;
+      m.root.add(area);
+      machines.set(id, { id, def, m, pos, heading, speed: 0, area, harvested: 0, fxT: 0, sfxT: 0, smokeT: 0 });
+    } else if (!st && machines.has(id)) {
+      const v = machines.get(id);
+      if (driving === id) exitMachine();
+      scene.remove(v.m.root);
+      pickables.splice(pickables.indexOf(v.m.root), 1);
+      machines.delete(id);
+    }
+  }
+}
+
+function enterMachine(id) {
+  const v = machines.get(id);
+  if (!v || driving) return;
+  driving = id;
+  cancelJobs();
+  player.m.root.visible = false;
+  v.m.driver.visible = true;
+  v.area.visible = true;
+  v.speed = 0;
+  ui.toast(`${MACHINES[id].icon} Dirigindo: ${MACHINES[id].name}. Espaço (ou ✋) para sair.`);
+  sfx('open');
+}
+
+function exitMachine() {
+  const v = machines.get(driving);
+  driving = null;
+  player.m.root.visible = true;
+  if (!v) return;
+  v.m.driver.visible = false;
+  v.area.visible = false;
+  v.speed = 0;
+  const s = Math.sin(v.heading), c = Math.cos(v.heading);
+  // Desce ao lado da máquina, num lugar livre
+  let spot = null;
+  for (const [lx, lz] of [[1.5, 0], [-1.5, 0], [0, -2.8], [2.3, 0], [-2.3, 0], [0, 3]]) {
+    const x = v.pos.x + c * lx + s * lz, z = v.pos.z - s * lx + c * lz;
+    if (nav.free(x, z)) { spot = { x, z }; break; }
+  }
+  if (!spot) {
+    const [cx, cz] = nav.toCell(v.pos.x, v.pos.z);
+    const n = nav.nearestFree(cx, cz);
+    spot = n ? nav.center(n[0], n[1]) : { x: v.pos.x, z: v.pos.z };
+  }
+  player.pos.set(spot.x, 0, spot.z);
+  player.heading = v.heading;
+  Object.assign(core.S.machines[v.id], { x: v.pos.x, z: v.pos.z, h: v.heading });
+  sfx('open');
+}
+
+/** Direção estilo arcade: a máquina gira aos poucos para onde você aponta e anda para frente. */
+function driveMachine(dt, ix, iz, mag) {
+  const v = machines.get(driving);
+  const d = v.def;
+  let target = 0;
+  if (ix || iz) {
+    const desired = Math.atan2(ix, iz);
+    let diff = ((desired - v.heading + Math.PI) % (Math.PI * 2)) - Math.PI;
+    if (diff < -Math.PI) diff += Math.PI * 2;
+    const maxTurn = d.turn * dt;
+    v.heading += THREE.MathUtils.clamp(diff, -maxTurn, maxTurn);
+    const align = Math.cos(diff);
+    target = d.speed * mag * (align > 0 ? 0.35 + 0.65 * align : 0.3);
+  }
+  v.speed += (target - v.speed) * Math.min(1, dt * (target > v.speed ? 1.8 : 3.5));
+  const s = Math.sin(v.heading), c = Math.cos(v.heading);
+  const step = v.speed * dt;
+  const nx = v.pos.x + s * step, nz = v.pos.z + c * step;
+  if (nav.free(nx, nz) && nav.free(nx + s * d.front, nz + c * d.front)) {
+    v.pos.x = nx;
+    v.pos.z = nz;
+  } else {
+    v.speed *= 0.3; // bateu em algo
+  }
+  player.pos.copy(v.pos);
+  player.heading = v.heading;
+  Object.assign(core.S.machines[v.id], { x: v.pos.x, z: v.pos.z, h: v.heading });
+  machineWork(v);
+}
+
+const CHAFF = 0xe6d27a;
+function machineWork(v) {
+  if (v.speed < 0.25) return;
+  const d = v.def;
+  const s = Math.sin(v.heading), c = Math.cos(v.heading);
+  const wx = v.pos.x + s * d.workZ, wz = v.pos.z + c * d.workZ;
+  let changed = 0, noseed = false;
+  for (let j = 0; j < d.width; j++) {
+    const off = (j - (d.width - 1) / 2) * 0.95;
+    for (const along of [-0.3, 0.3]) {
+      const px = wx + c * off + s * along, pz = wz - s * off + c * along;
+      const k = bigCellAt(px, pz);
+      if (k < 0) continue;
+      const res = core.bigWork(v.id, k);
+      if (res === 'noseed') { noseed = true; continue; }
+      if (!res) continue;
+      changed++;
+      const p = bigCellCenter(k);
+      if (res === 'till') burst(p.x, 0.15, p.z, 0x6c472a, 3, { up: 2.2, spread: 0.7 });
+      else if (res === 'plant') burst(p.x, 0.15, p.z, 0x9ccc65, 2, { up: 1.2, spread: 0.4, size: 0.04 });
+      else if (res === 'harvest') { v.harvested++; burst(p.x, 0.6, p.z, CHAFF, 2, { up: 2.5, spread: 0.6, size: 0.05 }); }
+    }
+  }
+  if (noseed && !seedlessWarned) ui.toast('🌾 A plantadeira está sem sementes de trigo! Compre um saco ×50 na loja.', 'bad');
+  seedlessWarned = noseed || (seedlessWarned && !(core.S.seeds.trigo > 0));
+  if (changed && clock - v.sfxT > 0.35) {
+    sfx(v.id === 'arado' ? 'till' : v.id === 'plantadeira' ? 'plant' : 'harvest');
+    v.sfxT = clock;
+  }
+  // Palha saindo de trás da colheitadeira
+  if (v.id === 'colheitadeira' && changed) burst(v.pos.x - s * 1.7, 1.2, v.pos.z - c * 1.7, CHAFF, 3, { up: 1.2, spread: 0.9, life: 0.9, gravity: 3 });
+}
+
+/** Animação das máquinas: rodas, molinete, vibração do motor e fumaça. */
+function updateMachines(dt) {
+  for (const v of machines.values()) {
+    const m = v.m;
+    if (driving !== v.id) v.speed *= Math.max(0, 1 - dt * 4);
+    m.root.position.copy(v.pos);
+    m.root.rotation.y = v.heading;
+    for (const w of m.wheels) w.spin.rotation.x += (v.speed * dt) / w.r;
+    const on = driving === v.id;
+    m.body.position.y = on ? Math.sin(clock * 38) * 0.008 : 0;
+    if (m.reel) m.reel.rotation.x += dt * (on ? 2.5 + v.speed : 0);
+    if (on && clock - v.smokeT > 0.18) {
+      v.smokeT = clock;
+      const [ex, ey, ez] = v.def.exhaust;
+      const p = m.root.localToWorld(tmpV.set(ex, ey, ez));
+      burst(p.x, p.y, p.z, 0x555555, 1, { up: 1.4, spread: 0.15, life: 0.8, gravity: -0.5, size: 0.08 });
+    }
+    // Contador de trigo colhido
+    if (v.harvested && clock - v.fxT > 0.7) {
+      const p = screenPosOf({ machine: v.id });
+      if (p) ui.fxAt(p.x, p.y, `+${v.harvested} 🌾`, 'gold');
+      v.harvested = 0;
+      v.fxT = clock;
+    }
+  }
+}
+
+function machineInfo() {
+  const v = machines.get(driving);
+  const sum = core.bigSummary();
+  if (v.id === 'arado') return `🚜 ${v.def.verb} 3 faixas · palha a arar: ${sum.palha} lotes`;
+  if (v.id === 'plantadeira') return `🚜 ${v.def.verb} 4 faixas · sementes de trigo: ${core.S.seeds.trigo || 0} · lotes arados: ${sum.arado}`;
+  return `🌾 ${v.def.verb} 5 faixas · trigo maduro: ${sum.maduro} · crescendo: ${sum.crescendo}`;
+}
+
 function buildPen() {
   const { x1, x2, z1, z2, gate } = PEN;
   const ground = new THREE.Mesh(
@@ -386,8 +745,8 @@ function buildNature() {
     return obj;
   };
   // Árvores altas só no fundo e à esquerda (não escondem o personagem)
-  for (let x = -24; x <= 26; x += rand(1.6, 2.6)) put(M.makeTree(Math.random() < 0.55 ? 'pine' : 'round', rand(0.9, 1.35)), x, rand(-13.2, -11.4));
-  for (let x = -22; x <= 26; x += rand(2.2, 3.4)) put(M.makeTree(Math.random() < 0.5 ? 'pine' : 'round', rand(1.0, 1.5)), x, rand(-16.5, -14.5));
+  for (let x = -24; x <= 56; x += rand(1.6, 2.6)) put(M.makeTree(Math.random() < 0.55 ? 'pine' : 'round', rand(0.9, 1.35)), x, rand(-13.2, -11.4));
+  for (let x = -22; x <= 56; x += rand(2.2, 3.4)) put(M.makeTree(Math.random() < 0.5 ? 'pine' : 'round', rand(1.0, 1.5)), x, rand(-16.5, -14.5));
   for (let z = -10; z <= 4; z += rand(1.6, 2.4)) put(M.makeTree(Math.random() < 0.6 ? 'pine' : 'round', rand(0.9, 1.3)), rand(-17.8, -16.2), z);
   put(M.makeTree('apple', 1.1), -13.3, -8.6);
   put(M.makeTree('apple', 1.0), 9.8, -9.2);
@@ -395,13 +754,16 @@ function buildNature() {
   nav.blockCircle(9.8, -9.2, 0.35 + PLAYER_R);
 
   // Arbustos, pedras e flores nas bordas da frente e da direita
-  for (let x = -16; x <= 20; x += rand(1.2, 2.2)) put(M.makeBush(rand(0.8, 1.2)), x, rand(15.3, 16.1));
-  for (let z = -9; z <= 15; z += rand(1.2, 2.2)) put(M.makeBush(rand(0.8, 1.2)), rand(19.3, 20.1), z);
+  for (let x = -16; x <= 51; x += rand(1.2, 2.2)) put(M.makeBush(rand(0.8, 1.2)), x, rand(15.3, 16.1));
+  for (let z = -9; z <= 15; z += rand(1.2, 2.2)) put(M.makeBush(rand(0.8, 1.2)), rand(50.8, 51.6), z);
   for (let z = 5; z <= 15; z += rand(1.4, 2)) put(M.makeBush(rand(0.8, 1.1)), rand(-16.2, -15.6), z);
   const flowerColors = [0xff6f91, 0xffffff, 0xffd54f, 0xba68c8, 0xff8a65, 0x64b5f6];
   const inField = (x, z) => FIELDS.some((f) => { const q = fieldRect(f, 0.5); return x > q.x1 && x < q.x2 && z > q.z1 && z < q.z2; });
   const blocked = (x, z) =>
     inField(x, z) ||
+    (x > BIG_X0 - 1.5 && z > BIG_Z0 - 1.5 && z < BIG_Z0 + BIG_FIELD.rows + 1.5) ||
+    (x > 16 && x < 30 && z < -3) ||
+    (x > 16.5 && x < 24.5 && z > -2.1 && z < 0.1) ||
     (x > 3.8 && x < 10.9 && z > -2.1 && z < 0.1) ||
     (x > -1.1 && x < 1.1 && z > 2.7 && z < 9.2) ||
     (x > 3.8 && x < 10.9 && z > 9.7 && z < 11.9) ||
@@ -454,13 +816,15 @@ function buildHelpers() {
 }
 
 // ================= Câmera =================
+const tmpLook = new THREE.Vector3();
 function resize() {
   const w = canvas.clientWidth || window.innerWidth;
   const h = canvas.clientHeight || window.innerHeight;
   renderer.setSize(w, h, false);
   const a = w / h;
   // Em tela vertical (celular), garante uma largura de visão confortável
-  const vh = a >= 1 ? zoom : (zoom * 0.8) / a;
+  const z = zoom * zoomMult;
+  const vh = a >= 1 ? z : (z * 0.8) / a;
   camera.left = (-vh * a) / 2;
   camera.right = (vh * a) / 2;
   camera.top = vh / 2;
@@ -474,7 +838,14 @@ export function zoomBy(f) {
 }
 
 function updateCamera(dt) {
-  camTarget.lerp(player.pos, 1 - Math.exp(-6 * dt));
+  const want = driving ? 1.4 : 1;
+  if (Math.abs(zoomMult - want) > 0.002) {
+    zoomMult += (want - zoomMult) * Math.min(1, dt * 2);
+    resize();
+  }
+  // Ao dirigir, a câmera olha um pouco à frente da máquina
+  const look = driving ? tmpLook.set(Math.sin(player.heading) * 2.5, 0, Math.cos(player.heading) * 2.5).add(player.pos) : player.pos;
+  camTarget.lerp(look, 1 - Math.exp(-6 * dt));
   camera.position.copy(camTarget).add(ISO);
   camera.lookAt(camTarget);
 }
@@ -795,6 +1166,7 @@ function jobTarget(job) {
   if (job.kind === 'animal') { const v = animalVis.get(job.id); return v ? { x: v.pos.x, z: v.pos.z, reach: 0.95 } : null; }
   if (job.kind === 'spot') { const s = SPOTS[job.key]; return { x: s.point[0], z: s.point[1], reach: 0.6 }; }
   if (job.kind === 'move') return { x: job.x, z: job.z, reach: 0.1 };
+  if (job.kind === 'machine') { const v = machines.get(job.id); return v ? { x: v.pos.x, z: v.pos.z, reach: v.def.reach } : null; }
   return null;
 }
 
@@ -844,6 +1216,7 @@ function performJob(job) {
   if (job.kind === 'tile') doTile(job.i, job.quiet);
   else if (job.kind === 'animal') doAnimal(job.id, job.quiet);
   else if (job.kind === 'spot') openSpot(job.key);
+  else if (job.kind === 'machine') enterMachine(job.id);
 }
 
 function startAction(kind) {
@@ -882,6 +1255,10 @@ function openSpot(key) {
     }
     return;
   }
+  if (key === 'campo:trigo') {
+    ui.openPanel('loja', 'maquinas');
+    return;
+  }
   if (key.startsWith('campo:')) {
     ui.openPanel('loja', 'campos');
     return;
@@ -896,6 +1273,7 @@ function openSpot(key) {
 
 /** O que está ao alcance do personagem (para a tecla de ação). */
 function getContext() {
+  if (driving) return { kind: 'exit', id: driving };
   let best = null;
   let bd = 1.25;
   for (const v of animalVis.values()) {
@@ -903,6 +1281,9 @@ function getContext() {
     if (d < bd) { bd = d; best = { kind: 'animal', id: v.id }; }
   }
   if (best) return best;
+  for (const v of machines.values()) {
+    if (dist2(player.pos, v.pos.x, v.pos.z) < v.def.reach) return { kind: 'machine', id: v.id };
+  }
   for (const [key, s] of Object.entries(SPOTS)) {
     if (spotActive(s) && dist2(player.pos, s.point[0], s.point[1]) < s.r) return { kind: 'spot', key };
   }
@@ -917,6 +1298,8 @@ function getContext() {
 function actionLabel(ctx) {
   if (!ctx) return null;
   if (ctx.kind === 'tile') return core.tileActionLabel(ctx.i);
+  if (ctx.kind === 'machine') return `Dirigir: ${MACHINES[ctx.id].name}`;
+  if (ctx.kind === 'exit') return 'Sair da máquina';
   if (ctx.kind === 'animal') { const a = core.findAnimal(ctx.id); return a ? core.animalActionLabel(a) : null; }
   if (ctx.kind === 'spot') {
     if (ctx.key === 'casa') return core.dayHours() >= 18 ? SPOTS.casa.text : null;
@@ -928,6 +1311,8 @@ function actionLabel(ctx) {
 function infoText(ctx) {
   if (!ctx) return null;
   if (ctx.kind === 'tile') return core.plotInfo(ctx.i);
+  if (ctx.kind === 'machine') return `${MACHINES[ctx.id].icon} ${MACHINES[ctx.id].name}: ${MACHINES[ctx.id].desc}`;
+  if (ctx.kind === 'exit') return machineInfo();
   if (ctx.kind === 'animal') { const a = core.findAnimal(ctx.id); return a ? core.animalInfo(a) : null; }
   if (ctx.kind === 'spot') return SPOTS[ctx.key].info;
   return null;
@@ -937,7 +1322,9 @@ function keyAction(repeat) {
   if (player.busy > 0) return;
   const ctx = getContext();
   if (!ctx) return;
+  if (ctx.kind === 'exit') { if (!repeat) exitMachine(); return; }
   cancelJobs();
+  if (ctx.kind === 'machine') { if (!repeat) enterMachine(ctx.id); return; }
   if (ctx.kind === 'tile') {
     player.heading = Math.atan2(tilePos(ctx.i).x - player.pos.x, tilePos(ctx.i).z - player.pos.z) || player.heading;
     doTile(ctx.i, repeat);
@@ -969,15 +1356,21 @@ function updatePlayer(dt) {
   player.moving = false;
 
   // Joystick: tela para direita = (1, -1) no mundo, tela para baixo = (1, 1)
+  let mag = 1;
   if (joy.id !== null && joy.moved) {
     const dx = joy.x - joy.sx, dy = joy.y - joy.sy;
-    const mag = Math.min(1, Math.hypot(dx, dy) / JOY_RADIUS);
+    mag = Math.min(1, Math.hypot(dx, dy) / JOY_RADIUS);
     if (mag * JOY_RADIUS > JOY_DEAD) {
       ix = dx + dy;
       iz = dy - dx;
       speed = mag > 0.85 ? RUN : WALK * Math.max(0.35, mag / 0.85);
       player.running = mag > 0.85;
     }
+  }
+
+  if (driving) {
+    driveMachine(dt, ix, iz, mag);
+    return;
   }
 
   if (ix || iz) {
@@ -1189,10 +1582,12 @@ function queued(i) {
 
 /** Clique (mouse) ou toque rápido: vai até o alvo e age. Retorna o que foi atingido. */
 function clickAt(e) {
+  if (driving) return null; // dirigindo: os cliques não movem o fazendeiro
   setNdc(e);
   const hit = pick();
   if (!hit) return null;
   cancelJobs();
+  if (hit.kind === 'machine') { player.queue.push({ kind: 'machine', id: hit.id }); return hit; }
   if (hit.kind === 'tile') {
     player.queue.push({ kind: 'tile', i: hit.i });
   } else if (hit.kind === 'animal') {
@@ -1359,7 +1754,8 @@ export function screenPosOf(target) {
   const v = new THREE.Vector3();
   if (target.tile != null) { v.copy(tilePos(target.tile)); v.y = 0.9; }
   else if (target.animal != null) { const a = animalVis.get(target.animal); if (!a) return null; v.copy(a.pos); v.y = 1.0; }
-  else if (target.player) { v.copy(player.pos); v.y = 1.7; }
+  else if (target.player) { v.copy(player.pos); v.y = driving ? 3 : 1.7; }
+  else if (target.machine) { const m = machines.get(target.machine); if (!m) return null; v.copy(m.pos); v.y = 2.6; }
   else return null;
   v.project(camera);
   const r = canvas.getBoundingClientRect();
@@ -1368,6 +1764,7 @@ export function screenPosOf(target) {
 
 /** Recomeço do jogo: limpa animais, tarefas e volta o personagem ao início. */
 export function onReset() {
+  if (driving) exitMachine();
   for (const v of animalVis.values()) {
     scene.remove(v.m.root);
     if (v.ind) scene.remove(v.ind);
@@ -1385,11 +1782,14 @@ export function worldFrame(dt) {
   clock += dt;
   syncFields();
   syncPlots();
+  syncBig();
+  syncMachines();
   syncAnimals();
   syncWorkers();
   updatePlayer(dt);
   updateAnimals(dt);
   updateWorkers(dt);
+  updateMachines(dt);
   animatePlots();
   updateCamera(dt);
   updateSky(dt);
@@ -1399,4 +1799,4 @@ export function worldFrame(dt) {
 }
 
 // Usado pelos testes no console do navegador
-export const debug = { player, animalVis, npcs, get zoom() { return zoom; }, tileAt, tilePos, get nav() { return nav; } };
+export const debug = { player, animalVis, npcs, machines, get driving() { return driving; }, enterMachine, exitMachine, bigCellAt, bigCellCenter, get zoom() { return zoom; }, tileAt, tilePos, get nav() { return nav; } };

@@ -2,7 +2,7 @@
 import {
   COLS, ROWS, DAY_LEN, MAX_OFFLINE, SAVE_KEY, FIELDS, TOTAL_PLOTS, fieldOf,
   CROPS, PRODUCTS, ANIMALS, WATER_TIME, GROW_SPEED, PEN_SIZE, UPGRADES, CUSTOMERS,
-  WORKERS, WORK_TIME,
+  WORKERS, WORK_TIME, BIG_FIELD, BIG_CELLS, MACHINES,
 } from './data.js';
 
 // ================= Utilidades =================
@@ -66,6 +66,11 @@ export function toolList() {
   return TOOLS.map((t) => t.id).concat(seeds);
 }
 
+// Campo de Trigo: s = 0 palha (precisa arar), 1 arado, 2 plantado; g = crescimento em segundos
+function newBigField() {
+  return { owned: false, s: new Array(BIG_CELLS).fill(0), g: new Array(BIG_CELLS).fill(0) };
+}
+
 function newState() {
   const plots = [];
   for (let r = 0; r < ROWS; r++) {
@@ -89,6 +94,8 @@ function newState() {
     animals: [],
     nextId: 1,
     fields: Object.fromEntries(FIELDS.map((f) => [f.id, f.cost === 0])),
+    big: newBigField(),
+    machines: Object.fromEntries(Object.keys(MACHINES).map((id) => [id, false])),
     workers: { colhedor: false, plantador: false, tratador: false },
     up: { regador: 0, adubo: 0, curral: 0, alimentador: 0, aspersor: 0 },
     weather: 'sol',
@@ -221,6 +228,13 @@ export function update(dt, quiet) {
       feederWarned = true;
     }
     if (!hungry) feederWarned = false;
+  }
+
+  if (S.big.owned) {
+    const b = S.big;
+    for (let k = 0; k < BIG_CELLS; k++) {
+      if (b.s[k] === 2 && b.g[k] < BIG_FIELD.time) b.g[k] = Math.min(BIG_FIELD.time, b.g[k] + dt * speed);
+    }
   }
 
   if (quiet) workersOffline(dt);
@@ -517,6 +531,70 @@ export function feedAll() {
   return fed;
 }
 
+// ================= Lavoura mecanizada =================
+export const bigReady = (k) => S.big.s[k] === 2 && S.big.g[k] >= BIG_FIELD.time;
+
+/** Resumo do campo: quantas células em cada etapa. */
+export function bigSummary() {
+  const out = { palha: 0, arado: 0, crescendo: 0, maduro: 0 };
+  for (let k = 0; k < BIG_CELLS; k++) {
+    const s = S.big.s[k];
+    if (s === 0) out.palha++;
+    else if (s === 1) out.arado++;
+    else if (bigReady(k)) out.maduro++;
+    else out.crescendo++;
+  }
+  return out;
+}
+
+export function buyBigField() {
+  if (S.big.owned || BIG_FIELD.level > S.level) return;
+  if (!spend(BIG_FIELD.cost)) return;
+  S.big.owned = true;
+  toast(`${BIG_FIELD.icon} O ${BIG_FIELD.name} é seu! ${BIG_CELLS} lotes. Compre as máquinas para trabalhar nele.`, 'good');
+  sfx('level');
+}
+
+export function buyMachine(id) {
+  const m = MACHINES[id];
+  if (S.machines[id] || m.level > S.level) return;
+  if (!S.big.owned) { toast(`Compre o ${BIG_FIELD.name} antes das máquinas.`, 'bad'); sfx('error'); return; }
+  if (!spend(m.cost)) return;
+  S.machines[id] = { x: null, z: null, h: 0 }; // a cena estaciona no galpão
+  toast(`${m.icon} ${m.name} chegou ao galpão! Chegue perto e aperte Espaço para dirigir.`, 'good');
+  sfx('level');
+}
+
+/**
+ * Trabalho de uma máquina numa célula do Campo de Trigo.
+ * Retorna 'till', 'plant', 'harvest', 'noseed' ou null (nada a fazer ali).
+ */
+export function bigWork(machine, k) {
+  const b = S.big;
+  if (!b.owned) return null;
+  if (machine === 'arado' && b.s[k] === 0) {
+    b.s[k] = 1;
+    return 'till';
+  }
+  if (machine === 'plantadeira' && b.s[k] === 1) {
+    if (!(S.seeds.trigo > 0)) return 'noseed';
+    S.seeds.trigo--;
+    b.s[k] = 2;
+    b.g[k] = 0;
+    markDirty('toolbar', 'panel');
+    return 'plant';
+  }
+  if (machine === 'colheitadeira' && bigReady(k)) {
+    b.s[k] = 0;
+    b.g[k] = 0;
+    addItem('trigo', 1);
+    gainXp(1);
+    S.stats.harvest++;
+    return 'harvest';
+  }
+  return null;
+}
+
 // ================= Funcionários =================
 export const dailyWages = () => Object.entries(WORKERS).reduce((s, [id, w]) => s + (S.workers[id] ? w.wage : 0), 0);
 
@@ -720,6 +798,8 @@ function load() {
       stats: { ...base.stats, ...d.stats },
       workers: { ...base.workers, ...d.workers },
       fields: { ...base.fields, ...d.fields },
+      machines: { ...base.machines, ...d.machines },
+      big: d.big && Array.isArray(d.big.s) && d.big.s.length === BIG_CELLS ? d.big : base.big,
     };
     // Saves antigos têm só o campo principal: completa com os lotes dos campos novos
     st.plots = base.plots.map((p, i) => d.plots[i] || p);
