@@ -2,6 +2,26 @@
 
 Todas as mudanças do jogo, da mais nova para a mais antiga. Este arquivo é gerado a partir de `js/changelog.js` por `node tools/gerar-versao.mjs`.
 
+## v5.0.0 — A vila do outro lado do rio (17/10/2026)
+
+- 🌉 O mapa cresceu para o sul: um rio atravessa a fazenda e, do outro lado da ponte, fica a vila, com casinhas, praça com fonte, capela e feirinha.
+- 🏘️ Seis moradores passeiam pela vila de dia e vão para casa à noite. Converse com eles: a primeira conversa do dia com cada um dá +3 XP, e eles dão dicas e avisam quando é a próxima festa.
+- 🎣 Pesca no rio (até da ponte!), com peixes novos: pacu, truta e o raro dourado. Tilápia e carpa dourada continuam só no lago.
+- 🏠 Dá para entrar em casa: durma na cama, decore com móveis novos (tapete, poltrona, vaso, estante e abajur) e faça a reforma na Loja → Melhorias (casa com cozinha e casa grande, com despensa que aumenta o armazém).
+- 👕 Roupas: escolha a cor da camisa, da calça e do cabelo e o chapéu (palha, boné, gorro, lenço, coroa de flores ou nenhum) em Trocar personagem.
+- 👋 Gestos: acenar, sentar, dançar e comemorar (botão 👋 ao lado do zoom, ou Z, X e V). Parado por um tempo, o personagem senta; ao subir de nível, comemora.
+- ❤️ Animais felizes: faça carinho uma vez por dia e não deixe faltar comida. Felizes, produzem mais rápido e às vezes em dobro; tristes, ficam lentos.
+- 🪴 Estufa (nível 9): canteiros protegidos que crescem bem em qualquer estação, sem precisar regar e sem corvos.
+- ⛺ Barraca de beira de estrada (nível 4): deixe produtos à venda e os moradores compram sozinhos, 15% acima do mercado.
+- 💦 Aspersor (nível 5): rega sozinho os lotes em volta. Ao colocar aspersor e espantalho, aparece até onde eles alcançam.
+- 🥅 Rede de insetos e álbum de coleções (Armazém → Álbum): pegue borboletas, joaninhas e vaga-lumes, colecione culturas, gigantes, mutações e peixes, e ganhe prêmios ao completar cada página.
+- 🎊 Festas da vila no 4º dia de cada estação: Festa das Flores, Festa Junina (bandeirinhas e fogueira), Festa da Colheita e Natal na Fazenda, cada uma com bônus.
+- 🌊 O lago ganhou ondinhas, reflexo do céu, brilhos de dia e lua e estrelas refletidas à noite. À noite as janelas acendem e passa estrela cadente.
+- 🎵 A música muda com a estação (sininhos no inverno), e há sons do ambiente: passarinhos, grilos, coruja, vento e chuva (abafados dentro de casa).
+- 🔔 Aviso de colheita pronta (⚙️ Configurações): com o jogo aberto em outra aba ou minimizado, o navegador avisa quando a colheita ou os animais ficarem prontos.
+- 💾 Backup da fazenda (⚙️ Configurações): baixe um arquivo ou copie um código, e carregue em outro aparelho.
+- 📱 No celular, o topo e a barra de ferramentas voltaram a caber numa linha só. O Guia ganhou o tópico Casa e personagem e foi atualizado com tudo isso.
+
 ## v4.8.0 — Mudar as coisas de lugar (17/10/2026)
 
 - ↔ Toda obra (curral, galinheiro, queijaria, fábricas, galpão) e toda compra grande (campos, serraria, Campo de Trigo e pasto) pode mudar de lugar quando você quiser, de graça: botão ↔ Mover na Oficina (Obras) e na Loja (Terras e Ferramentas). Animais, plantações e o que estiver dentro vão junto.

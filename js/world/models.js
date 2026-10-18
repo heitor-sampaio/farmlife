@@ -1,5 +1,6 @@
 /* FarmLife — modelos 3D low-poly feitos com formas geométricas */
 import * as THREE from 'three';
+import { LOOKS } from '../data.js';
 
 // ================= Materiais e geometrias compartilhados =================
 const matCache = new Map();
@@ -10,6 +11,9 @@ export function mat(color, opts = {}) {
   }
   return matCache.get(key);
 }
+
+/** Vidro de janela que acende à noite (o mundo liga junto com os lampiões). */
+export const winMat = mat(0x9fd6f2, { emissive: 0xffc861, emissiveIntensity: 0 });
 
 export const GEO = {
   box: new THREE.BoxGeometry(1, 1, 1),
@@ -481,12 +485,26 @@ export function makeCrop(id, stage) {
 // ================= Fazendeiro =================
 // Estilo do personagem do jogador (também usado pelo motorista das máquinas)
 let farmerStyle = 'm';
-export function setFarmerStyle(g) { farmerStyle = g === 'f' ? 'f' : 'm'; }
+let farmerLook = {};
+export function setFarmerStyle(g, look) { farmerStyle = g === 'f' ? 'f' : 'm'; farmerLook = look || {}; }
+/** Cores do visual escolhido (índice -1 = cor padrão do personagem). */
+function lookColors(look) {
+  const o = {};
+  if (look.shirt >= 0) o.shirt = LOOKS.shirt[look.shirt];
+  if (look.pants >= 0) o.denim = LOOKS.pants[look.pants];
+  if (look.hair >= 0) o.hair = LOOKS.hair[look.hair];
+  return o;
+}
 const FEMALE_COLORS = { shirt: 0x1f9e89, band: 0xe75480, hair: 0x7a3b1d, hat: 0xf0d58a };
 
 /** Fazendeiro(a). Sem cores, usa o personagem escolhido pelo jogador. */
 export function makeFarmer(colors, female = false) {
-  if (!colors) { female = farmerStyle === 'f'; colors = female ? FEMALE_COLORS : {}; }
+  let hatKind = 'palha';
+  if (!colors) {
+    female = farmerStyle === 'f';
+    colors = { ...(female ? FEMALE_COLORS : {}), ...lookColors(farmerLook) };
+    hatKind = farmerLook.hat || 'palha';
+  }
   const {
     skin = 0xf1c27d, shirt = 0xd9534f, denim = 0x3d5a9e, boot = 0x5a3a22,
     hat = 0xe7c66a, band = 0xb23a2e, hair = 0x6b4423,
@@ -532,9 +550,33 @@ export function makeFarmer(colors, female = false) {
   head.add(box(0.04, 0.05, 0.02, 0x2b1d14, 0.065, 0.02, 0.131));
   head.add(box(0.05, 0.05, 0.04, 0xe2a76f, 0, -0.03, 0.14));
   head.add(box(0.29, 0.13, 0.05, hair, 0, 0.04, -0.12));
-  head.add(cyl(0.28, 0.03, hat, 0, 0.15, 0));
-  head.add(cyl(0.16, 0.14, hat, 0, 0.22, 0));
-  head.add(cyl(0.165, 0.035, band, 0, 0.17, 0));
+  if (hatKind === 'palha') {
+    head.add(cyl(0.28, 0.03, hat, 0, 0.15, 0));
+    head.add(cyl(0.16, 0.14, hat, 0, 0.22, 0));
+    head.add(cyl(0.165, 0.035, band, 0, 0.17, 0));
+  } else {
+    head.add(box(0.29, 0.07, 0.27, hair, 0, 0.15, -0.005)); // cabelo no alto da cabeça
+    if (hatKind === 'bone') {
+      head.add(box(0.3, 0.1, 0.29, shirt, 0, 0.19, -0.005));
+      head.add(box(0.24, 0.025, 0.16, shirt, 0, 0.15, 0.2));
+      head.add(box(0.05, 0.03, 0.05, 0xffffff, 0, 0.255, 0));
+    } else if (hatKind === 'gorro') {
+      head.add(ball(0.165, 0.12, 0.155, band, 0, 0.16, -0.005));
+      head.add(cyl(0.16, 0.05, 0xfaf3e0, 0, 0.12, -0.005));
+      head.add(ball(0.055, 0.055, 0.055, 0xfaf3e0, 0, 0.3, 0));
+    } else if (hatKind === 'lenco') {
+      head.add(box(0.3, 0.07, 0.28, band, 0, 0.17, -0.005));
+      head.add(rot(box(0.08, 0.12, 0.03, band, 0.05, 0.08, -0.16), 0.3, 0, 0.4));
+      for (const [x, z] of [[-0.08, 0.13], [0.06, 0.13], [0.12, -0.05], [-0.13, 0]]) head.add(box(0.025, 0.025, 0.01, 0xffffff, x, 0.18, z + (z > 0 ? 0.012 : 0)));
+    } else if (hatKind === 'flores') {
+      const petals = [0xf07aa8, 0xfff3b0, 0xffffff, 0xb39ddb, 0xff8a65];
+      for (let k = 0; k < 10; k++) {
+        const a = (k / 10) * Math.PI * 2;
+        head.add(ball(0.04, 0.04, 0.04, petals[k % petals.length], Math.sin(a) * 0.15, 0.16, Math.cos(a) * 0.14));
+      }
+      head.add(cyl(0.15, 0.02, 0x4f9a3d, 0, 0.15, 0));
+    }
+  }
   if (female) {
     // Cabelo comprido com rabo de cavalo, cílios e uma florzinha no chapéu
     head.add(box(0.3, 0.36, 0.07, hair, 0, -0.07, -0.14));
@@ -547,8 +589,10 @@ export function makeFarmer(colors, female = false) {
     head.add(ball(0.05, 0.05, 0.05, band, 0, -0.18, -0.19));
     head.add(box(0.07, 0.025, 0.02, 0xd9475f, 0, -0.08, 0.132));
     head.add(rot(box(0.1, 0.34, 0.09, hair, 0, -0.36, -0.2), 0.15, 0, 0));
-    head.add(ball(0.045, 0.045, 0.02, 0xfff3b0, 0.12, 0.2, 0.12));
-    head.add(ball(0.03, 0.03, 0.02, 0xe75480, 0.12, 0.2, 0.135));
+    if (hatKind === 'palha') {
+      head.add(ball(0.045, 0.045, 0.02, 0xfff3b0, 0.12, 0.2, 0.12));
+      head.add(ball(0.03, 0.03, 0.02, 0xe75480, 0.12, 0.2, 0.135));
+    }
   }
   body.add(head);
 
@@ -597,6 +641,21 @@ export function makeFarmer(colors, female = false) {
   tools.fertilizante = new THREE.Group();
   tools.fertilizante.add(box(0.14, 0.18, 0.1, 0xe8dcc0, 0, -0.1, 0.03));
   tools.fertilizante.add(box(0.145, 0.05, 0.105, 0x43a047, 0, -0.08, 0.03));
+
+  // Rede de insetos: cabo comprido, aro e a rede clarinha
+  tools.rede = new THREE.Group();
+  const netPivot = new THREE.Group();
+  netPivot.rotation.x = 0.8;
+  netPivot.add(cyl(0.015, 0.95, 0xc49a63, 0, 0.35, 0));
+  const hoop = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.012, 6, 16), mat(0x9aa3ad));
+  hoop.position.set(0, 0.95, 0);
+  hoop.rotation.x = Math.PI / 2;
+  netPivot.add(hoop);
+  const bag = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.26, 10, 1, true), mat(0xf4f1e8, { transparent: true, opacity: 0.75, side: THREE.DoubleSide }));
+  bag.position.set(0, 0.84, 0);
+  bag.rotation.x = Math.PI;
+  netPivot.add(bag);
+  tools.rede.add(netPivot);
 
   for (const t of Object.values(tools)) { t.visible = false; hand.add(t); }
 
@@ -1747,7 +1806,7 @@ export function makeCheesery() {
   // Porta, janela e placa com um queijo
   g.add(box(0.6, 1.0, 0.06, trim, -0.5, 0.62, 0.91));
   g.add(ball(0.04, 0.04, 0.03, 0xd4af37, -0.32, 0.62, 0.95));
-  g.add(box(0.6, 0.5, 0.05, 0x9fd6f2, 0.55, 1.0, 0.91));
+  g.add(box(0.6, 0.5, 0.05, winMat, 0.55, 1.0, 0.91));
   g.add(box(0.66, 0.06, 0.08, trim, 0.55, 0.73, 0.93));
   const sign = new THREE.Group();
   sign.position.set(0, 1.95, 1.0);
@@ -1780,6 +1839,287 @@ export function makeCheesery() {
     wheels.push(w);
   }
   return { group: g, cans, wheels, lights: [] };
+}
+
+// ================= Vila =================
+/** Prisma triangular deitado ao longo de x (empena do telhado). */
+function prism(len, base, hgt, color) {
+  const hl = len / 2, hb = base / 2;
+  const v = [-hl, 0, -hb, -hl, 0, hb, -hl, hgt, 0, hl, 0, -hb, hl, 0, hb, hl, hgt, 0];
+  const idx = [0, 1, 2, 3, 5, 4, 0, 2, 5, 0, 5, 3, 1, 4, 5, 1, 5, 2, 0, 3, 4, 0, 4, 1];
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  const m = new THREE.Mesh(geo, mat(color, { side: THREE.DoubleSide }));
+  m.castShadow = true;
+  m.receiveShadow = true;
+  return m;
+}
+
+/** Telhado de duas águas (cumeeira ao longo de x) em cima de paredes de altura h. */
+function cottageRoof(g, w, d, y, roof, wall, pitch = 0.6) {
+  const half = d / 2 + 0.25, rise = Math.tan(pitch) * half;
+  for (const s of [-1, 1]) {
+    const r = box(w + 0.4, 0.12, half / Math.cos(pitch) + 0.05, roof, 0, y + rise / 2, (s * half) / 2);
+    r.rotation.x = s * pitch;
+    g.add(r);
+  }
+  const gable = prism(w - 0.1, d - 0.1, rise * ((d - 0.1) / (2 * half)), wall);
+  gable.position.y = y;
+  g.add(gable);
+  return rise;
+}
+
+/** Casinha da vila, com a porta para +z. */
+export function makeCottage(wall, roof, w = 3.2, d = 2.6) {
+  const g = new THREE.Group(), h = 1.7;
+  g.add(box(w + 0.1, 0.2, d + 0.1, 0x9e8b74, 0, 0.1, 0));
+  g.add(box(w, h, d, wall, 0, 0.2 + h / 2, 0));
+  cottageRoof(g, w, d, 0.2 + h, roof, wall);
+  g.add(box(0.62, 1.1, 0.06, 0x7a5230, 0, 0.75, d / 2 + 0.02));
+  g.add(box(0.06, 0.06, 0.04, 0xf5d76e, 0.2, 0.75, d / 2 + 0.06));
+  for (const x of [-w * 0.3, w * 0.3]) {
+    g.add(box(0.55, 0.5, 0.06, winMat, x, 1.25, d / 2 + 0.02));
+    g.add(box(0.6, 0.08, 0.2, 0x7a5230, x, 0.94, d / 2 + 0.1));
+    for (let k = -1; k <= 1; k++) g.add(ball(0.07, 0.07, 0.07, [0xf07aa8, 0xffd54f, 0xffffff][k + 1], x + k * 0.17, 1.03, d / 2 + 0.12));
+  }
+  g.add(box(0.06, 0.5, 0.55, winMat, w / 2 + 0.02, 1.25, 0));
+  g.add(box(0.35, 0.8, 0.35, 0x8d6e63, w * 0.3, 0.2 + h + 0.7, -d * 0.2));
+  return g;
+}
+
+/** Capelinha com torre do sino (porta para +z). */
+export function makeChapel() {
+  const g = new THREE.Group(), w = 3.2, d = 4.6, h = 2.2;
+  g.add(box(w + 0.2, 0.25, d + 0.2, 0x9e8b74, 0, 0.12, 0));
+  g.add(box(w, h, d, 0xf5f0e6, 0, 0.25 + h / 2, 0));
+  // telhado ao longo de z: monta virado e gira
+  const roofG = new THREE.Group();
+  cottageRoof(roofG, d, w, 0, 0xb5452f, 0xf5f0e6, 0.7);
+  roofG.rotation.y = Math.PI / 2;
+  roofG.position.y = 0.25 + h;
+  g.add(roofG);
+  g.add(box(0.9, 1.5, 0.08, 0x7a5230, 0, 1.0, d / 2 + 0.02));
+  g.add(box(0.5, 0.5, 0.06, winMat, 0, 2.05, d / 2 + 0.02));
+  for (const z of [-1, 0.4]) for (const s of [-1, 1]) g.add(box(0.06, 0.8, 0.45, winMat, s * (w / 2 + 0.02), 1.4, z));
+  // torre
+  g.add(box(1.1, 1.3, 1.1, 0xf5f0e6, 0, 0.25 + h + 1.2, d / 2 - 0.6));
+  g.add(box(0.5, 0.5, 1.12, 0x5d4037, 0, 0.25 + h + 1.3, d / 2 - 0.6));
+  g.add(cone(0.85, 1.0, 0xb5452f, 0, 0.25 + h + 2.35, d / 2 - 0.6));
+  g.add(box(0.06, 0.5, 0.06, 0xf2b134, 0, 0.25 + h + 3.1, d / 2 - 0.6));
+  g.add(box(0.28, 0.06, 0.06, 0xf2b134, 0, 0.25 + h + 3.18, d / 2 - 0.6));
+  return g;
+}
+
+/** Ponte de madeira ao longo de z (comprimento len, largura w). */
+export function makeBridge(len, w) {
+  const g = new THREE.Group();
+  for (let z = -len / 2 + 0.15; z < len / 2; z += 0.32) g.add(box(w, 0.08, 0.28, (Math.round(z * 3) % 2) ? 0xa0703c : 0x8d6334, 0, 0.1, z));
+  for (const s of [-1, 1]) {
+    g.add(box(0.14, 0.16, len, 0x6d4c41, s * (w / 2 - 0.05), 0.06, 0));
+    g.add(box(0.07, 0.07, len, 0x8d6334, s * (w / 2 - 0.05), 0.75, 0));
+    for (let z = -len / 2 + 0.2; z <= len / 2; z += len / 5) g.add(box(0.1, 0.8, 0.1, 0x6d4c41, s * (w / 2 - 0.05), 0.4, z));
+  }
+  return g;
+}
+
+/** Tufo de taboa (planta da beira do rio). */
+export function makeReeds() {
+  const g = new THREE.Group();
+  const n = 3 + Math.floor(Math.random() * 3);
+  for (let k = 0; k < n; k++) {
+    const x = (Math.random() - 0.5) * 0.35, z = (Math.random() - 0.5) * 0.35, h = 0.5 + Math.random() * 0.45;
+    g.add(rot(cyl(0.015, h, 0x6b8e23, x, h / 2, z), (Math.random() - 0.5) * 0.2, 0, (Math.random() - 0.5) * 0.2));
+    if (Math.random() < 0.7) g.add(cyl(0.035, 0.16, 0x6d4c41, x, h - 0.02, z));
+  }
+  return g;
+}
+
+// ================= Casa por dentro =================
+/** Cômodo visto de cima: piso de tábuas, paredes do fundo com janelas e as da frente baixinhas (para ver dentro).
+    A porta fica no meio da parede da frente (+z). Devolve onde fica a cama e os retângulos ocupados pelos móveis. */
+export function makeRoom(w, d, lvl) {
+  const g = new THREE.Group();
+  const hw = w / 2, hd = d / 2, wallH = 2.3, low = 0.35, paper = [0xf3e3c3, 0xe8f0e0, 0xf0e2ec][lvl - 1], wood = 0x8d6334;
+  g.add(box(w, 0.06, d, 0xc49a63, 0, 0.03, 0));
+  for (let x = -hw + 0.5; x < hw; x += 0.5) g.add(box(0.02, 0.065, d, 0xa87f4f, x, 0.035, 0));
+  // Paredes do fundo (norte e oeste) com rodapé e janelas
+  g.add(box(w + 0.3, wallH, 0.15, paper, 0, wallH / 2, -hd));
+  g.add(box(0.15, wallH, d + 0.3, paper, -hw, wallH / 2, 0));
+  g.add(box(w + 0.3, 0.5, 0.17, wood, 0, 0.25, -hd));
+  g.add(box(0.17, 0.5, d + 0.3, wood, -hw, 0.25, 0));
+  for (const x of lvl > 1 ? [-hw * 0.5, hw * 0.5] : [hw * 0.35]) {
+    g.add(box(1.0, 0.8, 0.05, 0x9fd6f2, x, 1.45, -hd + 0.08));
+    g.add(box(1.1, 0.07, 0.08, 0xffffff, x, 1.02, -hd + 0.1));
+    g.add(box(0.05, 0.8, 0.08, 0xffffff, x, 1.45, -hd + 0.1));
+  }
+  // Paredes da frente baixinhas, com a porta no meio
+  g.add(box(0.15, low, d + 0.3, wood, hw, low / 2, 0));
+  g.add(box(hw - 0.7, low, 0.15, wood, -(hw + 0.7) / 2, low / 2, hd));
+  g.add(box(hw - 0.7, low, 0.15, wood, (hw + 0.7) / 2, low / 2, hd));
+  g.add(box(1.2, 0.02, 0.5, 0x6d4c41, 0, 0.065, hd - 0.4));
+  const blocks = [];
+  const put = (o, x, z, bw, bd) => { o.position.x += x; o.position.z += z; g.add(o); if (bw) blocks.push([x - bw / 2, z - bd / 2, x + bw / 2, z + bd / 2]); };
+  // Cama (canto do fundo à esquerda)
+  const bed = new THREE.Group();
+  bed.add(box(1.1, 0.35, 2.0, 0x7a5230, 0, 0.18, 0));
+  bed.add(box(1.0, 0.18, 1.85, 0xffffff, 0, 0.42, 0.05));
+  bed.add(box(1.02, 0.2, 1.2, 0x5c8bd6, 0, 0.46, 0.35));
+  bed.add(box(0.7, 0.14, 0.35, 0xfaf3e0, 0, 0.55, -0.7));
+  bed.add(box(1.1, 0.7, 0.1, 0x7a5230, 0, 0.45, -1.0));
+  const bedX = -hw + 0.8, bedZ = -hd + 1.15;
+  put(bed, bedX, bedZ, 1.1, 2.0);
+  // Mesinha com duas cadeiras e um fogareiro
+  const table = new THREE.Group();
+  table.add(box(0.9, 0.06, 0.7, 0xa0703c, 0, 0.7, 0));
+  for (const [x, z] of [[-0.38, -0.28], [0.38, -0.28], [-0.38, 0.28], [0.38, 0.28]]) table.add(box(0.06, 0.7, 0.06, wood, x, 0.35, z));
+  for (const z of [-0.6, 0.6]) table.add(box(0.4, 0.45, 0.4, 0xb07a45, 0, 0.23, z));
+  put(table, lvl > 1 ? -hw * 0.15 : hw * 0.3, lvl > 1 ? 0.6 : 0.4, 0.9, 1.6);
+  if (lvl === 1) {
+    const stove = new THREE.Group();
+    stove.add(box(0.7, 0.8, 0.6, 0x546e7a, 0, 0.4, 0));
+    stove.add(cyl(0.12, 0.04, 0x263238, -0.15, 0.82, 0));
+    stove.add(cyl(0.12, 0.04, 0x263238, 0.15, 0.82, 0));
+    put(stove, hw - 0.6, -hd + 0.5, 0.7, 0.6);
+  }
+  // Cozinha (nível 2+): balcão comprido no fundo, fogão, pia e prateleira
+  if (lvl >= 2) {
+    const k = new THREE.Group();
+    k.add(box(3.0, 0.85, 0.65, 0xf5f0e6, 0, 0.43, 0));
+    k.add(box(3.05, 0.06, 0.7, 0x8d6e63, 0, 0.88, 0));
+    k.add(box(0.6, 0.05, 0.45, 0x90a4ae, 0.9, 0.9, 0));
+    for (const x of [-0.9, -0.55]) k.add(cyl(0.12, 0.04, 0x263238, x, 0.93, 0));
+    k.add(box(2.6, 0.06, 0.3, wood, 0, 1.75, -0.18));
+    for (const [x, c] of [[-1, 0xe53935], [-0.6, 0xfdd835], [0.4, 0x43a047], [0.9, 0x8d6e63]]) k.add(cyl(0.09, 0.22, c, x, 1.89, -0.18));
+    put(k, hw - 1.8, -hd + 0.45, 3.0, 0.7);
+  }
+  // Sala (nível 3): lareira, sofá e estante
+  let fire = null;
+  if (lvl >= 3) {
+    const fp = new THREE.Group();
+    fp.add(box(0.5, 1.4, 1.5, 0x9e9e9e, 0, 0.7, 0));
+    fp.add(box(0.52, 0.6, 0.9, 0x3e2723, 0.02, 0.4, 0));
+    fp.add(box(0.7, 0.1, 1.7, 0x795548, 0.1, 1.42, 0));
+    fire = cone(0.22, 0.45, mat(0xff9800, { emissive: 0xff6d00, emissiveIntensity: 1.5 }), 0.15, 0.32, 0);
+    fp.add(fire);
+    put(fp, -hw + 0.35, hd * 0.25, 0.6, 1.6);
+    const sofa = new THREE.Group();
+    sofa.add(box(0.8, 0.4, 1.8, 0x8e6bbf, 0, 0.25, 0));
+    sofa.add(box(0.22, 0.6, 1.8, 0x7a5aa8, 0.3, 0.55, 0));
+    for (const z of [-0.85, 0.85]) sofa.add(box(0.8, 0.5, 0.18, 0x7a5aa8, 0, 0.38, z));
+    put(sofa, -hw + 2.4, hd * 0.25, 0.8, 1.8);
+    const shelf = makeDecor('estante').group;
+    put(shelf, hw - 1.2, hd - 1.0, 1.1, 0.4);
+  }
+  return { group: g, bed: [bedX + 0.9, bedZ + 0.4], blocks, fire };
+}
+
+// ================= Barraca de beira de estrada =================
+/** Balcão de madeira com toldo listrado e caixotes que se enchem com o que está exposto (frente para +z). */
+export function makeStand() {
+  const g = new THREE.Group();
+  const wood = 0xb07a45, dark = 0x7a5230;
+  g.add(box(2.4, 0.85, 0.8, wood, 0, 0.425, 0.15));
+  g.add(box(2.5, 0.07, 0.9, dark, 0, 0.88, 0.15));
+  for (let k = -2; k <= 2; k++) g.add(box(0.04, 0.8, 0.02, dark, k * 0.5, 0.42, 0.56));
+  for (const [x, z] of [[-1.15, 0.5], [1.15, 0.5], [-1.15, -0.35], [1.15, -0.35]]) g.add(cyl(0.05, 2.1, dark, x, 1.05, z));
+  const awning = new THREE.Mesh(GEO.box, new THREE.MeshStandardMaterial({ map: stripeTexture, flatShading: true, roughness: 0.9 }));
+  awning.scale.set(2.7, 0.07, 1.25);
+  awning.position.set(0, 2.12, 0.1);
+  awning.rotation.x = 0.2;
+  awning.castShadow = true;
+  g.add(awning);
+  g.add(rot(snowPiece(GEO.box, 2.72, 0.06, 1.27, 0, 2.19, 0.1), 0.2, 0, 0));
+  // Plaquinha
+  g.add(box(0.9, 0.3, 0.05, 0xf3e3b0, 0, 1.75, 0.58));
+  g.add(box(0.96, 0.05, 0.07, dark, 0, 1.6, 0.58));
+  // Caixotes no balcão (2 fileiras de 3); "fill" mostra o produto
+  const crates = [];
+  for (let k = 0; k < 6; k++) {
+    const x = -0.75 + (k % 3) * 0.75, z = k < 3 ? 0.32 : -0.05;
+    const crate = box(0.6, 0.18, 0.32, 0xc49a63, x, 1.0, z);
+    crate.visible = false;
+    g.add(crate);
+    const fill = mesh(GEO.ball, 0xff7043, 0.26, 0.08, 0.13, x, 1.11, z);
+    fill.visible = false;
+    g.add(fill);
+    crates.push({ crate, fill });
+  }
+  // Caixinha de moedas
+  const cashbox = box(0.26, 0.14, 0.18, 0x5d4037, 1.0, 0.98, 0.45);
+  g.add(cashbox);
+  const coin = cyl(0.06, 0.02, 0xf2c14e, 1.0, 1.06, 0.45);
+  coin.visible = false;
+  g.add(coin);
+  return { group: g, crates, coin };
+}
+
+// ================= Estufa =================
+/** Estufa de vidro com armação branca: paredes de vidro sobre uma mureta, telhado de duas águas e porta no sul (+z). */
+export function makeGreenhouse(w, d) {
+  const g = new THREE.Group();
+  const frame = 0xf1ece0, brick = 0xb59e86;
+  const glass = mat(0xcde8f2, { transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide, roughness: 0.15, metalness: 0.1 });
+  const h = 1.7, roofH = 1.1, door = 1.3, base = 0.35;
+  const wall = (x1, z1, x2, z2) => {
+    const len = Math.hypot(x2 - x1, z2 - z1);
+    if (len < 0.05) return;
+    const cx = (x1 + x2) / 2, cz = (z1 + z2) / 2, along = Math.abs(x2 - x1) > Math.abs(z2 - z1);
+    const sx = along ? len : 0.14, sz = along ? 0.14 : len;
+    g.add(box(sx, base, sz, brick, cx, base / 2, cz));
+    const pane = mesh(GEO.box, glass, along ? len : 0.03, h - base, along ? 0.03 : len, cx, base + (h - base) / 2, cz);
+    pane.castShadow = false;
+    g.add(pane);
+    g.add(box(along ? len : 0.08, 0.07, along ? 0.08 : len, frame, cx, h, cz));
+    const n = Math.max(1, Math.round(len / 1.3));
+    for (let k = 0; k <= n; k++) {
+      const t = k / n;
+      g.add(box(0.07, h, 0.07, frame, x1 + (x2 - x1) * t, h / 2, z1 + (z2 - z1) * t));
+    }
+  };
+  const hw = w / 2, hd = d / 2;
+  wall(-hw, -hd, hw, -hd);
+  wall(-hw, -hd, -hw, hd);
+  wall(hw, -hd, hw, hd);
+  wall(-hw, hd, -door / 2, hd);
+  wall(door / 2, hd, hw, hd);
+  // Batente da porta
+  g.add(box(door + 0.14, 0.09, 0.1, frame, 0, 1.45, hd));
+  // Telhado de vidro (duas águas, cumeeira ao longo de x)
+  const slope = Math.hypot(hd, roofH), ang = Math.atan2(roofH, hd);
+  for (const side of [-1, 1]) {
+    const pane = mesh(GEO.box, glass, w + 0.1, 0.03, slope, 0, h + roofH / 2, (side * hd) / 2);
+    pane.rotation.x = side * ang;
+    pane.castShadow = false;
+    g.add(pane);
+    const n = Math.max(2, Math.round(w / 1.3));
+    for (let k = 0; k <= n; k++) {
+      const rafter = box(0.06, 0.06, slope, frame, -hw + (w * k) / n, h + roofH / 2, (side * hd) / 2);
+      rafter.rotation.x = side * ang;
+      g.add(rafter);
+    }
+  }
+  g.add(box(w + 0.15, 0.09, 0.09, frame, 0, h + roofH, 0));
+  // Oitões (triângulos de vidro nas pontas)
+  const tri = new THREE.Shape();
+  tri.moveTo(-hd, 0);
+  tri.lineTo(hd, 0);
+  tri.lineTo(0, roofH);
+  tri.closePath();
+  for (const sx of [-hw, hw]) {
+    const m = new THREE.Mesh(new THREE.ShapeGeometry(tri), glass);
+    m.rotation.y = Math.PI / 2;
+    m.position.set(sx, h, 0);
+    g.add(m);
+  }
+  // Vasos e um regador encostados na parede do fundo
+  for (const [x, c] of [[-hw + 0.5, 0xe57373], [-hw + 0.85, 0xffb74d], [hw - 0.6, 0xba68c8]]) {
+    g.add(cyl(0.12, 0.16, 0xb5643c, x, 0.08, -hd + 0.3));
+    g.add(ball(0.12, 0.1, 0.12, 0x5aa845, x, 0.22, -hd + 0.3));
+    g.add(ball(0.05, 0.05, 0.05, c, x + 0.04, 0.3, -hd + 0.32));
+  }
+  return { group: g };
 }
 
 // ================= Galinheiro =================
@@ -1854,7 +2194,7 @@ function workshop(g, w, d, wallColor, roofColor, h = 1.4) {
   r.rotation.y = Math.PI / 2;
   g.add(r);
   g.add(box(0.55, 0.95, 0.06, 0x7a4f2a, -w / 4, 0.6, d / 2 + 0.01));
-  g.add(box(0.5, 0.42, 0.05, 0x9fd6f2, w / 4, 0.95, d / 2 + 0.01));
+  g.add(box(0.5, 0.42, 0.05, winMat, w / 4, 0.95, d / 2 + 0.01));
 }
 
 /** Placa com o ícone (desenhado com formas) presa na fachada. */
@@ -1875,7 +2215,7 @@ export function makeWindmill() {
   g.add(cone(1.15, 1.1, 0x8d3a2b, 0, 3.85, 0));
   g.add(snowPiece(GEO.cone, 0.74, 0.74, 0.74, 0, 4.1, 0));
   g.add(box(0.55, 0.9, 0.08, 0x7a4f2a, 0, 0.57, 1.18));
-  g.add(box(0.36, 0.36, 0.06, 0x9fd6f2, 0, 2.2, 0.98));
+  g.add(box(0.36, 0.36, 0.06, winMat, 0, 2.2, 0.98));
   const spin = new THREE.Group();
   spin.position.set(0, 3.15, 1.0);
   spin.add(rot(cyl(0.12, 0.3, 0x5a3a20, 0, 0, 0), Math.PI / 2, 0, 0));
@@ -1976,6 +2316,50 @@ export function makeHive() {
 export function makeDecor(id) {
   const g = new THREE.Group();
   let glow = null;
+  if (id === 'tapete') {
+    g.add(box(1.6, 0.02, 1.1, 0xc0392b, 0, 0.012, 0));
+    g.add(box(1.4, 0.022, 0.9, 0xe57373, 0, 0.014, 0));
+    g.add(box(0.9, 0.024, 0.4, 0xf3e3c3, 0, 0.016, 0));
+    return { group: g, glow };
+  }
+  if (id === 'poltrona') {
+    g.add(box(0.8, 0.35, 0.75, 0x6a8caf, 0, 0.25, 0));
+    g.add(box(0.8, 0.55, 0.18, 0x5b7a9a, 0, 0.55, -0.3));
+    for (const x of [-0.36, 0.36]) g.add(box(0.14, 0.45, 0.7, 0x5b7a9a, x, 0.4, 0));
+    return { group: g, glow };
+  }
+  if (id === 'vaso') {
+    g.add(cyl(0.18, 0.3, 0xb5643c, 0, 0.15, 0));
+    g.add(ball(0.28, 0.32, 0.28, 0x4f9a3d, 0, 0.52, 0));
+    g.add(ball(0.18, 0.2, 0.18, 0x67b852, 0.12, 0.72, 0.05));
+    return { group: g, glow };
+  }
+  if (id === 'estante') {
+    g.add(box(1.1, 1.6, 0.35, 0x7a5230, 0, 0.8, 0));
+    const books = [0xc0392b, 0x2e86c1, 0x27ae60, 0xf39c12, 0x8e44ad];
+    for (let r = 0; r < 3; r++) for (let k = 0; k < 7; k++) g.add(box(0.1, 0.32, 0.25, books[(k + r) % books.length], -0.42 + k * 0.14, 0.33 + r * 0.5, 0.06));
+    return { group: g, glow };
+  }
+  if (id === 'abajur') {
+    g.add(cyl(0.12, 0.05, 0x6d4c41, 0, 0.03, 0));
+    g.add(cyl(0.025, 0.8, 0x8d6334, 0, 0.42, 0));
+    const shade = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.24, 0.26, 10), mat(0xfff3d6, { emissive: 0xffe0a0, emissiveIntensity: 0 }));
+    shade.position.y = 0.9;
+    g.add(shade);
+    glow = shade.material;
+    return { group: g, glow };
+  }
+  if (id === 'aspersor') {
+    // Cano saindo do chão e uma cabeça que gira jogando água
+    g.add(cyl(0.12, 0.06, 0x6d7a84, 0, 0.03, 0));
+    g.add(cyl(0.035, 0.55, 0x9aa3ad, 0, 0.3, 0));
+    const spin = new THREE.Group();
+    spin.position.y = 0.6;
+    spin.add(cyl(0.07, 0.08, 0x546e7a, 0, 0, 0));
+    for (const a of [0, Math.PI]) spin.add(rot(cyl(0.02, 0.28, 0x90a4ae, Math.cos(a) * 0.14, 0.02, Math.sin(a) * 0.14), 0, -a, Math.PI / 2));
+    g.add(spin);
+    return { group: g, glow, spin };
+  }
   if (id === 'espantalho') {
     g.add(cyl(0.04, 1.4, 0x8d6334, 0, 0.7, 0));
     g.add(box(1.0, 0.06, 0.06, 0x8d6334, 0, 1.05, 0));

@@ -1,5 +1,5 @@
 /* FarmLife — regras dos sistemas novos: fábricas, pomar, colmeias (e o que vier depois) */
-import { FISH, FACTORIES, ORCHARD, FRUIT_TREES, HIVES, GOODS, SEASONS, SEASON_DAYS, SEASON_BONUS, CROPS, PRODUCTS, CUSTOMERS, QUEST, FRIEND, FAIR, BUILDINGS, PASTURE, DECOR, PET_FINDS } from './data.js';
+import { FISH, FACTORIES, ORCHARD, FRUIT_TREES, HIVES, GOODS, SEASONS, SEASON_DAYS, SEASON_BONUS, CROPS, PRODUCTS, CUSTOMERS, QUEST, FRIEND, FAIR, BUILDINGS, PASTURE, DECOR, PET_FINDS, STAND, FESTIVALS } from './data.js';
 import * as core from './core.js';
 
 const H = core.H;
@@ -265,7 +265,7 @@ export const cropSeasonMult = (crop) => (inSeason(crop) ? SEASON_BONUS : season(
 /** Estações em que a cultura cresce mais rápido (ícones). */
 export const cropSeasons = (crop) => SEASONS.filter((x) => x.crops.includes(crop)).map((x) => x.icon).join('');
 
-core.setGrowMod((crop) => cropSeasonMult(crop));
+core.setGrowMod((crop) => cropSeasonMult(crop) * (festivalToday() ? festivalToday().grow || 1 : 1));
 core.setWeatherMod((id) => season().weather[id] ?? 1);
 setSeasonFruit(() => season().fruit);
 core.onNewDay((day, quiet) => {
@@ -534,6 +534,10 @@ function petFind(quiet) {
   H.dirty('panel');
 }
 core.onNewDay((day, quiet) => petFind(quiet));
+// Cada dia que passa, a felicidade baixa um pouco (o carinho de todo dia compensa)
+core.onNewDay(() => {
+  for (const a of S().animals) a.hap = Math.max(0, (typeof a.hap === 'number' ? a.hap : 60) - 8);
+});
 
 // ================= O que cada nível libera (para o aviso de nível novo) =================
 import { BIG_FIELD, MACHINES, RODS, AXES, SAWMILL, PET, HORSE, HIVES as HV } from './data.js';
@@ -550,6 +554,103 @@ core.onLevelUnlocks((lv) => {
   if (PET.level === lv) out.push(`${PET.icon} Pet`);
   if (HORSE.level === lv) out.push(`${HORSE.icon} ${HORSE.name}`);
   return out;
+});
+
+// ================= Festivais de estação =================
+/** Festival de hoje (ou null). */
+export function festivalToday() {
+  const f = FESTIVALS[season().id];
+  return f && seasonDay() === f.day ? f : null;
+}
+/** Quantos dias faltam para o próximo festival (0 = hoje). */
+export function daysToFestival() {
+  const f = FESTIVALS[season().id];
+  const dd = f.day - seasonDay();
+  return dd >= 0 ? dd : SEASON_DAYS - seasonDay() + FESTIVALS[SEASONS[(SEASONS.findIndex((x) => x.id === season().id) + 1) % SEASONS.length].id].day;
+}
+core.setPriceMod((base) => {
+  const f = festivalToday();
+  if (!f || !f.sell) return 1;
+  return f.sell[base] || (f.sell['*'] && CROPS[base] ? f.sell['*'] : 1);
+});
+// Começa o dia de festa: aviso e presente
+core.onNewDay((day, quiet) => {
+  const f = festivalToday();
+  if (!f) return;
+  let gift = '';
+  if (f.gift && f.gift.coins) { const c = f.gift.coins * S().level; H.earn(c); gift = ` Presente da vila: 🪙${core.fmt(c)}!`; }
+  if (f.gift && f.gift.decor) { S().decorInv[f.gift.decor] = (S().decorInv[f.gift.decor] || 0) + 1; gift = ` Presente da vila: ${DECOR[f.gift.decor].icon} ${DECOR[f.gift.decor].name.toLowerCase()} (coloque pela Loja → Decoração).`; }
+  S().stats.festivals = (S().stats.festivals || 0) + 1;
+  H.notify(`${f.icon} Hoje é dia de ${f.name}! ${f.desc}${gift}`, 'level', quiet);
+  H.emit('festival', f.id);
+});
+
+// ================= Barraca de beira de estrada =================
+export const standStock = () => S().stand.slots.reduce((n, x) => n + x.q, 0);
+export const standPrice = (id) => Math.max(1, Math.round(core.price(id) * STAND.bonus));
+
+/** Põe até q unidades do item na barraca (tira do armazém). Retorna quantas foram. */
+export function standAdd(id, q) {
+  const st = S().stand;
+  if (!core.built('barraca')) { H.toast('⛺ Construa a barraca primeiro (Oficina → Obras).', 'bad'); H.sfx('error'); return 0; }
+  let slot = st.slots.find((x) => x.id === id);
+  if (!slot) {
+    if (st.slots.length >= STAND.slots) { H.toast(`⛺ A barraca já tem ${STAND.slots} produtos diferentes. Recolha um para pôr outro.`, 'bad'); H.sfx('error'); return 0; }
+    slot = { id, q: 0 };
+    st.slots.push(slot);
+  }
+  const n = Math.min(q, S().inv[id] || 0, STAND.max - slot.q);
+  if (n <= 0) {
+    if (!slot.q) st.slots.splice(st.slots.indexOf(slot), 1);
+    H.toast(`⛺ Já tem ${STAND.max} desse produto na barraca.`);
+    return 0;
+  }
+  S().inv[id] -= n;
+  slot.q += n;
+  H.sfx('coin');
+  H.dirty('panel');
+  return n;
+}
+
+/** Recolhe um produto da barraca de volta para o armazém. */
+export function standTake(k) {
+  const st = S().stand;
+  const slot = st.slots[k];
+  if (!slot) return;
+  H.addItem(slot.id, slot.q);
+  st.slots.splice(k, 1);
+  H.dirty('panel');
+}
+
+/** Pega o dinheiro da caixinha. */
+export function standCollect() {
+  const st = S().stand;
+  if (!st.cash) return 0;
+  const c = st.cash;
+  H.earn(c);
+  st.cash = 0;
+  H.sfx('coin');
+  H.fx({ player: true }, `+🪙${core.fmt(c)}`, 'gold');
+  H.dirty('panel');
+  return c;
+}
+
+// Quem passa compra um produto de tempos em tempos (mais devagar à noite), até com o jogo fechado
+core.onUpdate((dt, quiet) => {
+  const st = S().stand;
+  if (!core.built('barraca') || !st.slots.length) { st.t = 0; return; }
+  st.t += dt * (core.darkness() > 0.6 ? 0.5 : 1);
+  while (st.t >= STAND.every && st.slots.length) {
+    st.t -= STAND.every;
+    const k = Math.floor(Math.random() * st.slots.length);
+    const slot = st.slots[k];
+    st.cash += standPrice(slot.id);
+    slot.q--;
+    S().stats.standSold = (S().stats.standSold || 0) + 1;
+    if (slot.q <= 0) st.slots.splice(k, 1);
+    if (!st.slots.length) H.notify(`⛺ A barraca vendeu tudo! Passe lá para pegar 🪙${core.fmt(st.cash)} da caixinha.`, 'good', quiet);
+    H.dirty('panel');
+  }
 });
 
 // ================= Ligação com o jogo =================

@@ -6,6 +6,7 @@ import {
   MUTATIONS, WEATHER_EVENTS, EVENT_ROUND, EVENT_CHANCE, EVENT_COOLDOWN,
   AXES, LOG, WOOD, CHOP_TREES, SAWMILL, PLANK, BEAM, RECIPES, BUILDINGS, CARPENTRY, HORSE, SADDLE,
   MANURE, COMPOST, FERTILIZER, BREED, PASTURE, COOP, CHEESERY, CHEESE, GOODS, FACTORIES, ORCHARD, STORAGE,
+  NET, BUGS, ALBUM, SEASON_BONUS, HAPPY, HOUSE, LOOKS, DEFAULT_LOOK, VILLAGE,
 } from './data.js';
 
 // ================= Utilidades =================
@@ -55,6 +56,26 @@ const listeners = [];
 const emit = (name, data) => { hooks.event(name, data); for (const fn of listeners) fn(name, data); };
 /** Outros módulos de regras podem escutar os eventos do jogo. */
 export const onEvent = (fn) => listeners.push(fn);
+/** Conversa com um morador da vila: a primeira do dia dá um pouco de XP. */
+export function talkVillager(id) {
+  const day = dayOf(S.time);
+  const first = S.village.talk[id] !== day;
+  S.village.talk[id] = day;
+  if (first) { gainXp(VILLAGE.talkXp); S.stats.talks = (S.stats.talks || 0) + 1; emit('talk', id); }
+  return first;
+}
+export const talkedToday = (id) => S.village.talk[id] === dayOf(S.time);
+
+/** Quanta coisa está pronta para colher/coletar (para o aviso com o jogo em segundo plano). */
+export function readyCounts() {
+  return {
+    crops: S.plots.filter((p) => p && isReady(p)).length,
+    animals: S.animals.filter((a) => a.ready).length,
+  };
+}
+
+/** Avisa que o personagem entrou em casa (dica do tutorial). */
+export const enteredHouse = () => emit('house', S.house.lvl);
 
 // Avisos gerados durante simulações silenciosas (offline, sono), mostrados depois
 const notices = [];
@@ -71,6 +92,7 @@ export const TOOLS = [
   { id: 'mao', icon: '🧺', name: 'Colher' },
   { id: 'vara', icon: '🎣', name: 'Pescar' },
   { id: 'machado', icon: '🪓', name: 'Machado' },
+  { id: 'rede', icon: '🥅', name: 'Rede' },
   { id: 'fertilizante', icon: '🧪', name: 'Adubar' },
 ];
 
@@ -81,7 +103,7 @@ export function setTool(id) {
 
 export function toolList() {
   const seeds = Object.keys(CROPS).filter((id) => CROPS[id].level <= S.level).map((id) => 'seed:' + id);
-  const owned = (t) => (t.id === 'vara' ? S.fishing.rod > 0 : t.id === 'machado' ? S.wood.axe > 0
+  const owned = (t) => (t.id === 'vara' ? S.fishing.rod > 0 : t.id === 'machado' ? S.wood.axe > 0 : t.id === 'rede' ? S.net
     : t.id === 'fertilizante' ? (S.inv.fertilizante || 0) > 0 || (S.stats.fertMade || 0) > 0 : true);
   return TOOLS.filter(owned).map((t) => t.id).concat(seeds);
 }
@@ -89,6 +111,10 @@ export function toolList() {
 // Campo de Trigo: s = 0 palha (precisa arar), 1 arado, 2 plantado; g = crescimento em segundos
 function newBigField() {
   return { owned: false, s: new Array(BIG_CELLS).fill(0), g: new Array(BIG_CELLS).fill(0), mm: new Array(BIG_CELLS).fill(0) };
+}
+
+function newAlbum() {
+  return Object.fromEntries([...Object.keys(ALBUM), 'done'].map((k) => [k, {}]));
 }
 
 function newBuild(done) {
@@ -134,8 +160,11 @@ function newState() {
     wood: { axe: 1, trees: CHOP_TREES.map(() => ({ hits: 0, t: 0 })) }, // t > 0: árvore cortada, crescendo de novo
     saw: { owned: false, queue: 0, t: 0, ready: 0 }, // serraria: troncos na fila, progresso do atual, tábuas prontas
     pet: { owned: false, name: PET.defaultName, day: 0 },
-    char: { chosen: false, gender: 'm', name: '' },
+    char: { chosen: false, gender: 'm', name: '', look: { ...DEFAULT_LOOK } },
     cheese: { owned: false, queue: 0, t: 0, ready: 0 },
+    stand: { slots: [], cash: 0, t: 0 },
+    house: { lvl: 1 },                                // reforma da casa (1 a 3)
+    village: { talk: {} },                            // dia da última conversa com cada morador              // barraca: produtos expostos [{ id, q }] e a caixinha
     fac: Object.fromEntries(Object.keys(FACTORIES).map((id) => [id, { queue: [], t: 0, ready: {}, sel: FACTORIES[id].recipes[0].id }])),
     orchard: Array.from({ length: ORCHARD.slots }, () => ({ type: null, g: 0, t: 0, fruit: 0 })),
     hives: { n: 0, t: 0, honey: 0 },
@@ -143,7 +172,9 @@ function newState() {
     layout: {},                                       // onde o jogador colocou cada obra e campo: { id: { x, z } }
     layoutV: 2,                                       // versão do mapa (2 = mapa maior, com lugares escolhidos)
     decor: [],                                        // decorações colocadas: { id, x, z, r }
-    decorInv: {},                                     // compradas e ainda não colocadas                                          // conquistas já desbloqueadas
+    decorInv: {},
+    net: false,                                       // rede de insetos comprada?
+    album: newAlbum(),                                // coleções: o que já foi colhido, pescado e pego                                     // compradas e ainda não colocadas                                          // conquistas já desbloqueadas
     quest: null, questT: 60,                          // encomenda especial e tempo até a próxima
     friends: {},                                       // pontos de amizade por morador
     fair: { id: 0, done: {}, rivals: {} },             // feira do fim da estação // queijaria: queijos curando, progresso, prontos
@@ -185,8 +216,11 @@ export const topMutation = (list) => list.reduce((best, id) => (!best || MUTATIO
 
 export const price = (key) => {
   const { base, muts } = parseKey(key);
-  return Math.max(1, Math.round(ITEMS[base].sell * (S.prices[base] || 1) * mutMult(muts)));
+  return Math.max(1, Math.round(ITEMS[base].sell * (S.prices[base] || 1) * mutMult(muts) * priceMod(base)));
 };
+let priceMod = () => 1;
+/** Outros módulos podem mexer no preço de venda (ex.: festivais). */
+export const setPriceMod = (fn) => { priceMod = fn; };
 export const plotCost = () => Math.round(80 * Math.pow(1.2, S.bought));
 export const penSize = () => PEN_SIZE[S.up.curral];
 /** O gado (vacas, touros e bezerros) vive no pasto quando ele existe. */
@@ -215,7 +249,7 @@ export function buyPasture() {
   return true;
 }
 export const isReady = (p) => p.s === 'planted' && p.g >= CROPS[p.crop].time;
-export const isWet = (p) => autoWater() || p.w > 0;
+export const isWet = (p) => autoWater() || p.gh || p.spr || p.w > 0;
 export const canFulfill = (o) => o.req.every((r) => (S.inv[r.id] || 0) >= r.qty);
 /** Há pedido novo (ainda não lido) ou que já dá para entregar? (cartinha sobre o quadro) */
 export const hasMail = () => S.orders.some((o) => !o.seen || canFulfill(o));
@@ -241,7 +275,7 @@ const sexWord = (a) => (a.sex === 'm' ? 'macho' : 'fêmea');
 function newAnimal(type, sex, color, baby) {
   const d = ANIMALS[type];
   return {
-    id: S.nextId++, type, fed: false, p: 0, ready: false,
+    id: S.nextId++, type, fed: false, p: 0, ready: false, hap: HAPPY.start,
     sex: sex === 'm' ? 'm' : 'f',
     color: color ?? Math.floor(Math.random() * d.colors.length),
     age: baby ? BREED.grow : 0,
@@ -283,7 +317,7 @@ function nightness() {
   return 0;
 }
 
-export const fieldOwned = (id) => !!S.fields[id];
+export const fieldOwned = (id) => (id === 'estufa' ? built('estufa') : !!S.fields[id]);
 export const plotVisible = (i) => fieldOwned(fieldOf(i).field.id);
 
 /** Lote bloqueado que pode ser comprado (vizinho de um lote já liberado, num campo seu). */
@@ -468,8 +502,9 @@ export function update(dt, quiet) {
     if (p.s === 'planted') {
       const c = CROPS[p.crop];
       if (p.g < c.time) {
-        const wetTime = auto ? dt : Math.min(dt, p.w);
-        p.g = Math.min(c.time, p.g + wetTime * speed * growMod(p.crop));
+        // Na estufa: água automática e sempre "da estação"
+        const wetTime = auto || p.gh || p.spr ? dt : Math.min(dt, p.w);
+        p.g = Math.min(c.time, p.g + wetTime * speed * (p.gh ? SEASON_BONUS : growMod(p.crop)));
       }
     }
     if (p.w > 0) p.w = Math.max(0, p.w - dt * evaporate);
@@ -556,8 +591,10 @@ export function update(dt, quiet) {
       }
       continue;
     }
+    // Com fome, o animal vai ficando triste
+    if (producer(a) && !a.fed && !a.ready && !inPasture(a)) a.hap = Math.max(0, a.hap - (dt * HAPPY.hungry) / DAY_LEN);
     if (producer(a) && a.fed && !a.ready) {
-      a.p += dt;
+      a.p += dt * happyMult(a);
       if (a.p >= ANIMALS[a.type].time) { a.ready = true; a.p = 0; tryBreed(a, quiet); }
     }
   }
@@ -807,6 +844,7 @@ function harvest(i, silent = false) {
   addItem(itemKey(p.crop, muts), 1);
   gainXp(c.xp, silent);
   S.stats.harvest++;
+  albumHarvest(p.crop, muts, silent);
   if (muts.length) S.stats.mutated = (S.stats.mutated || 0) + 1;
   if (muts.includes('gigante')) S.stats.giants = (S.stats.giants || 0) + 1;
   if (!silent) {
@@ -849,9 +887,29 @@ function feedAnimal(a) {
   return true;
 }
 
+// ================= Felicidade =================
+/** Ritmo de produção pela felicidade: feliz produz mais rápido, triste mais devagar. */
+export const happyMult = (a) => (a.hap >= HAPPY.happy ? HAPPY.fast : a.hap < HAPPY.sad ? HAPPY.slow : 1);
+/** Rosto e palavra da felicidade. */
+export const happyFace = (a) => (a.hap >= HAPPY.happy ? '😊 feliz' : a.hap >= 55 ? '🙂 contente' : a.hap >= HAPPY.sad ? '😐 ok' : '😟 triste');
+const pettedToday = (a) => a.pet === dayOf(S.time);
+
+/** Carinho: uma vez por dia por animal. */
+function petAnimal(a) {
+  a.pet = dayOf(S.time);
+  a.hap = Math.min(100, a.hap + HAPPY.pet);
+  S.stats.pets = (S.stats.pets || 0) + 1;
+  gainXp(1);
+}
+
 function collectAnimal(a, silent = false) {
   const def = ANIMALS[a.type];
   addItem(def.product, 1);
+  // Feliz: às vezes dá em dobro
+  if (a.hap >= HAPPY.happy && Math.random() < HAPPY.double) {
+    addItem(def.product, 1);
+    if (!silent) fx({ animal: a.id }, `😊 +1 ${PRODUCTS[def.product].icon}`, 'gold');
+  }
   gainXp(PRODUCTS[def.product].xp, silent);
   a.ready = false;
   a.fed = false;
@@ -861,16 +919,17 @@ function collectAnimal(a, silent = false) {
 
 export function animalActionLabel(a) {
   const def = ANIMALS[a.type];
-  if (!producer(a)) return `Fazer carinho (${animalName(a).toLowerCase()})`;
+  if (!producer(a)) return pettedToday(a) ? null : `Fazer carinho (${animalName(a).toLowerCase()})`;
   if (a.ready) return `Coletar ${PRODUCTS[def.product].icon} ${PRODUCTS[def.product].name}`;
   if (!a.fed) return `Alimentar ${animalName(a).toLowerCase()} (1 🌾)`;
+  if (!pettedToday(a)) return `Fazer carinho ❤️ (${happyFace(a)})`;
   return null;
 }
 
 export function animalInfo(a) {
   const def = ANIMALS[a.type];
   const prod = PRODUCTS[def.product];
-  const who = `${a.sex === 'm' ? '♂' : '♀'} ${animalName(a)} ${animalColor(a).toLowerCase()}`;
+  const who = `${a.sex === 'm' ? '♂' : '♀'} ${animalName(a)} ${animalColor(a).toLowerCase()} · ${happyFace(a)}${pettedToday(a) ? ' ❤️' : ''}`;
   if (isBaby(a)) return `${def.babyIcon} ${who} (${sexWord(a)}): ainda é filhote, vira adulto em ${fmtDuration(a.age)}.`;
   if (a.sex === 'm') {
     const mates = S.animals.some((b) => b.type === a.type && producer(b));
@@ -888,6 +947,7 @@ export function interactAnimal(id, quiet = false) {
   if (!a) return null;
   const def = ANIMALS[a.type];
   if (!producer(a)) {
+    if (!pettedToday(a)) { petAnimal(a); fx({ animal: id }, '❤️'); sfx('plant'); return 'pet'; }
     if (!quiet) { toast(animalInfo(a)); fx({ animal: id }, '❤️'); }
     return null;
   }
@@ -909,6 +969,13 @@ export function interactAnimal(id, quiet = false) {
       sfx('error');
     }
     return null;
+  }
+  // Alimentado e produzindo: hora do carinho (uma vez por dia)
+  if (!pettedToday(a)) {
+    petAnimal(a);
+    fx({ animal: id }, a.hap >= HAPPY.happy ? '❤️❤️' : '❤️');
+    sfx('plant');
+    return 'pet';
   }
   if (!quiet) toast(animalInfo(a));
   return null;
@@ -1041,6 +1108,7 @@ export function bigWork(machine, k) {
     const muts = maskToList(b.mm[k]);
     b.mm[k] = 0;
     addItem(itemKey('trigo', muts), 1);
+    albumHarvest('trigo', muts, true);
     if (muts.length) S.stats.mutated = (S.stats.mutated || 0) + 1;
   if (muts.includes('gigante')) S.stats.giants = (S.stats.giants || 0) + 1;
     gainXp(1);
@@ -1084,8 +1152,17 @@ export const CHAR_DEFAULT = { m: 'Fazendeiro', f: 'Fazendeira' };
 export const gw = (m, f) => (S.char.gender === 'f' ? f : m);
 export const playerName = () => S.char.name || CHAR_DEFAULT[S.char.gender];
 
-export function setCharacter(gender, name) {
+/** Visual válido (cores dentro das listas e um chapéu que existe). */
+export function cleanLook(l) {
+  const o = { ...DEFAULT_LOOK, ...(l || {}) };
+  for (const k of ['shirt', 'pants', 'hair']) if (!(Number.isInteger(o[k]) && o[k] >= -1 && o[k] < LOOKS[k].length)) o[k] = DEFAULT_LOOK[k];
+  if (!LOOKS.hat.some((h) => h.id === o.hat)) o.hat = DEFAULT_LOOK.hat;
+  return { shirt: o.shirt, pants: o.pants, hair: o.hair, hat: o.hat };
+}
+
+export function setCharacter(gender, name, look) {
   const C = S.char;
+  if (look) C.look = cleanLook(look);
   C.gender = gender === 'f' ? 'f' : 'm';
   C.name = String(name || '').replace(/[<>&"]/g, '').replace(/\s+/g, ' ').trim().slice(0, 16).trim() || CHAR_DEFAULT[C.gender];
   const first = !C.chosen;
@@ -1212,6 +1289,11 @@ export function buildDeliver(id) {
   if (!buildMissing(id).length) {
     st.done = true;
     gainXp(15);
+    // Estufa pronta: os canteiros já vêm arados
+    if (id === 'estufa') {
+      const f = FIELDS.find((ff) => ff.id === 'estufa');
+      for (let i = f.start; i < f.start + f.count; i++) S.plots[i] = { s: 'tilled', crop: null, g: 0, w: 0, m: [], gh: true };
+    }
     const moved = id === 'galinheiro' ? coopCount() : 0;
     toast(`${b.icon} ${b.name} ${bw(b, 'construído', 'construída')}! ${b.desc}${moved === 1 ? ' Sua ave saiu do curral e já está lá.' : moved ? ` Suas ${moved} aves saíram do curral e já estão lá.` : ''}`, 'good');
     sfx('level');
@@ -1533,12 +1615,12 @@ export function buyRod(level) {
 }
 
 /** Sorteia o que morde a isca, conforme a hora, o clima e a vara. */
-export function rollFish() {
+export function rollFish(where = 'lago') {
   const night = darkness() > 0.5;
   const rain = S.weather === 'chuva';
   const good = S.fishing.rod >= 2;
   const opts = Object.entries(FISH).map(([id, f]) => {
-    let w = f.weight;
+    let w = f.where && f.where !== where ? 0 : f.weight;
     if (f.night && night) w *= 3;
     if (f.rain && rain) w *= 3;
     if (f.rare && good) w *= 2;
@@ -1557,10 +1639,68 @@ export function catchFish(id) {
   gainXp(f.xp);
   S.stats.fish = (S.stats.fish || 0) + 1;
   if (FISH[id].rare) S.stats.rareFish = (S.stats.rareFish || 0) + 1;
+  albumAdd('peixes', id);
   emit('fish', id);
   const msg = f.junk ? `${f.icon} Ops… você pescou uma ${f.name.toLowerCase()}.` : `🎣 Você pescou: ${f.icon} ${f.name}! (vale 🪙${price(id)})`;
   toast(msg, f.rare ? 'level' : f.junk ? '' : 'good');
   sfx(f.rare ? 'level' : 'catch');
+}
+
+// ================= Coleções (álbum) =================
+/** Itens de cada página do álbum. */
+export const albumEntries = (page) => (page === 'lavoura' || page === 'gigantes' ? Object.keys(CROPS)
+  : page === 'mutacoes' ? Object.keys(MUTATIONS).filter((m) => m !== 'gigante')
+  : page === 'peixes' ? Object.keys(FISH) : Object.keys(BUGS));
+/** Nome e ícone de um item do álbum. */
+export function albumInfo(page, id) {
+  if (page === 'lavoura' || page === 'gigantes') return { icon: CROPS[id].icon, name: page === 'gigantes' ? `${CROPS[id].name} gigante` : CROPS[id].name };
+  if (page === 'mutacoes') return MUTATIONS[id];
+  if (page === 'peixes') return FISH[id];
+  return BUGS[id];
+}
+
+/** Registra no álbum (a primeira vez avisa; completar a página dá o prêmio). */
+export function albumAdd(page, id, quiet = false) {
+  const pg = S.album[page];
+  const first = !pg[id];
+  pg[id] = (pg[id] || 0) + 1;
+  if (!first) return;
+  const it = albumInfo(page, id);
+  gainXp(5, true);
+  notify(`📔 Novo no álbum (${ALBUM[page].name}): ${it.icon} ${it.name}!`, '', quiet);
+  if (!S.album.done[page] && albumEntries(page).every((e) => pg[e])) {
+    S.album.done[page] = true;
+    earn(ALBUM[page].reward);
+    notify(`📔 Página do álbum completa: ${ALBUM[page].icon} ${ALBUM[page].name}! +🪙${fmt(ALBUM[page].reward)}`, 'level', quiet);
+    if (!quiet) sfx('level');
+  }
+  markDirty('panel');
+}
+
+function albumHarvest(crop, muts, quiet) {
+  albumAdd('lavoura', crop, quiet);
+  if (muts.includes('gigante')) albumAdd('gigantes', crop, quiet);
+  for (const m of muts) if (m !== 'gigante') albumAdd('mutacoes', m, quiet);
+}
+
+export function buyNet() {
+  if (S.net || NET.level > S.level) return;
+  if (!spend(NET.cost)) return;
+  S.net = true;
+  toast(`${NET.icon} Rede de insetos comprada! Equipe a 🥅 na barra e chegue perto de uma borboleta, joaninha ou vaga-lume.`, 'good');
+  sfx('coin');
+  markDirty('toolbar', 'panel');
+}
+
+/** Pegou um bichinho com a rede: vai para o álbum (e dá um pouco de XP). */
+export function catchBug(type) {
+  if (!BUGS[type]) return false;
+  albumAdd('bichos', type);
+  S.stats.bugs = (S.stats.bugs || 0) + 1;
+  gainXp(2);
+  fx({ player: true }, `${BUGS[type].icon} ${BUGS[type].name}`, 'gold');
+  sfx('catch');
+  return true;
 }
 
 // ================= Funcionários =================
@@ -1754,7 +1894,7 @@ export function plotInfo(i) {
   const muts = p.m || [];
   const mutTxt = muts.length ? ` · ${muts.map((m) => `${MUTATIONS[m].icon} ${MUTATIONS[m].name}`).join(', ')} (×${mutMult(muts).toLocaleString('pt-BR')})` : '';
   if (isReady(p)) return `${c.icon} ${c.name} pronto para colher!${mutTxt}`;
-  const left = Math.ceil((c.time - p.g) / (GROW_SPEED[S.up.adubo] * growMod(p.crop)));
+  const left = Math.ceil((c.time - p.g) / (GROW_SPEED[S.up.adubo] * (p.gh ? SEASON_BONUS : growMod(p.crop))));
   const water = wet
     ? (autoWater() ? '💧 regado' : `💧 regado (${Math.ceil(p.w)}s)`)
     : '⚠️ precisa de água!';
@@ -1768,6 +1908,7 @@ export function toolHint() {
   if (tool === 'machado') return '🪓 Machado: chegue perto de uma árvore do bosque e corte para ganhar troncos 🪵.';
   if (tool === 'fertilizante') return `${FERTILIZER.icon} Fertilizante (${S.inv.fertilizante || 0}): use numa planta crescendo. ${Math.round(FERTILIZER.chance * 100)}% de chance de ela ficar 💪 gigante (vale o dobro).`;
   if (tool === 'vara') return '🎣 Vara de pesca: vá até a beira do lago e aperte Espaço para lançar a linha.';
+  if (tool === 'rede') return `${NET.icon} Rede: chegue perto de uma borboleta, joaninha ou vaga-lume (à noite) e aperte Espaço, ou toque nele. Tudo vai para o 📔 álbum.`;
   const id = tool.slice(5);
   return `${CROPS[id].icon} Plantando ${CROPS[id].name}: ${S.seeds[id] || 0} sementes.`;
 }
@@ -1775,7 +1916,7 @@ export function toolHint() {
 // ================= Ganchos para os sistemas novos (systems.js) =================
 // ================= Corvos =================
 /** Planta crescendo que pode ser bicada por um corvo. */
-export const crowTarget = (i) => S.plots[i] && S.plots[i].s === 'planted' && !isReady(S.plots[i]);
+export const crowTarget = (i) => S.plots[i] && S.plots[i].s === 'planted' && !S.plots[i].gh && !isReady(S.plots[i]);
 /** O corvo bicou: a planta volta ao começo (perde o crescimento, mas não o adubo nem as mutações). */
 export function crowEat(i) {
   const p = S.plots[i];
@@ -1790,7 +1931,19 @@ export function crowEat(i) {
 
 // ================= Espaço no armazém =================
 export const stored = () => Object.values(S.inv).reduce((s, n) => s + (n > 0 ? n : 0), 0);
-export const capacity = () => STORAGE.base + S.decor.filter((x) => x.id === 'bau').length * STORAGE.chest;
+export const capacity = () => STORAGE.base + S.decor.filter((x) => x.id === 'bau').length * STORAGE.chest + HOUSE[S.house.lvl - 1].storage;
+
+/** Reforma da casa: próximo nível. */
+export function upgradeHouse() {
+  const next = HOUSE[S.house.lvl];
+  if (!next || next.level > S.level) return;
+  if (!spend(next.cost)) return;
+  S.house.lvl++;
+  toast(`🏠 Reforma pronta: ${next.name}! ${next.desc}`, 'good');
+  sfx('level');
+  emit('house', S.house.lvl);
+  markDirty('panel');
+}
 export const canStore = (n = 1) => stored() + n <= capacity();
 let fullT = 0;
 export function fullWarn(quiet) {
@@ -1824,8 +1977,10 @@ export const H = {
 };
 
 // ================= Salvamento =================
+let saveFrozen = false; // depois de carregar um backup, nada pode gravar por cima até recarregar
+
 export function save() {
-  if (!S) return;
+  if (!S || saveFrozen) return;
   try {
     S.savedAt = Date.now();
     localStorage.setItem(SAVE_KEY, JSON.stringify(S));
@@ -1834,7 +1989,46 @@ export function save() {
 
 function load() {
   try {
-    const raw = localStorage.getItem(SAVE_KEY);
+    return parseSave(localStorage.getItem(SAVE_KEY));
+  } catch (e) {
+    return null;
+  }
+}
+
+// ================= Backup da fazenda =================
+const BACKUP_TAG = 'FARMLIFE1:';
+/** Texto do save atual (para baixar como arquivo). */
+export function exportSave() {
+  save();
+  return JSON.stringify(S);
+}
+/** Código curto de copiar e colar (o save em base64, com uma etiqueta). */
+export function exportCode() {
+  const bytes = new TextEncoder().encode(exportSave());
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return BACKUP_TAG + btoa(bin);
+}
+/** Carrega um backup (arquivo JSON ou código). Retorna true se deu certo; aí o jogo precisa recarregar. */
+export function importSave(text) {
+  try {
+    let raw = String(text || '').trim();
+    if (raw.startsWith(BACKUP_TAG)) {
+      const bin = atob(raw.slice(BACKUP_TAG.length).replace(/\s+/g, ''));
+      raw = new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
+    }
+    if (!parseSave(raw)) return false;
+    localStorage.setItem(SAVE_KEY, raw);
+    saveFrozen = true;
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+/** Lê e confere um save (texto JSON); completa com o que faltar. null se não for um save válido. */
+function parseSave(raw) {
+  try {
     if (!raw) return null;
     const d = JSON.parse(raw);
     if (!d || !Array.isArray(d.plots) || d.plots.length < COLS * ROWS || d.plots.length > TOTAL_PLOTS) return null;
@@ -1855,9 +2049,12 @@ function load() {
       },
       pet: { ...base.pet, ...d.pet },
       horse: { ...base.horse, ...d.horse },
-      char: { ...base.char, ...d.char },
+      char: { ...base.char, ...d.char, look: cleanLook(d.char && d.char.look) },
       compost: { ...base.compost, ...d.compost },
       cheese: { ...base.cheese, ...d.cheese },
+      house: { lvl: Math.max(1, Math.min(HOUSE.length, (d.house && d.house.lvl) || 1)) },
+      village: { talk: { ...(d.village && d.village.talk) } },
+      stand: { ...base.stand, ...d.stand, slots: Array.isArray(d.stand && d.stand.slots) ? d.stand.slots.filter((x) => ITEMS[String(x.id).split('|')[0]]) : [] },
       fac: Object.fromEntries(Object.keys(FACTORIES).map((id) => [id, { ...base.fac[id], ...(d.fac && d.fac[id]) }])),
       orchard: base.orchard.map((o, k) => ({ ...o, ...(d.orchard && d.orchard[k]) })),
       hives: { ...base.hives, ...d.hives },
@@ -1867,6 +2064,7 @@ function load() {
       layout: { ...(d.layout || {}) },
       layoutV: d.layoutV || 1,
       decorInv: { ...(d.decorInv || {}) },
+      album: Object.fromEntries(Object.entries(newAlbum()).map(([k, v]) => [k, { ...v, ...((d.album && d.album[k]) || {}) }])),
       fair: { ...base.fair, ...d.fair },
       tutorial: d.tutorial ? { ...base.tutorial, ...d.tutorial, tips: { ...(d.tutorial.tips || {}) } } : { ...base.tutorial, done: true },
       big: d.big && Array.isArray(d.big.s) && d.big.s.length === BIG_CELLS ? d.big : base.big,
@@ -1885,6 +2083,7 @@ function load() {
       if (!a.sex) a.sex = 'f';
       if (a.color == null) a.color = a.id % ANIMALS[a.type].colors.length;
       if (!(a.age > 0)) a.age = 0;
+      if (typeof a.hap !== 'number') a.hap = HAPPY.start;
     }
     st.orders = (st.orders || []).filter((o) => o.req && o.req.every((r) => ITEMS[r.id]));
     for (const o of st.orders) if (o.seen === undefined) o.seen = true;

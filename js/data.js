@@ -63,6 +63,8 @@ export const FIELDS = [
   { id: 'leste', name: 'Campo da Colina', icon: '🌄', cols: 6, rows: 4, cost: 4000, level: 5 },
   { id: 'sul', name: 'Campo Comprido', icon: '🌾', cols: 8, rows: 4, cost: 12000, level: 9 },
   { id: 'lago', name: 'Campo do Vale', icon: '🏞️', cols: 6, rows: 5, cost: 25000, level: 13 },
+  // Canteiros da estufa (aparecem quando a obra fica pronta)
+  { id: 'estufa', name: 'Estufa', icon: '🪴', cols: 6, rows: 3, cost: 0, level: 9, greenhouse: true },
 ];
 let fieldStart = 0;
 for (const f of FIELDS) { f.start = fieldStart; f.count = f.cols * f.rows; fieldStart += f.count; }
@@ -94,10 +96,13 @@ export const MACHINES = {
 // Pescaria no lago. dif = dificuldade do minigame (0 a 1); weight = chance relativa
 export const FISH = {
   lambari:  { name: 'Lambari',       icon: '🐟', sell: 15,  xp: 3,  dif: 0.15, weight: 40, color: 0xb0bec5 },
-  tilapia:  { name: 'Tilápia',       icon: '🐠', sell: 40,  xp: 5,  dif: 0.3,  weight: 30, color: 0x9aa86b },
+  tilapia:  { name: 'Tilápia',       icon: '🐠', sell: 40,  xp: 5,  dif: 0.3,  weight: 30, color: 0x9aa86b, where: 'lago' },
+  pacu:     { name: 'Pacu',          icon: '🐟', sell: 45,  xp: 5,  dif: 0.3,  weight: 28, color: 0x7d8c8f, where: 'rio' },
+  truta:    { name: 'Truta',         icon: '🐟', sell: 65,  xp: 7,  dif: 0.45, weight: 18, color: 0xc9a0a0, where: 'rio' },
+  dourado:  { name: 'Dourado',       icon: '🐠', sell: 190, xp: 16, dif: 0.7,  weight: 4,  color: 0xf2b134, where: 'rio', rare: true },
   bagre:    { name: 'Bagre',         icon: '🐡', sell: 70,  xp: 8,  dif: 0.45, weight: 12, color: 0x6d5c4b, night: true },
   lagostim: { name: 'Lagostim',      icon: '🦞', sell: 90,  xp: 9,  dif: 0.5,  weight: 6,  color: 0xd84315, rain: true },
-  carpa:    { name: 'Carpa dourada', icon: '🎏', sell: 250, xp: 20, dif: 0.75, weight: 3,  color: 0xffb300, rare: true },
+  carpa:    { name: 'Carpa dourada', icon: '🎏', sell: 250, xp: 20, dif: 0.75, weight: 3,  color: 0xffb300, rare: true, where: 'lago' },
   bota:     { name: 'Bota velha',    icon: '👢', sell: 1,   xp: 1,  dif: 0.05, weight: 6,  color: 0x5d4037, junk: true },
 };
 export const RODS = [
@@ -183,6 +188,8 @@ export const BUILDINGS = {
   curral:  { name: 'Curral',  icon: '🐾', cost: { madeira: 14, viga: 4 }, desc: 'Libera a compra de ovelhas, vacas e porcos, e o cocho.' },
   galinheiro: { name: 'Galinheiro', icon: '🐔', cost: { madeira: 12, viga: 3 }, level: 2, desc: `Casa das galinhas: até ${COOP.slots} aves, com ninhos e comedouro próprio.` },
   galpao:  { name: 'Galpão das máquinas', icon: '🚜', cost: { madeira: 24, viga: 8 }, level: 12, desc: 'Garagem das máquinas do Campo de Trigo: é preciso para comprá-las.' },
+  barraca: { name: 'Barraca', icon: '⛺', cost: { madeira: 10, viga: 2 }, level: 4, fem: true, desc: 'Barraca de beira de estrada: quem passa compra o que você deixar exposto, 15% acima do mercado, até com o jogo fechado.' },
+  estufa: { name: 'Estufa', icon: '🪴', cost: { madeira: 26, viga: 8 }, level: 9, fem: true, desc: '18 canteiros cobertos: tudo cresce como se fosse da estação, o ano todo, e a água é automática.' },
   queijaria: { name: 'Queijaria', icon: '🧀', cost: { madeira: 20, viga: 6 }, level: 8, fem: true, desc: 'Transforma o leite das vacas em queijo, sozinha.' },
 };
 
@@ -308,7 +315,8 @@ export const FAIR = {
 // ================= Decoração e espaço no armazém =================
 // r: raio que ocupa no chão (0 = dá para passar por cima); special: efeito no jogo
 export const DECOR = {
-  espantalho: { name: 'Espantalho',        icon: '👒', cost: 300,  r: 0.3,  level: 2, desc: 'Espanta os corvos das plantações num raio de 8 m.' },
+  espantalho: { name: 'Espantalho',        icon: '👒', cost: 300,  r: 0.3,  level: 2, range: 8, desc: 'Espanta os corvos das plantações num raio de 8 m.' },
+  aspersor:   { name: 'Aspersor',          icon: '💦', cost: 1200, r: 0.25, level: 5, range: 3.2, desc: 'Rega sozinho os lotes num raio de 3 m. Coloque na beira de um campo.' },
   bau:        { name: 'Baú',               icon: '🧰', cost: 800,  r: 0.4,  level: 1, desc: '+100 de espaço no armazém (cada baú colocado).' },
   canteiro:   { name: 'Canteiro de flores', icon: '🌷', cost: 120,  r: 0.45, level: 1, desc: 'Flores coloridas num canteiro de madeira.' },
   banco:      { name: 'Banco',             icon: '🪑', cost: 150,  r: 0.45, level: 1, desc: 'Um banco de praça para descansar.' },
@@ -319,6 +327,12 @@ export const DECOR = {
   caminho:    { name: 'Pedras do caminho', icon: '🪨', cost: 40,   r: 0,    level: 1, desc: 'Pedras para fazer trilhas (dá para pisar).' },
   fonte:      { name: 'Fonte',             icon: '⛲', cost: 2500, r: 0.75, level: 4, desc: 'Uma fonte de pedra com água.' },
   estatua:    { name: 'Estátua de galo',   icon: '🐓', cost: 1500, r: 0.4,  level: 3, desc: 'Um galo dourado de enfeite.' },
+  // Móveis: só dentro de casa
+  tapete:     { name: 'Tapete',            icon: '🟥', cost: 180,  r: 0,    level: 1, indoor: true, desc: 'Tapete macio para dentro de casa.' },
+  poltrona:   { name: 'Poltrona',          icon: '🛋️', cost: 450,  r: 0.45, level: 2, indoor: true, desc: 'Uma poltrona fofinha para dentro de casa.' },
+  vaso:       { name: 'Vaso de planta',    icon: '🪴', cost: 160,  r: 0.3,  level: 1, indoor: true, desc: 'Uma planta para dentro de casa.' },
+  estante:    { name: 'Estante de livros', icon: '📚', cost: 700,  r: 0.5,  level: 4, indoor: true, desc: 'Estante cheia de livros para dentro de casa.' },
+  abajur:     { name: 'Abajur',            icon: '💡', cost: 300,  r: 0.25, level: 2, indoor: true, desc: 'Acende sozinho à noite, dentro de casa.' },
 };
 export const STORAGE = { base: 500, chest: 100 }; // itens no armazém (sem contar sementes)
 
@@ -330,3 +344,88 @@ export const PET_FINDS = [
   { id: 'trufa', q: 1, w: 2 }, { id: 'tronco', q: 3, w: 4 }, { id: 'esterco', q: 2, w: 3 }, { id: 'fertilizante', q: 1, w: 2 },
   { coins: 120, w: 4 }, { seeds: 'milho', q: 3, w: 3 }, { id: 'bota', q: 1, w: 1 },
 ];
+
+// ================= Coleções =================
+// Rede de insetos: pega borboletas, joaninhas e vaga-lumes para o álbum
+export const NET = { name: 'Rede de insetos', icon: '🥅', cost: 250, level: 2, desc: 'Pegue borboletas, joaninhas e vaga-lumes (só à noite) para o 📔 álbum. Equipe a 🥅 na barra e chegue perto, ou toque no bichinho.' };
+export const BUGS = {
+  amarela: { name: 'Borboleta-amarela', icon: '🦋', color: 0xffb300 },
+  roxa:    { name: 'Borboleta-roxa',    icon: '🦋', color: 0x7e57c2 },
+  laranja: { name: 'Borboleta-laranja', icon: '🦋', color: 0xff7043 },
+  azul:    { name: 'Borboleta-azul',    icon: '🦋', color: 0x29b6f6 },
+  rosa:    { name: 'Borboleta-rosa',    icon: '🦋', color: 0xf06292 },
+  limao:   { name: 'Borboleta-limão',   icon: '🦋', color: 0xffee58 },
+  joaninha: { name: 'Joaninha', icon: '🐞' },
+  vagalume: { name: 'Vaga-lume', icon: '✨', night: true },
+};
+// Páginas do álbum: completar uma página dá o prêmio
+export const ALBUM = {
+  lavoura:  { name: 'Lavoura',   icon: '🌱', reward: 2000, hint: 'Colha cada cultura pelo menos uma vez.' },
+  gigantes: { name: 'Gigantes',  icon: '💪', reward: 6000, hint: 'Colha uma planta gigante de cada cultura (use 🧪 fertilizante nas plantas crescendo).' },
+  mutacoes: { name: 'Mutações',  icon: '🌈', reward: 3000, hint: 'Colha plantas com cada mutação do clima.' },
+  peixes:   { name: 'Peixes',    icon: '🎣', reward: 1500, hint: 'Pesque cada peixe: alguns só no lago, outros só no rio, à noite ou na chuva.' },
+  bichos:   { name: 'Bichinhos', icon: '🦋', reward: 1500, hint: 'Pegue com a 🥅 rede (Loja → Ferramentas). Vaga-lumes só à noite.' },
+};
+
+// ================= Barraca de beira de estrada =================
+// slots: produtos diferentes expostos; max: unidades por produto; every: segundos entre vendas; bonus: sobre o preço do mercado
+export const STAND = { slots: 6, max: 20, every: 25, bonus: 1.15 };
+
+// ================= Felicidade dos animais =================
+// pet: carinho (1 vez por dia); decay: perde por dia; hungry: perde por dia com fome; happy/sad: limites;
+// fast/slow: ritmo de produção; double: chance de produto em dobro quando feliz
+export const HAPPY = { start: 60, pet: 20, decay: 8, hungry: 25, happy: 80, sad: 30, fast: 1.25, slow: 0.7, double: 0.25 };
+
+// ================= Festivais de estação =================
+// No dia "day" de cada estação. grow: crescimento do dia; sell: preço de venda (por item, ou "*" para todas as culturas)
+export const FESTIVALS = {
+  primavera: { id: 'flores',   day: 4, name: 'Festa das Flores',  icon: '🌸', grow: 1.2, gift: { decor: 'canteiro' }, desc: 'Tudo cresce 20% mais rápido hoje, e a vila te dá um canteiro de flores.' },
+  verao:     { id: 'junina',   day: 4, name: 'Festa Junina',      icon: '🎉', sell: { milho: 1.5, farinha: 1.5, pao: 1.5, bolo: 1.5 }, desc: 'Milho, farinha, pão e bolo vendem 50% mais caro hoje. Bandeirinhas e fogueira na rua principal!' },
+  outono:    { id: 'colheita', day: 4, name: 'Festa da Colheita', icon: '🎃', sell: { '*': 1.25 }, desc: 'Todas as culturas vendem 25% mais caro hoje.' },
+  inverno:   { id: 'natal',    day: 4, name: 'Natal na Fazenda',  icon: '🎄', gift: { coins: 150 }, desc: 'A vila monta uma árvore de Natal na sede e te dá um presente.' },
+};
+
+// ================= Casa por dentro =================
+// size: largura × fundo do cômodo; storage: espaço extra no armazém (despensa e armários)
+export const HOUSE = [
+  { name: 'Casinha',          size: [6, 5],  cost: 0,     level: 1,  storage: 0,   desc: 'Um quarto com cama, mesinha e um fogareiro.' },
+  { name: 'Casa com cozinha', size: [8, 6],  cost: 5000,  level: 6,  storage: 150, desc: 'Mais espaço e uma cozinha com despensa: +150 de espaço no armazém.' },
+  { name: 'Casa grande',      size: [10, 7], cost: 15000, level: 12, storage: 250, desc: 'Sala com lareira, sofá e estante: +250 de espaço no armazém (com a despensa).' },
+];
+
+// ================= Visual do personagem =================
+// Índice -1 = cor padrão do personagem escolhido (fazendeiro ou fazendeira)
+export const LOOKS = {
+  shirt: [0xd9534f, 0x1f9e89, 0x3d7dd8, 0xf2b134, 0x8e5bbf, 0x4f9a3d, 0xf07aa8, 0xf5f3ea],
+  pants: [0x3d5a9e, 0x6d4c41, 0x4a4a4a, 0x2e7d32, 0x8d6e63, 0xb03a48],
+  hair: [0x6b4423, 0x7a3b1d, 0x2b1d14, 0xe0b44a, 0xc0562b, 0x9e9e9e],
+  hat: [
+    { id: 'palha', name: 'Chapéu de palha', icon: '👒' },
+    { id: 'bone', name: 'Boné', icon: '🧢' },
+    { id: 'gorro', name: 'Gorro', icon: '🧶' },
+    { id: 'lenco', name: 'Lenço', icon: '🎀' },
+    { id: 'flores', name: 'Coroa de flores', icon: '🌼' },
+    { id: 'nada', name: 'Sem chapéu', icon: '🙂' },
+  ],
+};
+export const DEFAULT_LOOK = { shirt: -1, pants: 0, hair: -1, hat: 'palha' };
+
+// ================= Vila e moradores =================
+// home: índice da casa na vila; fisher: pesca no rio; shopper: visita a sua barraca; kid: criança
+export const VILLAGERS = [
+  { id: 'rosa',   name: 'Dona Rosa', icon: '👵', home: 0, female: true, colors: { shirt: 0xb05f8a, denim: 0x5d4037, hat: 0xf3e5c0, band: 0xb05f8a, hair: 0xd8d8d8, skin: 0xf1c27d } },
+  { id: 'ze',     name: 'Seu Zé',    icon: '👴', home: 1, fisher: true, colors: { shirt: 0x5b7a9a, denim: 0x4e4e4e, hat: 0xc9a46a, band: 0x3e2723, hair: 0xbdbdbd, skin: 0xc68642 } },
+  { id: 'tonico', name: 'Tonico',    icon: '🧒', home: 2, kid: true, colors: { shirt: 0xf2b134, denim: 0x3d5a9e, hat: 0xd9534f, band: 0xffffff, hair: 0x2b1d14, skin: 0x8d5524 } },
+  { id: 'lucia',  name: 'Lúcia',     icon: '👩', home: 3, female: true, colors: { shirt: 0x4f9a3d, denim: 0x6d4c41, hat: 0xf0d58a, band: 0x4f9a3d, hair: 0x2b1d14, skin: 0xe0ac69 } },
+  { id: 'bento',  name: 'Bento',     icon: '🧔', home: 4, shopper: true, colors: { shirt: 0x8e5bbf, denim: 0x37474f, hat: 0x8d6e63, band: 0x4e342e, hair: 0x6b4423, skin: 0xf1c27d } },
+  { id: 'clara',  name: 'Clarinha',  icon: '👧', home: 5, kid: true, female: true, colors: { shirt: 0xf07aa8, denim: 0x5c6bc0, hat: 0xfff3b0, band: 0xf07aa8, hair: 0xc0562b, skin: 0xf1c27d } },
+];
+export const VILLAGE_TALK = {
+  rosa: ['Girassol na primavera cresce que é uma beleza, viu?', 'Bicho que ganha carinho todo dia fica feliz e produz mais rápido.', 'No meu tempo a festa junina ia até o sol nascer!'],
+  ze: ['No rio dá pacu e truta. O dourado é bravo: segura firme!', 'À noite o bagre morde mais. E na chuva aparece lagostim.', 'A carpa dourada só vive no lago da sua fazenda.'],
+  tonico: ['Peguei uma joaninha ontem! Você já tem rede de insetos?', 'Os vaga-lumes só aparecem de noite. São muito legais!', 'Quando eu crescer quero um trator igual ao seu!'],
+  lucia: ['Na estufa dá para plantar até no inverno.', 'Aspersor rega sozinho os lotes em volta. Economiza um tempão!', 'Já reformou sua casa? A cozinha vem com despensa.'],
+  bento: ['Gente da vila compra na sua barraca todo dia.', 'O quadro de pedidos paga melhor que o mercado.', 'Viga da serraria vale ouro em obra.'],
+  clara: ['Você já viu as estrelas refletindo no lago de noite?', 'Eu adoro dançar! Aperta V que você dança também!', 'Meu cachorro tem medo de trovão…'],
+};
+export const VILLAGE = { talkXp: 3 };

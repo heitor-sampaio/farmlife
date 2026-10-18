@@ -60,6 +60,7 @@ export function unlockAudio() {
   try {
     ensureCtx();
     Music.start();
+    Amb.start();
   } catch (e) { /* áudio indisponível */ }
 }
 
@@ -149,14 +150,27 @@ const MOODS = {
     shaker: false,
   },
 };
+// Cada estação muda o andamento, o tom e o timbre (sinos no inverno, chocalho animado no verão)
+const SEASON_MUSIC = {
+  primavera: { bpm: 4, tr: 0, bells: false },
+  verao:     { bpm: 12, tr: 2, bells: false, shaker: true },
+  outono:    { bpm: -8, tr: -3, bells: false, shaker: false },
+  inverno:   { bpm: -16, tr: 5, bells: true, shaker: false },
+};
+const moodOf = (key) => {
+  const [dn, season] = key.split('|');
+  const base = MOODS[dn] || MOODS.day, mod = SEASON_MUSIC[season] || {};
+  return { ...base, bpm: base.bpm + (mod.bpm || 0) * (dn === 'night' ? 0.5 : 1), tr: mod.tr || 0, bells: !!mod.bells, shaker: base.shaker && mod.shaker !== false };
+};
 const STEPS_PER_BAR = 8;              // colcheias por compasso
 const PHRASE = STEPS_PER_BAR * 4;     // frase de 4 compassos
 const SONG = [0, 0, 1, 0];            // estrutura A A B A
 
 const Music = {
   started: false,
-  mood: 'day',
-  want: 'day',
+  mood: 'day|primavera',
+  want: 'day|primavera',
+  M: null,
   step: 0,
   nextT: 0,
   phrases: null,
@@ -186,10 +200,11 @@ const Music = {
     this.newPhrases();
     setInterval(() => this.tick(), 60);
   },
-  stepDur() { return 60 / MOODS[this.mood].bpm / 2; },
+  stepDur() { return 60 / this.cur().bpm / 2; },
+  cur() { if (!this.M || this.M.key !== this.mood) this.M = { ...moodOf(this.mood), key: this.mood }; return this.M; },
   /** Gera as frases A e B da melodia (passeio aleatório pela escala, notas do acorde nos tempos fortes). */
   newPhrases() {
-    const M = MOODS[this.mood];
+    const M = this.cur();
     const make = () => {
       const out = new Array(PHRASE).fill(null);
       let i = 2 + Math.floor(Math.random() * 3);
@@ -233,13 +248,13 @@ const Music = {
       else if (step > 0 && ++this.songPos >= SONG.length) { this.songPos = 0; this.newPhrases(); }
     }
     if (settings.muted || settings.music <= 0 || settings.master <= 0) return;
-    const M = MOODS[this.mood];
+    const M = this.cur();
     const bar = Math.floor(s / STEPS_PER_BAR);
     const dur = this.stepDur();
-    if (s % STEPS_PER_BAR === 0) this.pad(M.chords[bar], t, dur * STEPS_PER_BAR);
-    if (s % 4 === 0) this.bass(M.bass[bar], t, dur * 3);
+    if (s % STEPS_PER_BAR === 0) this.pad(M.chords[bar].map((n) => n + M.tr), t, dur * STEPS_PER_BAR);
+    if (s % 4 === 0) this.bass(M.bass[bar] + M.tr, t, dur * 3);
     const note = this.phrases[SONG[this.songPos]][s];
-    if (note) this.pluck(note.n, t, dur * note.len);
+    if (note) this.pluck(note.n + M.tr, t, dur * note.len, M.bells);
     if (M.shaker && s % 2 === 1) this.shaker(t, s % 4 === 3 ? 0.03 : 0.018);
   },
   pad(notes, t, len) {
@@ -275,12 +290,15 @@ const Music = {
     o.start(t);
     o.stop(t + len + 0.05);
   },
-  pluck(n, t, len) {
+  pluck(n, t, len, bells = false) {
     const g = ctx.createGain();
+    const tail = bells ? Math.max(0.9, len * 2.4) : Math.max(0.35, len * 1.6);
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(0.07, t + 0.008);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + Math.max(0.35, len * 1.6));
-    for (const [type, mult, v] of [['triangle', 1, 1], ['sine', 2, 0.35]]) {
+    g.gain.linearRampToValueAtTime(bells ? 0.055 : 0.07, t + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + tail);
+    // Sino: parciais fora da série harmônica dão o brilho de sininho
+    const parts = bells ? [['sine', 1, 1], ['sine', 2.76, 0.4], ['sine', 5.4, 0.18]] : [['triangle', 1, 1], ['sine', 2, 0.35]];
+    for (const [type, mult, v] of parts) {
       const o = ctx.createOscillator();
       const og = ctx.createGain();
       o.type = type;
@@ -288,7 +306,7 @@ const Music = {
       og.gain.value = v;
       o.connect(og).connect(g);
       o.start(t);
-      o.stop(t + Math.max(0.4, len * 1.7));
+      o.stop(t + tail + 0.1);
     }
     g.connect(musicBus);
     g.connect(this.delay);
@@ -308,8 +326,106 @@ const Music = {
   },
 };
 
-/** Dia ou noite (a música muda no começo da próxima frase). */
-export function setMusicMood(mood) { Music.want = mood === 'night' ? 'night' : 'day'; }
+/** Dia ou noite e a estação (a música muda no começo da próxima frase). */
+export function setMusicMood(mood, season = 'primavera') { Music.want = (mood === 'night' ? 'night' : 'day') + '|' + season; }
+
+// ================= Sons do ambiente =================
+// Passarinhos de dia (menos no inverno), grilos nas noites quentes, coruja nas noites frias,
+// vento (mais forte no outono e no inverno) e chuva. Dentro de casa tudo fica abafado.
+const Amb = {
+  started: false,
+  want: { season: 'primavera', night: false, rain: false, indoors: false },
+  bus: null, muff: null, windG: null, rainG: null,
+  nextBird: 2, nextCricket: 1, nextOwl: 20, last: 0,
+  start() {
+    if (this.started || !ctx) return;
+    this.started = true;
+    this.bus = ctx.createGain();
+    this.muff = ctx.createBiquadFilter();
+    this.muff.type = 'lowpass';
+    this.muff.frequency.value = 12000;
+    this.bus.connect(this.muff).connect(sfxBus);
+    this.bus.gain.value = 0.9;
+    // Ruído em loop para vento e chuva
+    const len = ctx.sampleRate * 2;
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let k = 0; k < len; k++) d[k] = Math.random() * 2 - 1;
+    const loop = (type, freq, q) => {
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.loop = true;
+      const f = ctx.createBiquadFilter();
+      f.type = type;
+      f.frequency.value = freq;
+      f.Q.value = q;
+      const g = ctx.createGain();
+      g.gain.value = 0;
+      src.connect(f).connect(g).connect(this.bus);
+      src.start();
+      return g;
+    };
+    this.windG = loop('bandpass', 420, 0.6);
+    this.rainG = loop('lowpass', 2600, 0.3);
+    this.last = ctx.currentTime;
+    setInterval(() => this.tick(), 100);
+  },
+  tick() {
+    if (!ctx || ctx.state !== 'running') return;
+    const now = ctx.currentTime, dt = Math.min(0.5, now - this.last);
+    this.last = now;
+    const w = this.want;
+    const t = now;
+    // Vento e chuva (contínuos)
+    const wind = (w.season === 'inverno' ? 0.05 : w.season === 'outono' ? 0.03 : 0.012) * (0.6 + 0.4 * Math.sin(now * 0.23) * Math.sin(now * 0.07));
+    this.windG.gain.setTargetAtTime(wind * (w.indoors ? 0.4 : 1), t, 0.4);
+    this.rainG.gain.setTargetAtTime(w.rain ? (w.indoors ? 0.05 : 0.07) : 0, t, 0.6);
+    this.muff.frequency.setTargetAtTime(w.indoors ? 700 : 12000, t, 0.2);
+    // Bichos
+    const warm = w.season !== 'inverno';
+    this.nextBird -= dt;
+    if (this.nextBird <= 0) {
+      this.nextBird = w.season === 'outono' ? 3 + Math.random() * 7 : 1.5 + Math.random() * 4;
+      if (!w.night && !w.rain && warm) this.bird(t);
+    }
+    this.nextCricket -= dt;
+    if (this.nextCricket <= 0) {
+      this.nextCricket = 0.5 + Math.random() * 0.9;
+      if (w.night && warm && !w.rain) this.cricket(t);
+    }
+    this.nextOwl -= dt;
+    if (this.nextOwl <= 0) {
+      this.nextOwl = 18 + Math.random() * 30;
+      if (w.night && !w.rain && (w.season === 'inverno' || w.season === 'outono' || Math.random() < 0.3)) this.owl(t);
+    }
+  },
+  blip(freq, to, t, dur, vol, type = 'sine') {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t);
+    o.frequency.exponentialRampToValueAtTime(to, t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol, t + Math.min(0.01, dur / 3));
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(this.bus);
+    o.start(t);
+    o.stop(t + dur + 0.02);
+  },
+  bird(t) {
+    const base = 2200 + Math.random() * 1600, n = 2 + Math.floor(Math.random() * 4);
+    for (let k = 0; k < n; k++) this.blip(base, base * (1.25 + Math.random() * 0.3), t + k * 0.11, 0.07, 0.018);
+  },
+  cricket(t) {
+    for (let k = 0; k < 4; k++) this.blip(4300, 4200, t + k * 0.045, 0.025, 0.008);
+  },
+  owl(t) {
+    this.blip(400, 360, t, 0.35, 0.03);
+    this.blip(420, 350, t + 0.5, 0.6, 0.03);
+  },
+};
+
+/** Clima do som ambiente: estação, noite, chuva e se está dentro de casa. */
+export function setAmbience(o) { Object.assign(Amb.want, o); }
 
 /** Estado da música (para testes). */
 export const musicState = () => ({ started: Music.started, mood: Music.mood, step: Music.step, ctx: ctx ? ctx.state : null });

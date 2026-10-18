@@ -998,15 +998,15 @@ body.photo .hud, body.photo .bottom, body.photo .side-ctrl, body.photo .action-b
   .hud .event-pill { align-self: flex-start; }
   .pill { padding: 5px 10px; gap: 6px; }
   .icon-btn { width: 32px; height: 32px; font-size: 15px; }
-  .toolbar { gap: 5px; padding: 6px; }
-  .tool { min-width: 46px; padding: 5px 3px 4px; }
+  .toolbar { gap: 4px; padding: 6px; }
+  .tool { min-width: 40px; padding: 5px 2px 4px; }
   .tool-sep { margin: 6px 0; }
   .sp-grid .tool .tn { display: block; font-size: 10px; }
   .tool .ti { font-size: 20px; }
   .tool .tn { display: none; }
   .status { font-size: 12px; }
   .panel { top: auto; left: 8px; right: 8px; bottom: 8px; width: auto; max-width: none; height: 68vh; transform: translateY(calc(100% + 30px)); }
-  .side-ctrl { bottom: 205px; right: 8px; }
+  .side-ctrl { bottom: 190px; right: 8px; }
   .action-btn { right: 14px; bottom: 120px; }
   body.joy-right .action-btn { right: auto; left: 14px; }
 }
@@ -1021,3 +1021,33 @@ body.photo .hud, body.photo .bottom, body.photo .side-ctrl, body.photo .action-b
   .menu-btn { padding: 5px 6px; }
   .icon-btn { width: 30px; height: 30px; font-size: 14px; }
 }
+
+/* Backup da fazenda */
+.seg.one { grid-template-columns: 1fr; }
+.save-card { width: min(460px, calc(100vw - 24px)); }
+.save-card textarea { box-sizing: border-box; width: 100%; margin-top: 8px; padding: 8px 10px; border: 2px solid #e0c98f; border-radius: 12px; background: #fff; color: var(--ink); font: 12px/1.35 ui-monospace, monospace; resize: vertical; }
+
+/* Álbum de coleções */
+.album { display: grid; grid-template-columns: repeat(auto-fill, minmax(74px, 1fr)); gap: 6px; margin-top: 8px; }
+.alb { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 4px; border: 2px solid var(--line); border-radius: 10px; background: #fffdf6; text-align: center; }
+.alb span { font-size: 22px; line-height: 1.1; }
+.alb small { font-size: 10.5px; line-height: 1.15; color: var(--muted); }
+.alb.miss { border-style: dashed; background: transparent; opacity: .6; }
+
+/* Roupas do personagem */
+.char-look { display: grid; gap: 6px; margin-bottom: 12px; text-align: left; }
+.look-row { display: flex; align-items: center; gap: 8px; }
+.look-row > span { width: 58px; flex: none; font-size: 12px; font-weight: 700; color: var(--muted); }
+.look-row > div { display: flex; flex-wrap: wrap; gap: 5px; }
+.look-row .sw { width: 24px; height: 24px; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 1px 0 var(--line), 0 0 0 1px rgba(0, 0, 0, .12); cursor: pointer; padding: 0; }
+.look-row .sw.on { box-shadow: 0 0 0 3px #f5b82e; transform: scale(1.1); }
+.look-row .hat { width: 32px; height: 30px; border: 0; border-radius: 9px; background: #fff; box-shadow: 0 2px 0 var(--line); font-size: 17px; cursor: pointer; padding: 0; }
+.look-row .hat.on { background: #fff3b0; box-shadow: 0 2px 0 #e0b84a, inset 0 0 0 2px #f5b82e; }
+@media (max-width: 520px) { .char-opt span { font-size: 26px; } .char-opt { padding: 6px; } .char-card h2 { margin-bottom: 8px; } }
+/* Gestos */
+.emotes { position: fixed; z-index: 30; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 8px; border-radius: 14px; background: var(--paper); box-shadow: 0 3px 0 var(--line), 0 10px 24px rgba(0, 0, 0, .2); }
+.emotes[hidden] { display: none; }
+.emotes button { display: flex; align-items: center; gap: 6px; padding: 7px 10px; border: 0; border-radius: 10px; background: #fff; box-shadow: 0 2px 0 var(--line); color: var(--ink); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.emotes button span { font-size: 18px; }
+
+.notify-pick .set-note { display: block; margin-top: 4px; font-size: 11px; color: var(--muted); line-height: 1.3; }

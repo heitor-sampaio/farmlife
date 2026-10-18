@@ -3,14 +3,14 @@ import {
   CROPS, ANIMALS, PRODUCTS, UPGRADES, WORKERS, FIELDS, BIG_FIELD, BIG_CELLS, MACHINES, FISH, RODS, PET, WATER_TIME, PEN_SIZE,
   WEATHER_EVENTS, MUTATIONS, RARITY_COLOR, EVENT_ROUND, EVENT_CHANCE, AXES, LOG, WOOD, SAWMILL, PLANK,
   BEAM, RECIPES, BUILDINGS, CARPENTRY, CHOP_TREES, HORSE, SADDLE, RIDE_MULT,
-  MANURE, COMPOST, FERTILIZER, BREED, PASTURE, CHEESERY, CHEESE,
+  MANURE, COMPOST, FERTILIZER, BREED, PASTURE, CHEESERY, CHEESE, HOUSE, NET, STAND, LOOKS, VILLAGERS, HAPPY,
 } from './data.js';
 import * as core from './core.js';
 import { CHANGELOG, VERSION, compareVersions } from './changelog.js';
 import { sfx } from './audio.js';
 import { sideWord } from './prefs.js';
 import * as sys from './systems.js';
-import { SEASONS, SEASON_DAYS, SEASON_BONUS, FACTORIES, GOODS, FRUIT_TREES, HIVES, ORCHARD, DECOR, STORAGE, FAIR, FRIEND, QUEST, CROWS, COOP } from './data.js';
+import { SEASONS, SEASON_DAYS, SEASON_BONUS, FACTORIES, GOODS, FRUIT_TREES, HIVES, ORCHARD, DECOR, STORAGE, FAIR, FRIEND, QUEST, CROWS, COOP, FESTIVALS } from './data.js';
 
 const $ = (sel) => document.querySelector(sel);
 let api = null; // funções do mundo e da interface (entregues pelo main.js)
@@ -249,6 +249,21 @@ const TIPS = {
     title: 'Curral construído!', target: { spot: 'loja' },
     body: () => `O 🐾 Curral está pronto. Compre ovelhas, vacas e porcos na 🏪 Loja (conforme o nível) e alimente com 🌾 trigo no <b>cocho</b>. As 🐔 galinhas moram no galinheiro, uma obra à parte.`,
   },
+  'built-estufa': {
+    title: 'Estufa pronta! 🪴', target: { spot: 'loja' },
+    body: () => `Dentro da 🪴 <b>Estufa</b> tudo cresce como se fosse da estação (+30%), em qualquer época do ano, e a água é automática. Os corvos também não entram.
+      Os canteiros já estão arados: plante o que quiser, até no inverno.`,
+  },
+  village: {
+    title: 'A vila 🏘️', target: null,
+    body: () => `Do outro lado do <b>rio</b> (atravesse a ponte ao sul da fazenda) fica a vila. Converse com os moradores: a primeira conversa do dia com cada um dá <b>+3 XP</b> e eles contam dicas e quando é a próxima festa.
+      No <b>rio</b> dá para pescar peixes que não existem no lago: pacu, truta e o raro dourado.`,
+  },
+  house: {
+    title: 'Sua casa por dentro 🏠', target: null,
+    body: () => `Aqui dentro você dorme na 🛏️ <b>cama</b> (depois das 18h) e pode decorar com <b>móveis</b> (Loja → Decoração: tapete, poltrona, vaso, estante, abajur).
+      Na Loja → Melhorias, a <b>reforma da casa</b> aumenta o cômodo e ganha cozinha, despensa (mais espaço no armazém) e sala com lareira. Para sair, use a 🚪 porta.`,
+  },
   'built-galinheiro': {
     title: 'Galinheiro construído!', target: { spot: 'galinheiro' },
     body: () => `O 🐔 Galinheiro está pronto, com ${COOP.slots} vagas. Compre galinhas (e um galo, para nascerem pintinhos) na 🏪 Loja.
@@ -474,6 +489,8 @@ export function onEvent(name, data) {
   else if (name === 'male') queueTip('male');
   else if (name === 'fertilizer') queueTip('fertilizer');
   else if (name === 'saddle') queueTip('saddle');
+  else if (name === 'house') queueTip('house');
+  else if (name === 'talk') queueTip('village');
   else if (name === 'build' && !(data === 'celeiro' && active())) queueTip('built-' + data);
   else if (name === 'level') {
     if (data >= 2) queueTip('level2');
@@ -586,6 +603,10 @@ function roadmap() {
   add(BUILDINGS.galpao.level, `${BUILDINGS.galpao.icon} ${BUILDINGS.galpao.name}`);
   add(PET.level, `${PET.icon} Pet (${PET.breed})`);
   add(HORSE.level, `${HORSE.icon} Cavalo e ${SADDLE.icon} sela`);
+  for (const id of ['estufa', 'barraca']) if (BUILDINGS[id]) add(BUILDINGS[id].level, `${BUILDINGS[id].icon} ${BUILDINGS[id].name}`);
+  add(NET.level, '🥅 Rede de insetos');
+  HOUSE.forEach((h, k) => k && add(h.level, `🏠 ${h.name}`));
+  for (const dd of Object.values(DECOR)) if (dd.range && dd.level > 1) add(dd.level, `${dd.icon} ${dd.name}`);
   return L;
 }
 
@@ -641,13 +662,15 @@ const TOPICS = [
           ['Usar a ferramenta / interagir', '<kbd>Espaço</kbd> ou <kbd>E</kbd>', 'Botão ✋'],
           ['Repetir em vários lotes', 'Segurar <kbd>Espaço</kbd> e andar · arrastar o mouse sobre os lotes', 'Segurar ✋ e andar'],
           ['Ir até um lote e agir', 'Clique no lote', 'Toque no lote'],
-          ['Escolher ferramenta', 'Teclas <kbd>1</kbd> a <kbd>5</kbd>', 'Barra de baixo'],
-          ['Escolher semente', '<kbd>6</kbd> pega a semente; <kbd>6</kbd> de novo troca para a próxima · clique na ▲ para ver todas', 'Botão de sementes: toque de novo (ou na ▲) para ver todas'],
+          ['Escolher ferramenta', 'Teclas <kbd>1</kbd>, <kbd>2</kbd>, <kbd>3</kbd>… (o número fica em cima de cada ferramenta)', 'Barra de baixo'],
+          ['Escolher semente', 'O número do botão de sementes (o último da barra) pega a semente; de novo troca para a próxima · clique na ▲ para ver todas', 'Botão de sementes: toque de novo (ou na ▲) para ver todas'],
           ['Zoom', 'Roda do mouse · <kbd>+</kbd> <kbd>−</kbd>', 'Botões ＋ e －'],
           ['Girar a câmera', 'Botão direito + arrastar · <kbd>Q</kbd> <kbd>R</kbd> · <kbd>C</kbd> ou 🧭 volta ao normal', `Arrastar na metade ${sideWord(true)} da tela (ou com um 2º dedo) · 🧭 volta ao normal`],
           ['Configurações', 'Botão ⚙️ no topo: volume, música, efeitos e visual', 'Botão ⚙️ no topo (também o lado do joystick)'],
           ['Mapa e viagem rápida', '<kbd>M</kbd> ou 🗺️', 'Botão 🗺️'],
           ['Modo foto', '<kbd>P</kbd> ou 📷 · <kbd>Esc</kbd> sai', 'Botão 📷'],
+          ['Gestos', '<kbd>Z</kbd> acenar · <kbd>X</kbd> sentar · <kbd>V</kbd> dançar · botão 👋', 'Botão 👋 no topo'],
+          ['Entrar e sair de casa', 'Na porta da 🏠 casa, <kbd>Espaço</kbd> · dentro, na 🚪 porta', 'Na porta, botão ✋'],
           ['Colocar decoração', 'Clique no chão · <kbd>G</kbd> gira · <kbd>Enter</kbd> coloca · <kbd>Esc</kbd> cancela', 'Toque no chão · ✔ Colocar'],
           ['Fechar janelas', '<kbd>Esc</kbd>', '✕'],
         ],
@@ -695,11 +718,11 @@ const TOPICS = [
     id: 'pesca', icon: '🎣', title: 'Pescaria',
     html: () => `<ol class="g-list">
       <li>Você já começa com uma <b>vara simples</b> (as melhores ficam na loja). Escolha a 🎣 <b>Pescar</b> na barra.</li>
-      <li>Vá até a beira do <b>lago</b> e use ${ACT()} (ou ${TAP()} na água) para lançar.</li>
+      <li>Vá até a beira do <b>lago</b> ou do <b>rio</b> (ao sul, perto da vila; dá até para pescar da ponte) e use ${ACT()} (ou ${TAP()} na água) para lançar.</li>
       <li>Quando aparecer o <b>❗</b>, puxe rápido!</li>
       <li>No minigame, <b>segure</b> ${ACT()} para subir a faixa verde e solte para descer. Mantenha o peixe dentro dela até a barra encher.</li></ol>` + table(
-      ['', 'Pesca', 'Vende', 'Dificuldade', 'Quando'],
-      Object.values(FISH).map((f) => [f.icon, f.name, `🪙${f.sell}`, '★'.repeat(Math.max(1, Math.round(f.dif * 5))), f.night ? 'Mais à noite' : f.rain ? 'Mais na chuva' : f.rare ? 'Rara (vara de fibra ajuda)' : f.junk ? 'Ops…' : 'Sempre']),
+      ['', 'Pesca', 'Onde', 'Vende', 'Dificuldade', 'Quando'],
+      Object.values(FISH).map((f) => [f.icon, f.name, f.where === 'rio' ? '🌊 Rio' : f.where === 'lago' ? '🎣 Lago' : 'Lago e rio', `🪙${f.sell}`, '★'.repeat(Math.max(1, Math.round(f.dif * 5))), f.night ? 'Mais à noite' : f.rain ? 'Mais na chuva' : f.rare ? 'Rara (vara de fibra ajuda)' : f.junk ? 'Ops…' : 'Sempre']),
     ) + table(['Vara', 'Custa', 'Nível', 'Vantagem'], RODS.filter(Boolean).map((r) => [`${r.icon} ${r.name}`, `🪙${core.fmt(r.cost)}`, `${r.level}${lock(r.level)}`, r.desc])),
   },
   {
@@ -756,17 +779,30 @@ const TOPICS = [
   {
     id: 'vila', icon: '🏘️', title: 'Vila e feira',
     html: () => `<ul class="g-list">
+      <li>🌉 <b>A vila</b> fica do outro lado do rio, ao sul da fazenda: atravesse a ponte. Lá moram ${VILLAGERS.map((v) => `${v.icon} ${v.name}`).join(', ')}. Eles passeiam de dia e vão para casa à noite.</li>
+      <li>💬 <b>Converse</b> chegando perto (${ACT()}): a primeira conversa do dia com cada morador dá <b>+3 XP</b>, e eles dão dicas e avisam quando é a próxima festa.</li>
+      <li>⛺ <b>Barraca de beira de estrada</b> (obra, nível ${BUILDINGS.barraca ? BUILDINGS.barraca.level : 4}): coloque até ${STAND.slots} itens à venda (no Armazém → Barraca). Os moradores compram sozinhos, ${Math.round((STAND.bonus - 1) * 100)}% acima do mercado, e o dinheiro fica no caixa até você recolher.</li>
       <li>📜 <b>Encomendas especiais</b> (a partir do nível 2): pedidos grandes com prazo de ${Math.round(QUEST.due / 180)} dias, que pagam bem mais e dão um bônus. Dá para entregar aos poucos no painel 📦 Pedidos. Se vencer, o morador fica um pouco chateado.</li>
       <li>❤️ <b>Amizade:</b> cada pedido entregue aumenta a amizade com quem pediu (encomendas contam 5). A cada coração (${FRIEND.perHeart} pontos) o morador manda um presente e passa a pagar <b>+${Math.round(FRIEND.orderBonus * 100)}%</b> nos pedidos, até ${FRIEND.hearts} ❤️.</li>
+      <li>🎊 <b>Festas da vila</b> (4º dia de cada estação): ${Object.values(FESTIVALS).map((f) => `${f.icon} <b>${f.name}</b> — ${f.desc}`).join(' ')}</li>
       <li>🎪 <b>Feira:</b> no último dia de cada estação. Inscreva o seu melhor produto em cada categoria (${Object.values(FAIR.cats).map((c) => `${c.icon} ${c.name.toLowerCase()}`).join(', ')}) e dispute medalhas 🥇🥈🥉 com os outros fazendeiros. Gigantes e mutados fazem mais pontos.</li>
     </ul>`,
+  },
+  {
+    id: 'casa', icon: '🏠', title: 'Casa e personagem',
+    html: () => `<p>Use ${ACT()} na porta da 🏠 casa para <b>entrar</b>. Lá dentro fica a 🛏️ <b>cama</b> (durma depois das 18h) e dá para decorar com <b>móveis</b> (Loja → Decoração: os que dizem "dentro de casa"). Para sair, use a 🚪 porta.</p>` +
+      table(['Reforma', 'Custa', 'Nível', 'O que muda'], HOUSE.map((h, k) => [`${k + 1}. ${h.name}${core.S.house.lvl > k ? ' ✔' : ''}`, h.cost ? `🪙${core.fmt(h.cost)}` : '—', `${h.level}${lock(h.level)}`, h.desc])) +
+      `<p>A reforma fica na Loja → Melhorias. A despensa da cozinha soma espaço no armazém.</p>
+      <p>👕 <b>Roupas:</b> no Guia → Primeiros passos → <b>Trocar personagem</b>, escolha a cor da camisa, da calça e do cabelo e o chapéu (${LOOKS.hat.map((h) => `${h.icon} ${h.name.toLowerCase()}`).join(', ')}).</p>
+      <p>👋 <b>Gestos:</b> acenar, sentar, dançar e comemorar (botão 👋 no topo${isTouch() ? '' : ', ou <kbd>Z</kbd> <kbd>X</kbd> <kbd>V</kbd>'}). Parado por um tempo, o personagem senta para descansar, e comemora sozinho quando sobe de nível.</p>
+      <p>❤️ <b>Animais felizes:</b> faça carinho uma vez por dia em cada animal e não deixe faltar comida. Felizes, eles produzem ${Math.round((HAPPY.fast - 1) * 100)}% mais rápido e às vezes dão o produto em dobro; tristes, ficam mais lentos.</p>`,
   },
   {
     id: 'decoracao', icon: '🌻', title: 'Decoração e armazém',
     html: () => `<p>Compre decorações na Loja e escolha o lugar: no computador, mova o mouse e clique; no celular, toque no chão (ou ande) e use <b>✔ Colocar</b>. <b>↻ Girar</b> (tecla G) vira o objeto.
       Para mudar de lugar, chegue perto e use ${ACT()} (Mover).</p>` +
       table(['', 'Decoração', 'Custa', 'Efeito'], Object.values(DECOR).map((dd) => [dd.icon, dd.name, `🪙${core.fmt(dd.cost)}`, dd.desc])) +
-      `<p>📦 <b>Espaço no armazém:</b> cabem ${STORAGE.base} itens (sem contar sementes); cada 🧰 baú colocado na fazenda dá +${STORAGE.chest}. Com o armazém cheio, não dá para colher nem coletar: venda ou use os itens.</p>
+      `<p>📦 <b>Espaço no armazém:</b> cabem ${STORAGE.base} itens (sem contar sementes); cada 🧰 baú colocado na fazenda dá +${STORAGE.chest}, e a reforma da casa soma a despensa. Com o armazém cheio, não dá para colher nem coletar: venda ou use os itens.</p>
       <p>🐦‍⬛ <b>Corvos:</b> às vezes um corvo pousa numa planta crescendo (aparece ❗). Espante chegando perto ou com o pet; o 👒 espantalho protege tudo num raio de ${CROWS.scarecrow} m.</p>
       <p>🐶 O pet também cava no quintal todo dia e traz alguma coisa.</p>`,
   },
@@ -833,7 +869,7 @@ const TOPICS = [
     id: 'tempo', icon: '🌦️', title: 'Tempo e clima',
     html: () => `<ul class="g-list">
       <li>☀️ Um dia dura <b>3 minutos</b>. Ao amanhecer os preços mudam e os salários são pagos.</li>
-      <li>🌙 À noite as plantas continuam crescendo. Depois das 18h, durma na 🏠 <b>Casa</b> para pular para a manhã.</li>
+      <li>🌙 À noite as plantas continuam crescendo. Depois das 18h, entre em casa e durma na 🛏️ <b>cama</b> para pular para a manhã.</li>
       <li>🌧️ Na chuva e na tempestade, tudo fica regado sozinho. No 🔥 sol escaldante, a água evapora mais rápido.</li>
       <li>🌩️ Os eventos climáticos geram <b>mutações</b> nas plantas (veja "Clima e mutações").</li>
       <li>💾 O jogo salva sozinho. Fechou o jogo? A fazenda continua: plantas crescem, animais produzem e funcionários trabalham (até 8 horas).</li></ul>`,

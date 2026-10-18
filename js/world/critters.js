@@ -66,13 +66,15 @@ export function initCritters(ctx) {
     }
   }
 
+  // Borboletas: uma cor por espécie (o álbum tem uma página para elas)
+  const btypes = ['amarela', 'roxa', 'laranja', 'azul', 'rosa', 'limao'];
   const bcolors = [0xffb300, 0x7e57c2, 0xff7043, 0x29b6f6, 0xf06292, 0xffee58];
-  for (let k = 0; k < 8; k++) {
+  for (let k = 0; k < 9; k++) {
     const bf = M.makeButterfly(bcolors[k % bcolors.length]);
     const home = C.randomSpot();
     bf.root.position.set(home.x, 0.6, home.z);
     scene.add(bf.root);
-    butterflies.push({ bf, home, phase: rand(0, 10), speed: rand(0.6, 1.1), last: new THREE.Vector3(home.x, 0.6, home.z) });
+    butterflies.push({ bf, home, phase: rand(0, 10), speed: rand(0.6, 1.1), last: new THREE.Vector3(home.x, 0.6, home.z), type: btypes[k % btypes.length] });
   }
 
   for (let k = 0; k < 2; k++) {
@@ -374,7 +376,45 @@ function updateFireflies(darkness) {
   }
 }
 
+// ================= Rede de insetos =================
+const bugList = []; // { type, obj (o que aparece), ref (o bicho), pos() }
+
+/** Os bichinhos que dá para pegar com a rede (borboletas, joaninhas e vaga-lumes). */
+function buildBugList() {
+  if (bugList.length) return;
+  for (const b of butterflies) bugList.push({ type: b.type, obj: b.bf.root, ref: b, kind: 'borboleta' });
+  for (const l of ladybugs) bugList.push({ type: 'joaninha', obj: l.m, ref: l, kind: 'joaninha' });
+  for (const f of fireflies) bugList.push({ type: 'vagalume', obj: f.s, ref: f, kind: 'vagalume' });
+  bugList.forEach((b, k) => {
+    b.obj.userData.pick = { kind: 'bug', k };
+    C.pickables.push(b.obj);
+  });
+}
+export const bugs = () => bugList;
+
+/** Bichinho visível mais perto (dentro de maxD), ou -1. */
+export function nearestBug(pos, maxD) {
+  let best = -1, bd = maxD;
+  bugList.forEach((b, k) => {
+    if (!b.obj.visible) return;
+    const d = Math.hypot(b.obj.position.x - pos.x, b.obj.position.z - pos.z);
+    if (d < bd) { bd = d; best = k; }
+  });
+  return best;
+}
+
+/** Pegou: o bichinho some daqui e aparece em outro lugar da fazenda. */
+export function relocateBug(k) {
+  const b = bugList[k];
+  if (!b) return;
+  const p = C.randomSpot();
+  if (b.kind === 'joaninha') { b.ref.home = p; b.obj.position.set(p.x, 0.01, p.z); }
+  else b.ref.home = { x: p.x, z: p.z };
+  if (b.kind === 'borboleta') b.ref.last.set(p.x, 0.6, p.z);
+}
+
 export function updateCritters(dt) {
+  buildBugList();
   if (!C) return;
   chirpT -= dt;
   croakT -= dt;

@@ -22,22 +22,25 @@ Depois acesse http://localhost:5173. Na primeira vez, precisa de internet para b
 | Andar | `W` `A` `S` `D` ou setas (`Shift` corre) | Arrastar o dedo no lado do joystick (direita por padrão; troca no menu ⚙️) |
 | Usar ferramenta no lote à frente | `Espaço` ou `E` (segure e ande para repetir) | Botão ✋ (segure e ande para repetir) |
 | Ir até um lote e agir | Clique no lote (arraste para enfileirar vários) | Tocar no lote |
-| Escolher ferramenta | `1`–`5` | Barra inferior |
-| Escolher semente | `6` (de novo troca de semente) ou a ▲ do botão de sementes | Botão de sementes (toque de novo para ver todas) |
+| Escolher ferramenta | `1`, `2`, `3`… (o número fica em cima de cada ferramenta) | Barra inferior |
+| Escolher semente | O número do botão de sementes, o último da barra (de novo troca de semente) ou a ▲ do botão de sementes | Botão de sementes (toque de novo para ver todas) |
 | Zoom | Roda do mouse ou `+` / `-` | Botões ＋ / － |
 | Girar a câmera | Botão direito + arrastar, ou `Q` / `R` (`C` ou 🧭 volta ao normal) | Arrastar no outro lado da tela (ou com um 2º dedo); 🧭 volta ao normal |
-| Configurações | Botão ⚙️: volume, música, efeitos e visual (Simples ou Pintado) | Botão ⚙️ (também o lado do joystick) |
+| Configurações | Botão ⚙️: volume, música, efeitos, visual (Simples ou Pintado), aviso de colheita e backup | Botão ⚙️ (também o lado do joystick) |
+| Gestos | `Z` acenar, `X` sentar, `V` dançar, ou o botão 👋 | Botão 👋 (ao lado do zoom) |
+| Entrar em casa | `Espaço` na porta da casa (dentro, na porta para sair) | Botão ✋ na porta |
 | Fechar painel | `Esc` | ✕ |
 
 ## Tutorial e Guia
 
 - **Tutorial interativo** (jogos novos): 8 passos (andar, plantar, regar, arar, colher, vender, comprar e pedidos) com seta 3D no alvo, indicador na borda da tela, ferramenta destacada na barra e recompensa em moedas. Os textos se adaptam a teclado/mouse ou toque, e dá para pular.
 - **Dicas na hora certa**: ao liberar ou comprar algo novo (animais, pet, vara, campos, máquinas, funcionários) e na primeira noite, chuva ou pedido pronto.
-- **Guia da Fazenda (❓)**: 11 tópicos com tabelas geradas dos dados do jogo (preços, tempos, níveis) e o botão para refazer o tutorial.
+- **Guia da Fazenda (❓)**: mais de 20 tópicos com tabelas geradas dos dados do jogo (preços, tempos, níveis) e o botão para refazer o tutorial.
 
 ## Mecânicas
 
-- **Personagem**: na primeira vez, escolha entre fazendeiro e fazendeira (com prévia 3D) e o seu nome. Dá para trocar depois pelo Guia.
+- **Personagem**: na primeira vez, escolha entre fazendeiro e fazendeira (com prévia 3D), o seu nome e as roupas (camisa, calça, cabelo e chapéu). Dá para trocar depois pelo Guia. Gestos: acenar, sentar, dançar e comemorar.
+- **Casa por dentro**: entre em casa para dormir na cama e decorar com móveis. A reforma (3 níveis) aumenta o cômodo e ganha cozinha e sala, com despensa que soma espaço no armazém.
 - **Culturas**: 19 culturas, de alface e trigo a café e abacaxi, cada uma com a sua estação; algumas rebrotam depois da colheita.
 - **Lavoura**: are a grama, plante, regue e colha. Sem água, nada cresce.
 - **Construções**: o jogo começa só com a Casa (dormir à noite), a Loja, o quadro de Pedidos e todas as ferramentas. O Armazém (libera a venda), o Curral (libera os animais) e o Galpão (libera as máquinas) são construídos com madeira, entregue aos poucos no canteiro de cada obra.
@@ -47,14 +50,18 @@ Depois acesse http://localhost:5173. Na primeira vez, precisa de internet para b
 - **Tempo**: dia de 3 minutos com sol que muda as sombras, noite com lampiões, lanterna do fazendeiro e faróis nas máquinas, e dias de chuva.
 - **Mapa e lugares**: a sede (casa, carpintaria, armazém, quadro de pedidos e loja) fica em fila na rua principal; em volta há espaço para tudo o que você constrói. Cada obra nova, campo, serraria, Campo de Trigo e pasto começa escolhendo o lugar (o retângulo fica verde onde cabe), e um caminho de terra liga a porta até a rua mais próxima.
 - **Expansão**: no campo principal, compre lotes vizinhos um a um; na loja, compre campos inteiros novos (Colina, Comprido e Vale, com 24 a 32 lotes cada) e escolha onde cada um fica.
-- **Pescaria**: com uma vara (bambu ou fibra) você pesca no lago: lance, espere a mordida (❗) e segure a ação no minigame para manter o peixe na faixa verde. Seis tipos de pesca, com bagres à noite, lagostins na chuva e uma rara carpa dourada.
+- **Pescaria**: com uma vara (bambu ou fibra) você pesca no lago ou no rio: lance, espere a mordida (❗) e segure a ação no minigame para manter o peixe na faixa verde. Nove tipos de pesca, com bagres à noite, lagostins na chuva, a rara carpa dourada no lago e o dourado no rio.
 - **Clima e mutações**: eventos climáticos (chuva, ventania, neve, sol escaldante, tempestade de raios, arco-íris e eclipse) dão mutações às plantas que estão crescendo. As mutações se acumulam até a planta amadurecer, vão para o item colhido e aumentam o preço de venda conforme a raridade (cada uma soma o seu bônus, de ×1,5 a ×20). Vale também para o Campo de Trigo e para os funcionários.
 - **Cavalo**: no nível 6, com o curral construído, compre um cavalo que pasta perto do portão do curral. Com a sela, monte e cavalgue 1,75× mais rápido (galope com Shift ou com o joystick na borda); use a ação para descer.
 - **Famílias no curral**: cada animal tem uma cor sorteada e você escolhe fêmea ou macho. Só as fêmeas produzem; com um macho adulto da mesma espécie, cada produção tem 3% de chance de nascer um filhote, que vira adulto em 5 dias de jogo.
 - **Queijaria**: obra de madeira (nível 8) que transforma o leite das vacas em queijo (2 leites → 1 queijo, que vale bem mais), sozinha, até com o jogo fechado.
 - **Fábricas e pomar**: moinho, padaria, tear e defumadouro (obras de madeira) transformam os produtos sozinhos; o pomar dá frutas e as colmeias, mel.
 - **Estações do ano**: quatro estações de 7 dias, com culturas da estação mais rápidas, clima e cores próprios.
-- **Vila**: encomendas especiais com prazo, amizade com os moradores (presentes e bônus) e feira com medalhas no fim de cada estação.
+- **Vila**: do outro lado do rio, com seis moradores que passeiam de dia, conversam (+3 XP por dia cada) e dão dicas. Encomendas especiais com prazo, amizade (presentes e bônus), festas no 4º dia de cada estação e feira com medalhas no fim de cada estação.
+- **Barraca, estufa e aspersor**: a barraca vende sozinha para os moradores; a estufa cresce bem em qualquer estação; o aspersor rega os lotes em volta.
+- **Animais felizes**: carinho diário e comida em dia deixam os animais felizes (produzem mais rápido e às vezes em dobro).
+- **Álbum e rede de insetos**: páginas de coleção (lavoura, gigantes, mutações, peixes e bichinhos) com prêmios.
+- **Ambiente**: lago com ondas e reflexos, céu estrelado, janelas acesas à noite, música que muda com a estação e sons de passarinhos, grilos, vento e chuva.
 - **Conquistas**: 25 objetivos com prêmios em moedas.
 - **Decoração e armazém**: decorações colocadas livremente; o armazém tem limite de espaço e os baús aumentam.
 - **Corvos e pet**: corvos bicam as plantas se ninguém espantar; espantalhos protegem e o pet corre atrás deles e cava achados todo dia.
@@ -66,7 +73,7 @@ Depois acesse http://localhost:5173. Na primeira vez, precisa de internet para b
 - **Fauna de cenário**: sapos na beira do lago (pulam na água se você chega perto), passarinhos que bicam o chão e voam quando alguém se aproxima, bandos no céu, joaninhas, borboletas de dia, coelhos, patos no lago e vaga-lumes à noite.
 - **Lavoura mecanizada**: um Campo de Trigo de 384 lotes trabalhado com máquinas que você dirige (trator com arado de 3 faixas, trator com plantadeira de 4 e colheitadeira de 5), guardadas num galpão. Entre e saia com `Espaço`/`E` ou ✋; dirija com `WASD` ou o joystick.
 - **Progresso**: níveis desbloqueiam culturas, animais, melhorias, campos e máquinas.
-- **Salvamento**: automático no `localStorage`, com até 8h de progresso enquanto você está fora.
+- **Salvamento**: automático no `localStorage`, com até 8h de progresso enquanto você está fora. Backup por arquivo ou código para levar a fazenda a outro aparelho, e aviso do navegador quando a colheita fica pronta com o jogo em segundo plano.
 
 ## Versões e atualizações
 

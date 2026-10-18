@@ -45,6 +45,7 @@
       <button class="icon-btn" id="btn-reset" title="Recomeçar fazenda">🔄</button>
     </div>
     </div>
+    <div id="emotes" class="emotes" hidden></div>
     <div class="pill event-pill" id="event-pill" hidden>
       <b id="event-name"></b><small id="event-info"></small>
     </div>
@@ -67,6 +68,7 @@
     <button class="icon-btn dark" id="zoom-in" title="Aproximar (+)">＋</button>
     <button class="icon-btn dark" id="zoom-out" title="Afastar (−)">－</button>
     <button class="icon-btn dark" id="cam-reset" title="Voltar a câmera para a vista padrão (C)">🧭</button>
+    <button class="icon-btn dark" id="btn-emote" title="Gestos: acenar (Z), sentar (X), dançar (V)">👋</button>
   </div>
   <button id="btn-action" class="action-btn" title="Ação (Espaço)">✋</button>
 
@@ -95,7 +97,29 @@
       <span>🕹️ Joystick de andar</span>
       <div class="seg"><button data-joy="left">◀ Esquerda</button><button data-joy="right">Direita ▶</button></div>
     </div>
+    <div class="joy-pick notify-pick">
+      <span>🔔 Avisar colheita pronta</span>
+      <div class="seg"><button data-notify="off">Não</button><button data-notify="on">Sim</button></div>
+      <small class="set-note" id="notify-note">Com o jogo aberto em outra aba ou minimizado (não com o navegador fechado).</small>
+    </div>
+    <div class="joy-pick">
+      <span>💾 Backup da fazenda</span>
+      <div class="seg"><button id="save-export" title="Baixar um arquivo com a sua fazenda">⬇️ Baixar</button><button id="save-copy" title="Copiar um código com a sua fazenda">📋 Copiar código</button></div>
+      <div class="seg one"><button id="save-open" title="Carregar uma fazenda de um arquivo ou código">⬆️ Carregar backup</button></div>
+    </div>
     <p class="set-hint">A música fica mais calma à noite. O visual pintado é experimental e um pouco mais pesado. As configurações ficam salvas neste aparelho.</p>
+  </div>
+
+  <div id="savebox" class="modal-bg" hidden>
+    <div class="map-card save-card" role="dialog" aria-label="Carregar backup">
+      <div class="set-head"><b>⬆️ Carregar backup</b><button class="tab-close" id="savebox-close" title="Fechar">✕</button></div>
+      <p class="hint" style="margin:0 0 8px">Escolha o arquivo que você baixou ou cole o código copiado. ⚠️ A fazenda deste aparelho será <b>substituída</b> pela do backup.</p>
+      <button class="btn ghost" id="savebox-file">📁 Escolher arquivo</button>
+      <input type="file" id="savebox-input" accept=".json,.txt,application/json,text/plain" hidden>
+      <textarea id="savebox-code" rows="4" placeholder="…ou cole aqui o código (começa com FARMLIFE1:)"></textarea>
+      <p class="hint" id="savebox-msg" style="margin:6px 0"></p>
+      <button class="btn big" id="savebox-ok">Substituir minha fazenda</button>
+    </div>
   </div>
 
   <div id="map" class="modal-bg map-bg" hidden>
@@ -123,6 +147,7 @@
         <button class="char-opt" data-g="m"><span>👨</span><b>Fazendeiro</b></button>
         <button class="char-opt" data-g="f"><span>👩</span><b>Fazendeira</b></button>
       </div>
+      <div class="char-look" id="char-look"></div>
       <label class="char-name"><span id="char-label">Como você quer ser chamado?</span>
         <input id="char-name" maxlength="16" autocomplete="off" autocapitalize="words" spellcheck="false"></label>
       <div class="joy-pick touch-only">

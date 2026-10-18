@@ -1,8 +1,8 @@
 /* FarmLife — interface em HTML sobre a cena 3D (HUD, hotbar, painel, avisos) */
-import { CROPS, ANIMALS, PRODUCTS, UPGRADES, WORKERS, FIELDS, BIG_FIELD, BIG_CELLS, MACHINES, FISH, RODS, PET, MUTATIONS, RARITY_COLOR, WEATHER_EVENTS, AXES, LOG, WOOD, SAWMILL, PLANK, RECIPES, BUILDINGS, CARPENTRY, HORSE, SADDLE, PASTURE, CHEESERY, CHEESE, FACTORIES, ORCHARD, FRUIT_TREES, HIVES, GOODS, FAIR, FRIEND, CUSTOMERS, DECOR, STORAGE, COOP } from './data.js';
+import { CROPS, ANIMALS, PRODUCTS, UPGRADES, WORKERS, FIELDS, BIG_FIELD, BIG_CELLS, MACHINES, FISH, RODS, PET, MUTATIONS, RARITY_COLOR, WEATHER_EVENTS, AXES, LOG, WOOD, SAWMILL, PLANK, RECIPES, BUILDINGS, CARPENTRY, HORSE, SADDLE, PASTURE, CHEESERY, CHEESE, FACTORIES, ORCHARD, FRUIT_TREES, HIVES, GOODS, FAIR, FRIEND, CUSTOMERS, DECOR, STORAGE, COOP, NET, BUGS, ALBUM, STAND, HOUSE } from './data.js';
 import * as sys from './systems.js';
 import * as core from './core.js';
-import { joySide, setJoySide, gfxMode, setGfx } from './prefs.js';
+import { joySide, setJoySide, gfxMode, setGfx, canNotify, notifyOn, setNotify } from './prefs.js';
 import { sfx, settings as audioSettings, setVolume, setMuted, unlockAudio } from './audio.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -110,7 +110,7 @@ function togglePanel(tab) {
 // ================= Categorias dos painéis =================
 const SUBTABS = {
   loja: [['sementes', '🌱', 'Sementes'], ['animais', '🐾', 'Animais'], ['terras', '🗺️', 'Terras'], ['producao', '🏭', 'Produção'], ['ferramentas', '🪓', 'Ferramentas'], ['melhorias', '🛠️', 'Melhorias'], ['decor', '🌻', 'Decoração']],
-  celeiro: [['itens', '📦', 'Itens'], ['mercado', '📈', 'Mercado'], ['numeros', '📊', 'Números']],
+  celeiro: [['itens', '📦', 'Itens'], ['barraca', '⛺', 'Barraca'], ['album', '📔', 'Álbum'], ['mercado', '📈', 'Mercado'], ['numeros', '📊', 'Números']],
   oficina: [['carpintaria', '🪚', 'Carpintaria'], ['obras', '🏗️', 'Obras'], ['fabricas', '🏭', 'Fábricas']],
   pedidos: [['pedidos', '📦', 'Pedidos'], ['feira', '🎪', 'Feira'], ['moradores', '❤️', 'Moradores']],
 };
@@ -128,7 +128,7 @@ function renderPanel() {
   const scroll = el.tabContent.scrollTop;
   const tab = currentTab;
   const parts = tab === 'loja' ? shopHtml() : tab === 'celeiro' ? barnHtml() : tab === 'oficina' ? workshopHtml() : ordersHtml();
-  const dots = tab === 'pedidos' ? { pedidos: S.orders.some(core.canFulfill), feira: sys.fairToday() } : {};
+  const dots = tab === 'pedidos' ? { pedidos: S.orders.some(core.canFulfill), feira: sys.fairToday() || !!sys.festivalToday() } : {};
   el.tabContent.innerHTML = subBar(tab, dots) + (parts[subCur[tab]] || '');
   el.tabContent.scrollTop = scroll;
   if (currentTab === 'pedidos' && isPanelOpen()) core.markOrdersSeen();
@@ -218,6 +218,17 @@ function shopHtml() {
           : needPrev
             ? '<span class="req">Compre a anterior</span>'
             : `<button class="btn alt" data-act="rod" data-id="${lv}" ${S.coins < rd.cost ? 'disabled' : ''}>🪙${fmt(rd.cost)}</button>`}
+      </div></div>`;
+  }
+  {
+    const locked = !S.net && NET.level > S.level;
+    h += `<div class="card${locked ? ' locked' : ''}${S.net ? ' hired' : ''}">
+      <div class="ico">${NET.icon}</div>
+      <div class="info"><b>${NET.name}${S.net ? ' <small>✔ sua</small>' : ''}</b><small>${NET.desc}</small></div>
+      <div class="btns">${S.net
+        ? `<button class="btn ghost" data-act="tab" data-id="celeiro:album">📔 Álbum</button>`
+        : locked ? `<span class="req">🔒 Nível ${NET.level}</span>`
+          : `<button class="btn alt" data-act="net" ${S.coins < NET.cost ? 'disabled' : ''}>🪙${fmt(NET.cost)}</button>`}
       </div></div>`;
   }
   h += `</div><p class="hint">Peixes do lago: ${Object.values(FISH).filter((f) => !f.junk).map((f) => `${f.icon} ${f.name}`).join(', ')}. À noite aparecem mais bagres; na chuva, lagostins.</p>`;
@@ -398,7 +409,7 @@ function shopHtml() {
     const placed = S.decor.filter((x) => x.id === id).length;
     h += `<div class="card${locked ? ' locked' : ''}">
       <div class="ico">${dd.icon}</div>
-      <div class="info"><b>${dd.name}${placed ? ` <small>${placed} na fazenda</small>` : ''}</b><small>${dd.desc}</small></div>
+      <div class="info"><b>${dd.name}${placed ? ` <small>${placed} ${dd.indoor ? 'em casa' : 'na fazenda'}</small>` : ''}</b><small>${dd.desc}</small></div>
       <div class="btns">${locked
         ? `<span class="req">🔒 Nível ${dd.level}</span>`
         : `${inHand ? `<button class="btn" data-act="decorplace" data-id="${id}">Colocar (${inHand})</button>` : ''}
@@ -420,7 +431,7 @@ function shopHtml() {
     const mine = S.animals.filter((x) => x.type === id);
     const count = (f) => mine.filter(f).length;
     const herd = mine.length
-      ? `<small>No ${core.homeOf(mine[0])}: ♀ ${count((x) => x.sex !== 'm' && !core.isBaby(x))} · ♂ ${count((x) => x.sex === 'm' && !core.isBaby(x))}${count(core.isBaby) ? ` · ${a.babyIcon} ${count(core.isBaby)}` : ''}</small>`
+      ? `<small>Felicidade média: ${Math.round(mine.reduce((s, x) => s + (x.hap ?? 60), 0) / mine.length)}% (carinho todo dia e comida em dia)</small><small>No ${core.homeOf(mine[0])}: ♀ ${count((x) => x.sex !== 'm' && !core.isBaby(x))} · ♂ ${count((x) => x.sex === 'm' && !core.isBaby(x))}${count(core.isBaby) ? ` · ${a.babyIcon} ${count(core.isBaby)}` : ''}</small>`
       : '';
     h += `<div class="card${locked ? ' locked' : ''}">
       <div class="ico">${a.icon}</div>
@@ -460,6 +471,16 @@ function shopHtml() {
   h += '</div>';
 
   sec('melhorias', 1);
+  {
+    const lvl = S.house.lvl;
+    const cur = HOUSE[lvl - 1], next = HOUSE[lvl];
+    const locked = next && next.level > S.level;
+    h += `<h3>🏠 Casa</h3><div class="cards"><div class="card${locked ? ' locked' : ''}${next ? '' : ' hired'}">
+      <div class="ico">🏠</div>
+      <div class="info"><b>Reforma da casa <small>Nv ${lvl}/${HOUSE.length}: ${cur.name}</small></b>
+        <small>${next ? `Próxima: <b>${next.name}</b> — ${next.desc}` : 'Sua casa está completa!'} Entre em casa pela porta para ver e decorar.</small></div>
+      <div class="btns">${!next ? '<span class="req">✔ Máximo</span>' : locked ? `<span class="req">🔒 Nível ${next.level}</span>` : `<button class="btn alt" data-act="house" ${S.coins < next.cost ? 'disabled' : ''}>🪙${fmt(next.cost)}</button>`}</div></div></div>`;
+  }
   h += '<h3>🛠️ Melhorias</h3><div class="cards">';
   for (const [id, u] of Object.entries(UPGRADES)) {
     const l = S.up[id];
@@ -505,6 +526,7 @@ function barnHtml() {
   const reserve = S.animals.length;
   const total = ids.reduce((s, id) => s + core.price(id) * (id === 'trigo' ? Math.max(0, S.inv[id] - reserve) : S.inv[id]), 0);
   const canSell = core.built('celeiro');
+  const standOn = core.built('barraca');
   const used = core.stored(), cap = core.capacity();
   const storage = `<div class="storage">📦 Espaço: ${fmt(used)}/${fmt(cap)}${used >= cap ? ' <span class="down">cheio!</span>' : ''}<div class="progress"><i style="width:${Math.min(100, Math.round((used / cap) * 100))}%"></i></div><small class="hint">Cada 🧰 baú colocado na fazenda dá +${STORAGE.chest} de espaço.</small></div>`;
   let h = canSell
@@ -527,7 +549,7 @@ function barnHtml() {
       h += `<div class="card${top ? ' mutated' : ''}"${top ? ` style="--mc:${RARITY_COLOR[top.rarity]}"` : ''}>
         <div class="ico">${it.icon}</div>
         <div class="info"><b>${it.name} ${tags} ×${S.inv[id]}</b><small>🪙${core.fmt(core.price(id))} cada ${trend(it.base)}${top ? ` · <b class="mut-mult">×${it.mult.toLocaleString('pt-BR')}</b>` : ''}</small></div>
-        <div class="btns">${canSell ? `
+        <div class="btns">${standOn ? `<button class="btn ghost" data-act="stand" data-id="${id}" title="Pôr na barraca (até ${STAND.max})">⛺</button>` : ''}${canSell ? `
           <button class="btn ghost" data-act="sell" data-id="${id}" data-q="1">Vender 1</button>
           <button class="btn" data-act="sell" data-id="${id}" data-q="${S.inv[id]}">Tudo</button>` : ''}
         </div></div>`;
@@ -561,7 +583,53 @@ function barnHtml() {
     <div><b>${fmt(S.stats.births || 0)}</b>filhotes</div>
     <div><b>${fmt(S.stats.cheese || 0)}</b>queijos</div></div>`;
   out.numeros = h;
+  out.album = albumHtml();
+  out.barraca = standHtml();
   return out;
+}
+
+/** Barraca de beira de estrada: o que está exposto e a caixinha. */
+function standHtml() {
+  const S = core.S;
+  const b = BUILDINGS.barraca;
+  if (!core.built('barraca')) {
+    return `<div class="notice">⛺ <b>Barraca de beira de estrada</b> (nível ${b.level}): ${b.desc}<br>Construa na 🪚 Oficina → Obras (${costText(b.cost)}), de preferência perto de uma rua.
+      ${b.level <= S.level ? '<br><button class="btn alt" data-act="tab" data-id="oficina:obras">🏗️ Ver as obras</button>' : `<br><b>Libera no nível ${b.level}.</b>`}</div>`;
+  }
+  const st = S.stand;
+  let h = `<div class="barn-head"><div>Caixinha: <b>🪙${core.fmt(st.cash)}</b><small>Passe na barraca para pegar o dinheiro</small></div><div><small>Vende 1 a cada ~${STAND.every}s (mais devagar à noite)</small></div></div>`;
+  h += `<h3>⛺ Exposto <small>(${st.slots.length}/${STAND.slots} produtos · até ${STAND.max} de cada)</small></h3>`;
+  h += st.slots.length
+    ? `<div class="cards">${st.slots.map((x, k) => {
+      const it = core.itemInfo(x.id);
+      return `<div class="card"><div class="ico">${it.icon}</div><div class="info"><b>${it.name} ×${x.q}</b><small>🪙${core.fmt(sys.standPrice(x.id))} cada (mercado: 🪙${core.fmt(core.price(x.id))})</small></div>
+        <div class="btns"><button class="btn ghost" data-act="standtake" data-id="${k}">Recolher</button></div></div>`;
+    }).join('')}</div>`
+    : '<p class="empty-msg">Nada exposto. Use o botão ⛺ nos itens (aba 📦 Itens) para pôr produtos na barraca.</p>';
+  h += `<p class="hint">Quem passa paga ${Math.round((STAND.bonus - 1) * 100)}% a mais que o mercado do dia. A barraca continua vendendo com o jogo fechado.</p>`;
+  return h;
+}
+
+/** Álbum de coleções: uma página por tipo, com o que falta em "???" */
+function albumHtml() {
+  const S = core.S;
+  let h = '<p class="hint" style="margin:0 0 6px">Complete as páginas para ganhar prêmios. Cada coisa nova também dá um pouco de XP.</p>';
+  for (const [page, a] of Object.entries(ALBUM)) {
+    const ids = core.albumEntries(page);
+    const pg = S.album[page];
+    const got = ids.filter((id) => pg[id]).length;
+    const done = S.album.done[page];
+    h += `<h3>${a.icon} ${a.name} <small>${got}/${ids.length} · ${done ? '✔ completa' : `prêmio 🪙${core.fmt(a.reward)}`}</small></h3>
+      <div class="progress"><i style="width:${Math.round((got / ids.length) * 100)}%"></i></div>
+      <div class="album">${ids.map((id) => {
+        const it = core.albumInfo(page, id);
+        return pg[id]
+          ? `<div class="alb" title="${it.name} ×${pg[id]}"><span>${it.icon}</span><small>${it.name}</small></div>`
+          : '<div class="alb miss" title="Ainda não encontrado"><span>❔</span><small>???</small></div>';
+      }).join('')}</div>
+      ${done ? '' : `<p class="hint" style="margin:4px 0 0">${a.hint}</p>`}`;
+  }
+  return h;
 }
 
 const PLURAL = { tronco: 'troncos', madeira: 'tábuas', viga: 'vigas' };
@@ -635,6 +703,13 @@ function questHtml() {
       </div></div>`;
 }
 
+function festivalHtml() {
+  const f = sys.festivalToday();
+  if (f) return `<div class="notice">${f.icon} <b>Hoje é dia de ${f.name}!</b> ${f.desc}</div>`;
+  const n = sys.daysToFestival();
+  return `<p class="hint" style="margin:0 0 8px">🎊 Próxima festa da vila ${n === 1 ? 'amanhã' : `em ${n} dias`}.</p>`;
+}
+
 function fairHtml() {
   if (!sys.fairToday()) {
     const n = sys.daysToFair();
@@ -687,7 +762,7 @@ function ordersHtml() {
       </div></div>`;
   });
   h += '</div><p class="hint">Pedidos pagam bem mais do que o mercado. Recuse (✖) os que não te interessam. ✉️ A cartinha em cima do quadro de Pedidos avisa quando chega pedido novo.</p>';
-  return { pedidos: h, feira: fairHtml(), moradores: friendsHtml() };
+  return { pedidos: h, feira: festivalHtml() + fairHtml(), moradores: friendsHtml() };
 }
 
 // ================= Hotbar =================
@@ -890,6 +965,7 @@ function renderSoundMenu() {
   box.querySelector('#set-mute').checked = audioSettings.muted;
   renderJoyPick(box);
   box.querySelectorAll('[data-gfx]').forEach((b) => b.classList.toggle('active', b.dataset.gfx === gfxMode()));
+  box.querySelectorAll('[data-notify]').forEach((b) => b.classList.toggle('active', (b.dataset.notify === 'on') === notifyOn()));
   box.classList.toggle('muted', audioSettings.muted);
   setText(el.btnSound, '⚙️');
 }
@@ -916,7 +992,20 @@ function initSoundMenu() {
   });
   $('#settings-close').addEventListener('click', () => setSoundMenu(false));
   bindJoyPick(box);
+  initBackup();
   box.addEventListener('click', (e) => {
+    const nb = e.target.closest('[data-notify]');
+    if (nb) {
+      if (nb.dataset.notify === 'off') { setNotify(false); renderSoundMenu(); return; }
+      if (!canNotify()) { toast('🔕 Este navegador não mostra avisos. No celular, funciona melhor no Chrome.', 'bad'); return; }
+      Notification.requestPermission().then((p) => {
+        setNotify(p === 'granted');
+        if (p === 'granted') toast('🔔 Pronto! Quando o jogo estiver em segundo plano, você recebe um aviso quando a colheita ou os animais ficarem prontos.', 'good');
+        else toast('🔕 O navegador bloqueou os avisos. Libere as notificações deste site nas configurações do navegador.', 'bad');
+        renderSoundMenu();
+      });
+      return;
+    }
     const b = e.target.closest('[data-gfx]');
     if (!b) return;
     setGfx(b.dataset.gfx);
@@ -949,6 +1038,51 @@ function initSoundMenu() {
   };
   window.addEventListener('pointerdown', unlock, true);
   window.addEventListener('keydown', unlock, true);
+}
+
+// ================= Backup da fazenda =================
+function initBackup() {
+  const name = () => (core.S.char.name || 'fazenda').normalize('NFD').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'fazenda';
+  $('#save-export').addEventListener('click', () => {
+    const blob = new Blob([core.exportSave()], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `farmlife-${name()}-dia${core.dayOf(core.S.time)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    toast('💾 Backup baixado! Guarde o arquivo: com ele você continua a fazenda em outro aparelho.', 'good');
+  });
+  $('#save-copy').addEventListener('click', async () => {
+    const code = core.exportCode();
+    try {
+      await navigator.clipboard.writeText(code);
+      toast(`📋 Código copiado (${Math.round(code.length / 1024)} KB). Cole num lugar seguro, como uma nota ou mensagem para você mesmo.`, 'good');
+    } catch (e) {
+      toast('Não deu para copiar aqui. Use ⬇️ Baixar para salvar um arquivo.', 'bad');
+    }
+  });
+  const modal = $('#savebox');
+  const msg = (t, bad) => { const m = $('#savebox-msg'); m.textContent = t; m.classList.toggle('down', !!bad); };
+  $('#save-open').addEventListener('click', () => { setSoundMenu(false); $('#savebox-code').value = ''; msg(''); modal.hidden = false; });
+  $('#savebox-close').addEventListener('click', () => { modal.hidden = true; });
+  $('#savebox-file').addEventListener('click', () => $('#savebox-input').click());
+  $('#savebox-input').addEventListener('change', async (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    $('#savebox-code').value = await f.text();
+    msg(`📁 ${f.name} escolhido. Confira e toque em "Substituir minha fazenda".`);
+    e.target.value = '';
+  });
+  $('#savebox-ok').addEventListener('click', () => {
+    const text = $('#savebox-code').value;
+    if (!text.trim()) { msg('Escolha um arquivo ou cole um código primeiro.', true); return; }
+    if (!core.importSave(text)) { msg('🚫 Isso não parece um backup do FarmLife. Confira o arquivo ou o código.', true); sfx('error'); return; }
+    msg('✅ Fazenda carregada! Abrindo…');
+    sfx('level');
+    setTimeout(() => location.reload(), 500);
+  });
 }
 
 // ================= Modal =================
@@ -1054,6 +1188,10 @@ export function initUI(h) {
     else if (act === 'field') core.buyField(id);
     else if (act === 'bigfield') core.buyBigField();
     else if (act === 'rod') core.buyRod(+id);
+    else if (act === 'net') core.buyNet();
+    else if (act === 'house') core.upgradeHouse();
+    else if (act === 'stand') sys.standAdd(id, STAND.max);
+    else if (act === 'standtake') sys.standTake(+id);
     else if (act === 'axe') core.buyAxe(+id);
     else if (act === 'sawmill') core.buySawmill();
     else if (act === 'bench') core.setBench(id);
