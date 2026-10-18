@@ -1237,7 +1237,7 @@ function updateStars() {
 
 // ================= Casa por dentro =================
 const HOME_O = [0, 160]; // o cômodo fica longe do mapa (não aparece lá fora)
-let navIn = null, indoors = false, room = null, roomLvl = 0, outPos = null, roomLamp = null;
+let navIn = null, indoors = false, room = null, roomLvl = 0, outPos = null, roomLamp = null, doorProxy = null;
 /** Grade onde o personagem anda (a de dentro de casa, quando ele está lá). */
 const pnav = () => (indoors && navIn ? navIn : nav);
 
@@ -1263,9 +1263,9 @@ function buildRoom() {
   navIn.blockLine(ox - hw, oz - hd, ox + hw, oz - hd, pad);
   navIn.blockLine(ox - hw, oz - hd, ox - hw, oz + hd, pad);
   navIn.blockLine(ox + hw, oz - hd, ox + hw, oz + hd, pad);
-  navIn.blockLine(ox - hw, oz + hd, ox - 0.6, oz + hd, pad);
-  navIn.blockLine(ox + 0.6, oz + hd, ox + hw, oz + hd, pad);
-  navIn.blockRect(ox - hw - 1, oz + hd + 0.9, ox + hw + 1, oz + hd + 2.5); // a porta não leva a lugar nenhum
+  navIn.blockLine(ox - hw, oz + hd, ox - 0.75, oz + hd, pad);
+  navIn.blockLine(ox + 0.75, oz + hd, ox + hw, oz + hd, pad);
+  navIn.blockRect(ox - hw - 1, oz + hd + 0.9, ox + hw + 1, oz + hd + 2.5); // depois do vão da porta não tem chão
   for (const [x1, z1, x2, z2] of room.blocks) navIn.blockRect(ox + x1, oz + z1, ox + x2, oz + z2, PLAYER_R * 0.6);
   navIn.snapshot();
   decorKey = null; // móveis voltam a bloquear a grade nova
@@ -1273,11 +1273,23 @@ function buildRoom() {
   SPOTS.cama.point = [ox + room.bed[0], oz + room.bed[1]];
   SPOTS.porta.at = [ox, oz + hd];
   SPOTS.porta.point = [ox, oz + hd - 0.6];
+  // Placa "Sair" em cima da porta, e a porta dá para clicar/tocar
+  const sign = M.textSprite('🚪 Sair', 0.5);
+  sign.position.set(0, 1.5, hd + 0.1);
+  room.group.add(sign);
+  if (doorProxy) pickables.splice(pickables.indexOf(doorProxy), 1);
+  doorProxy = new THREE.Mesh(M.GEO.box, new THREE.MeshBasicMaterial({ visible: false }));
+  doorProxy.scale.set(1.6, 1.8, 1.4);
+  doorProxy.position.set(0, 0.9, hd);
+  doorProxy.userData.pick = { kind: 'spot', key: 'porta' };
+  room.group.add(doorProxy);
+  pickables.push(doorProxy);
   if (!roomLamp) { roomLamp = new THREE.PointLight(0xffd59a, 0, 14, 1.4); scene.add(roomLamp); }
   roomLamp.position.set(ox, 2.6, oz);
 }
 
 function enterHouse() {
+  if (indoors) return;
   if (riding || driving) { ui.toast('Desça antes de entrar em casa.'); return; }
   if (!room || roomLvl !== core.S.house.lvl) buildRoom();
   if (fishing.state !== 'idle') endFishing();
@@ -1298,7 +1310,8 @@ function exitHouse() {
   cancelJobs();
   indoors = false;
   decorKey = null;
-  const p = outPos || new THREE.Vector3(SPOTS.casa.point[0], 0, SPOTS.casa.point[1] + 0.5);
+  // Volta para onde entrou (ou para a porta da casa, se esse lugar não estiver no mapa)
+  const p = outPos && outPos.z < BOUNDS.maxZ ? outPos : new THREE.Vector3(SPOTS.casa.point[0], 0, SPOTS.casa.point[1] + 0.5);
   player.pos.set(p.x, 0, p.z + 0.4);
   player.heading = 0;
   camTarget.copy(player.pos);
@@ -1307,6 +1320,8 @@ function exitHouse() {
 }
 
 function updateHouse() {
+  // Andar pelo vão da porta também sai de casa
+  if (indoors && room && player.pos.z > HOME_O[1] + HOUSE[roomLvl - 1].size[1] / 2 + 0.2) { exitHouse(); return; }
   if (indoors && roomLvl !== core.S.house.lvl) {
     // Reformou com o personagem dentro: remonta e põe ele na porta
     buildRoom();

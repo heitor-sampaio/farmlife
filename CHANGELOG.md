@@ -2,6 +2,11 @@
 
 Todas as mudanças do jogo, da mais nova para a mais antiga. Este arquivo é gerado a partir de `js/changelog.js` por `node tools/gerar-versao.mjs`.
 
+## v5.0.1 — Sair de casa (18/10/2026)
+
+- 🚪 Ficou fácil sair de casa: a porta tem a placa "Sair", dá para clicar ou tocar nela, e também é só andar pelo vão da porta.
+- 🏠 Corrigido: em alguns casos, ao sair de casa o personagem ficava parado no escuro em vez de voltar para a frente da casa.
+
 ## v5.0.0 — A vila do outro lado do rio (17/10/2026)
 
 - 🌉 O mapa cresceu para o sul: um rio atravessa a fazenda e, do outro lado da ponte, fica a vila, com casinhas, praça com fonte, capela e feirinha.
